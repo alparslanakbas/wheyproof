@@ -1,0 +1,2337 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* @phosphor-icons/web paketinin kendi CSS'i yerine bilinçli olarak
+   yerel bir kopyası kullanılıyor (vendor/phosphor/) — paketin orijinal
+   @font-face'i font-display:block + TTF/WOFF/SVG fallback'leri
+   içeriyordu: font yüklenene kadar TÜM ikonlar (header, ürün
+   kartları, menüler) görünmez kalıyordu, ayrıca gereksiz SVG format
+   referansı prod'da bir bot isteğinde Angular router'a garip bir
+   path (`.../media/Phosphor-....svg`) olarak düşüp NG04002 hatasına
+   yol açtı. Yerel kopyada @font-face sadece WOFF2 + font-display:swap
+   (2026'da hedef kitlenin tamamı modern tarayıcı, fallback formatlara
+   gerek yok), glyph class tanımları (`.ph::before{...}`) değişmeden
+   korunuyor. */
+@import "./vendor/phosphor/regular.css";
+@import "./vendor/phosphor/fill.css";
+
+/* Koyu mod: <html> elemanına "dark" class'ı eklenince devreye girer
+   (ThemeService yönetiyor) — sistem tercihini otomatik takip etmez,
+   çünkü "sistem" seçeneğini de biz JS tarafında class ekleyerek uyguluyoruz. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Ana marka rengi: canlı ama yumuşak bir yeşil — sağlık/vitalite hissi,
+     gözü yormayan bir doygunlukta (saf/neon yeşil değil). */
+  --color-brand-50: #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-200: #a7f3d0;
+  --color-brand-300: #6ee7b7;
+  --color-brand-400: #34d399;
+  --color-brand-500: #10b981;
+  --color-brand-600: #059669;
+  --color-brand-700: #047857;
+  --color-brand-800: #065f46;
+  --color-brand-900: #064e3b;
+  --color-brand-950: #022c22;
+
+  /* Vurgu rengi: indirim rozetleri / CTA'lar için sıcak turuncu — dikkat
+     çekiyor ama saf kırmızı kadar "alarm" hissi vermiyor. */
+  --color-accent-50: #fff7ed;
+  --color-accent-100: #ffedd5;
+  --color-accent-400: #fb923c;
+  --color-accent-500: #f97316;
+  --color-accent-600: #ea580c;
+  --color-accent-700: #c2410c;
+  --color-accent-950: #431407;
+}
+
+body {
+  @apply m-0 bg-stone-50 text-stone-800 antialiased transition-colors duration-200 dark:bg-stone-950 dark:text-stone-200;
+  font-family: var(--font-sans);
+}
+
+/* Kategori ve hesaplama indeksleri — seçilen "Utility Command Center"
+   yönü. İki sayfa aynı arama/sekme bandını, renk tonlarını ve responsive
+   yoğunluğu paylaşır; veri ve navigasyon mevcut Angular akışında kalır. */
+.pa-directory-main {
+  width: min(calc(100% - 40px), 1380px);
+  margin-inline: auto;
+  padding-block: 32px 64px;
+}
+
+.pa-directory-breadcrumb {
+  margin-bottom: 10px;
+  color: var(--noc-neutral-500);
+  font-size: 12px;
+}
+
+.pa-directory-title {
+  margin: 0;
+  color: var(--noc-text);
+  font-size: clamp(34px, 3vw, 46px);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.04;
+}
+
+.pa-directory-lead {
+  max-width: 730px;
+  margin-top: 10px;
+  color: var(--noc-neutral-300);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.pa-directory-toolbar,
+.pa-calculator-toolbar {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  gap: 18px;
+  margin-top: 26px;
+  padding: 12px 16px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 14px;
+  background: var(--noc-card);
+  box-shadow: var(--noc-shadow-sm);
+}
+
+.pa-directory-search {
+  display: flex;
+  width: 250px;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 13px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 10px;
+  background: var(--noc-surface);
+  color: var(--noc-neutral-500);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.pa-directory-search:focus-within {
+  border-color: var(--noc-accent);
+  box-shadow: 0 0 0 4px var(--pa-focus);
+}
+
+.pa-directory-search i {
+  font-size: 17px;
+}
+
+.pa-directory-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--noc-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.pa-directory-search input::placeholder {
+  color: var(--noc-neutral-500);
+}
+
+.pa-directory-filters,
+.pa-calculator-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pa-directory-filter,
+.pa-calculator-tabs button {
+  min-height: 40px;
+  padding-inline: 16px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--noc-neutral-300);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.pa-directory-filter:hover,
+.pa-calculator-tabs button:hover {
+  border-color: color-mix(in srgb, var(--noc-accent) 55%, var(--noc-divider));
+  color: var(--noc-text);
+}
+
+.pa-directory-filter.is-active,
+.pa-calculator-tabs button.is-active {
+  border-color: var(--noc-accent);
+  background: var(--noc-accent);
+  color: var(--noc-on-accent);
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--noc-accent) 24%, transparent);
+}
+
+.pa-directory-trust,
+.pa-calculator-trust {
+  display: grid;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--noc-neutral-500);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pa-directory-trust span,
+.pa-calculator-trust span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pa-directory-trust i,
+.pa-calculator-trust i {
+  color: var(--noc-accent);
+  font-size: 15px;
+}
+
+.pa-directory-state {
+  display: flex;
+  min-height: 220px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 18px;
+  border: 1px dashed var(--noc-divider);
+  border-radius: 14px;
+  background: var(--noc-card);
+  color: var(--noc-neutral-500);
+  text-align: center;
+}
+
+.pa-directory-empty {
+  grid-column: 1 / -1;
+}
+
+.pa-category-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.pa-category-directory-card,
+.pa-body-calculator-card,
+.pa-dosage-calculator-card {
+  --pa-tone: #6556e8;
+  --pa-tone-soft: color-mix(in srgb, var(--pa-tone) 13%, transparent);
+  border: 1px solid var(--noc-divider);
+  background: var(--noc-card);
+  color: var(--noc-text);
+  box-shadow: var(--noc-shadow-sm);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+[data-tone="violet"] { --pa-tone: #8e7ff5; }
+[data-tone="mint"] { --pa-tone: #1ea775; }
+[data-tone="blue"] { --pa-tone: #568fed; }
+[data-tone="indigo"] { --pa-tone: #8c7ee0; }
+[data-tone="cyan"] { --pa-tone: #1b9fc5; }
+[data-tone="rose"] { --pa-tone: #ec5572; }
+[data-tone="orange"] { --pa-tone: #e88338; }
+
+.pa-category-directory-card {
+  position: relative;
+  display: flex;
+  min-height: 202px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 22px;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.pa-category-directory-card:hover,
+.pa-body-calculator-card:hover,
+.pa-dosage-calculator-card:hover {
+  border-color: color-mix(in srgb, var(--pa-tone) 65%, var(--noc-divider));
+  box-shadow: var(--noc-shadow-md);
+  transform: translateY(-2px);
+}
+
+.pa-category-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.pa-category-icon-well,
+.pa-calculator-icon-well {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--pa-tone) 20%, transparent);
+  border-radius: 12px;
+  background: var(--pa-tone-soft);
+  color: var(--pa-tone);
+}
+
+.pa-category-icon-well {
+  width: 54px;
+  height: 54px;
+  font-size: 25px;
+}
+
+.pa-category-directory-card h2 {
+  margin: 3px 0 0;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.pa-category-directory-card p {
+  display: -webkit-box;
+  margin: 12px 0 0;
+  color: var(--noc-neutral-300);
+  font-size: 13px;
+  line-height: 1.58;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+
+.pa-category-count {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, var(--pa-tone) 38%, var(--noc-divider));
+  border-radius: 7px;
+  background: var(--pa-tone-soft);
+  color: var(--pa-tone);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.pa-category-card-action,
+.pa-calculator-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pa-tone);
+  font-size: 20px;
+  transition: transform 160ms ease;
+}
+
+.pa-category-card-action {
+  align-self: flex-end;
+  margin-top: 12px;
+}
+
+.pa-category-directory-card:hover .pa-category-card-action,
+.pa-body-calculator-card:hover .pa-calculator-arrow,
+.pa-dosage-calculator-card:hover .pa-calculator-arrow {
+  transform: translateX(3px);
+}
+
+.pa-calculator-toolbar {
+  justify-content: space-between;
+}
+
+.pa-calculator-tabs {
+  width: min(460px, 50%);
+  padding: 4px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 11px;
+  background: var(--noc-surface);
+}
+
+.pa-calculator-tabs button {
+  flex: 1 1 0;
+  border-color: transparent;
+}
+
+.pa-directory-section-title {
+  scroll-margin-top: 20px;
+  margin: 30px 0 12px;
+  color: var(--noc-neutral-500);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.pa-body-calculator-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pa-body-calculator-card {
+  position: relative;
+  display: flex;
+  min-height: 218px;
+  flex-direction: column;
+  padding: 18px;
+  border-radius: 14px;
+}
+
+.pa-calculator-icon-well {
+  width: 46px;
+  height: 46px;
+  font-size: 23px;
+}
+
+.pa-body-calculator-card h3,
+.pa-dosage-calculator-card h3 {
+  margin: 15px 0 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+.pa-body-calculator-card p,
+.pa-dosage-calculator-card p {
+  margin: 8px 0 0;
+  color: var(--noc-neutral-500);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.pa-body-calculator-card .pa-calculator-arrow {
+  margin-top: auto;
+  align-self: flex-start;
+  padding-top: 14px;
+}
+
+.pa-dosage-calculator-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pa-dosage-calculator-card {
+  display: grid;
+  min-height: 88px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+
+.pa-dosage-calculator-card .pa-calculator-icon-well {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  font-size: 20px;
+}
+
+.pa-dosage-copy {
+  min-width: 0;
+}
+
+.pa-dosage-calculator-card h3 {
+  margin: 0;
+}
+
+.pa-dosage-calculator-card p {
+  display: -webkit-box;
+  margin-top: 4px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+
+@media (max-width: 1080px) {
+  .pa-directory-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .pa-directory-trust {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-left: 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--noc-divider);
+  }
+
+  .pa-category-directory-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pa-body-calculator-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .pa-directory-main {
+    width: min(calc(100% - 24px), 1380px);
+    padding-block: 22px 88px;
+  }
+
+  .pa-directory-breadcrumb {
+    margin-bottom: 8px;
+    font-size: 10px;
+  }
+
+  .pa-directory-title {
+    font-size: 30px;
+    line-height: 1.08;
+  }
+
+  .pa-directory-lead {
+    margin-top: 7px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .pa-directory-toolbar,
+  .pa-calculator-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 9px;
+    margin-top: 18px;
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .pa-directory-search {
+    width: 100%;
+  }
+
+  .pa-directory-filters {
+    gap: 5px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .pa-directory-filters::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pa-directory-filter {
+    min-height: 36px;
+    padding-inline: 12px;
+    font-size: 11px;
+  }
+
+  .pa-directory-trust,
+  .pa-calculator-trust {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-left: 0;
+    padding-top: 8px;
+    border-top: 1px solid var(--noc-divider);
+    font-size: 9px;
+    white-space: normal;
+  }
+
+  .pa-category-directory-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .pa-category-directory-card {
+    min-height: 132px;
+    padding: 12px;
+    border-radius: 11px;
+  }
+
+  .pa-category-directory-card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .pa-category-card-head {
+    gap: 10px;
+  }
+
+  .pa-category-icon-well {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    font-size: 17px;
+  }
+
+  .pa-category-directory-card h2 {
+    margin-top: 1px;
+    font-size: 12px;
+    line-height: 1.22;
+  }
+
+  .pa-category-directory-card p {
+    display: none;
+  }
+
+  .pa-category-count {
+    margin-top: 5px;
+    padding: 2px 5px;
+    border: 0;
+    background: transparent;
+    font-size: 9px;
+  }
+
+  .pa-category-card-head .flex.items-start {
+    display: block;
+  }
+
+  .pa-category-card-action {
+    margin-top: 8px;
+    font-size: 16px;
+  }
+
+  .pa-calculator-tabs {
+    width: 100%;
+  }
+
+  .pa-calculator-tabs button {
+    min-height: 38px;
+    padding-inline: 8px;
+    font-size: 11px;
+  }
+
+  .pa-directory-section-title {
+    margin-top: 22px;
+    font-size: 9px;
+  }
+
+  .pa-body-calculator-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .pa-body-calculator-card {
+    min-height: 132px;
+    padding: 12px;
+    border-radius: 11px;
+  }
+
+  .pa-calculator-icon-well {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    font-size: 16px;
+  }
+
+  .pa-body-calculator-card h3 {
+    margin-top: 10px;
+    font-size: 11px;
+  }
+
+  .pa-body-calculator-card p {
+    display: none;
+  }
+
+  .pa-body-calculator-card .pa-calculator-arrow {
+    padding-top: 6px;
+    font-size: 14px;
+  }
+
+  .pa-dosage-calculator-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .pa-dosage-calculator-card {
+    min-height: 58px;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 9px;
+  }
+
+  .pa-dosage-calculator-card .pa-calculator-icon-well {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    font-size: 15px;
+  }
+
+  .pa-dosage-calculator-card h3 {
+    font-size: 11px;
+  }
+
+  .pa-dosage-calculator-card p {
+    font-size: 9px;
+  }
+
+  .pa-dosage-calculator-card .pa-calculator-arrow {
+    font-size: 14px;
+  }
+}
+
+/* Rehber indeksi — seçilen "Learning Paths" yönü. Sayfa görsel bir blog
+   vitrini yerine arama, başlangıç rotaları ve gerçek makale verisini öne
+   çıkaran bir içerik merkezi olarak davranır. */
+.pa-guide-hub-main {
+  width: min(calc(100% - 48px), 1380px);
+  margin-inline: auto;
+  padding-block: 24px 64px;
+}
+
+.pa-guide-hub-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(340px, 0.9fr);
+  align-items: start;
+  gap: 56px;
+}
+
+.pa-guide-breadcrumb {
+  margin-bottom: 12px;
+  color: var(--noc-neutral-500);
+  font-size: 12px;
+}
+
+.pa-guide-breadcrumb a:hover {
+  color: var(--noc-accent);
+}
+
+.pa-guide-hub-heading h1 {
+  margin: 0;
+  color: var(--noc-text);
+  font-size: clamp(36px, 3vw, 42px);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+}
+
+.pa-guide-hub-heading > p {
+  margin-top: 10px;
+  color: var(--noc-neutral-500);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.pa-guide-search {
+  display: flex;
+  width: min(100%, 500px);
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 22px;
+  padding-inline: 14px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 10px;
+  background: var(--noc-card);
+  color: var(--noc-neutral-500);
+  box-shadow: var(--noc-shadow-sm);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.pa-guide-search:focus-within {
+  border-color: var(--noc-accent);
+  box-shadow: 0 0 0 4px var(--pa-focus);
+}
+
+.pa-guide-search > i {
+  font-size: 18px;
+}
+
+.pa-guide-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--noc-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.pa-guide-search input::placeholder {
+  color: var(--noc-neutral-500);
+}
+
+.pa-guide-search button {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--noc-neutral-500);
+  cursor: pointer;
+}
+
+.pa-guide-search button:hover {
+  background: var(--noc-surface);
+  color: var(--noc-text);
+}
+
+.pa-guide-utilities {
+  display: grid;
+  gap: 12px;
+}
+
+.pa-guide-utilities > a,
+.pa-guide-search-result-list > a,
+.pa-guide-recent-list > a,
+.pa-guide-path-card,
+.pa-guide-topic-column {
+  --pa-tone: #7968f2;
+  --pa-tone-soft: color-mix(in srgb, var(--pa-tone) 12%, transparent);
+}
+
+.pa-guide-hub-main [data-tone="violet"] { --pa-tone: #7a5df1; }
+.pa-guide-hub-main [data-tone="mint"] { --pa-tone: #15a77b; }
+.pa-guide-hub-main [data-tone="blue"] { --pa-tone: #3987ed; }
+.pa-guide-hub-main [data-tone="rose"] { --pa-tone: #ed4b72; }
+.pa-guide-hub-main [data-tone="orange"] { --pa-tone: #ee823d; }
+
+.pa-guide-utilities > a {
+  display: grid;
+  min-height: 78px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 12px;
+  background: var(--noc-card);
+  color: var(--noc-text);
+  box-shadow: var(--noc-shadow-sm);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.pa-guide-utilities > a:hover {
+  border-color: color-mix(in srgb, var(--pa-tone) 50%, var(--noc-divider));
+  box-shadow: var(--noc-shadow-md);
+  transform: translateY(-1px);
+}
+
+.pa-guide-utilities > a > span:nth-child(2) {
+  display: grid;
+  gap: 4px;
+}
+
+.pa-guide-utilities strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pa-guide-utilities small {
+  color: var(--noc-neutral-500);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pa-guide-utilities > a > i {
+  color: var(--pa-tone);
+  font-size: 20px;
+}
+
+.pa-guide-icon-well,
+.pa-guide-mini-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--pa-tone) 18%, transparent);
+  background: var(--pa-tone-soft);
+  color: var(--pa-tone);
+}
+
+.pa-guide-icon-well {
+  width: 46px;
+  height: 46px;
+  border-radius: 11px;
+  font-size: 21px;
+}
+
+.pa-guide-mini-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  font-size: 14px;
+}
+
+.pa-guide-section {
+  margin-top: 20px;
+}
+
+.pa-guide-section + .pa-guide-section {
+  margin-top: 8px;
+}
+
+.pa-guide-section-heading {
+  display: flex;
+  min-height: 0;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.pa-guide-section-heading h2 {
+  margin: 0;
+  color: var(--noc-text);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.pa-guide-section-heading p {
+  margin-top: 2px;
+  color: var(--noc-neutral-500);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.pa-guide-section-heading button {
+  border: 0;
+  background: transparent;
+  color: var(--noc-accent);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pa-guide-path-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.pa-guide-path-card {
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--pa-tone) 28%, var(--noc-divider));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--pa-tone) 3%, var(--noc-card));
+  box-shadow: var(--noc-shadow-sm);
+}
+
+.pa-guide-path-title {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.pa-guide-path-title .pa-guide-icon-well {
+  width: 42px;
+  height: 42px;
+  border-color: var(--pa-tone);
+  background: var(--pa-tone);
+  color: #fff;
+}
+
+.pa-guide-path-title h3 {
+  margin: 0;
+  color: var(--noc-text);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.pa-guide-path-title p {
+  margin-top: 3px;
+  color: var(--noc-neutral-500);
+  font-size: 11px;
+}
+
+.pa-guide-path-links {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.pa-guide-path-links a {
+  display: grid;
+  min-height: 34px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 9px;
+  background: var(--noc-card);
+  color: var(--noc-text);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.25;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.pa-guide-path-links a:hover {
+  border-color: color-mix(in srgb, var(--pa-tone) 45%, var(--noc-divider));
+  background: color-mix(in srgb, var(--pa-tone) 6%, var(--noc-card));
+}
+
+.pa-guide-path-links a > i {
+  color: var(--noc-neutral-500);
+  font-size: 14px;
+}
+
+.pa-guide-recent-list,
+.pa-guide-search-result-list {
+  overflow: hidden;
+  border: 1px solid var(--noc-divider);
+  border-radius: 13px;
+  background: var(--noc-card);
+  box-shadow: var(--noc-shadow-sm);
+}
+
+.pa-guide-recent-list > a,
+.pa-guide-search-result-list > a {
+  display: grid;
+  min-height: 58px;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--noc-divider);
+  color: var(--noc-text);
+  transition: background 160ms ease;
+}
+
+.pa-guide-recent-list > a:last-child,
+.pa-guide-search-result-list > a:last-child {
+  border-bottom: 0;
+}
+
+.pa-guide-recent-list > a:hover,
+.pa-guide-search-result-list > a:hover {
+  background: color-mix(in srgb, var(--pa-tone) 5%, transparent);
+}
+
+.pa-guide-recent-list > a.is-featured {
+  min-height: 62px;
+}
+
+.pa-guide-recent-copy,
+.pa-guide-search-result-copy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.pa-guide-recent-copy strong,
+.pa-guide-search-result-copy strong {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.pa-guide-recent-list > a.is-featured .pa-guide-recent-copy strong {
+  font-size: 16px;
+}
+
+.pa-guide-recent-copy small,
+.pa-guide-search-result-copy small {
+  display: -webkit-box;
+  color: var(--noc-neutral-500);
+  font-size: 11px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+
+.pa-guide-recent-date,
+.pa-guide-search-result-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--noc-neutral-500);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.pa-guide-recent-list > a > i,
+.pa-guide-search-result-list > a > i {
+  color: var(--noc-neutral-500);
+  font-size: 17px;
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.pa-guide-recent-list > a:hover > i,
+.pa-guide-search-result-list > a:hover > i {
+  color: var(--pa-tone);
+  transform: translateX(3px);
+}
+
+.pa-guide-topic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.pa-guide-topic-column {
+  overflow: hidden;
+  border: 1px solid var(--noc-divider);
+  border-radius: 12px;
+  background: var(--noc-card);
+  box-shadow: var(--noc-shadow-sm);
+}
+
+.pa-guide-topic-column a {
+  --pa-tone: #7968f2;
+  --pa-tone-soft: color-mix(in srgb, var(--pa-tone) 12%, transparent);
+  display: grid;
+  min-height: 38px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--noc-divider);
+  color: var(--noc-text);
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.25;
+  transition: background 160ms ease;
+}
+
+.pa-guide-topic-column a:last-child {
+  border-bottom: 0;
+}
+
+.pa-guide-topic-column a:hover {
+  background: color-mix(in srgb, var(--pa-tone) 5%, transparent);
+}
+
+.pa-guide-topic-column a > i {
+  color: var(--noc-neutral-500);
+  font-size: 15px;
+}
+
+.pa-guide-topic-column a .pa-guide-mini-icon {
+  border-color: var(--pa-tone);
+  background: var(--pa-tone);
+  color: #fff;
+}
+
+.pa-guide-disclaimer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 10px;
+  background: var(--noc-card);
+  color: var(--noc-neutral-500);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pa-guide-disclaimer > i {
+  flex: 0 0 auto;
+  color: var(--noc-accent);
+  font-size: 16px;
+}
+
+.pa-guide-disclaimer strong {
+  color: var(--noc-text);
+}
+
+.pa-guide-state {
+  display: flex;
+  min-height: 220px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 30px;
+  border: 1px dashed var(--noc-divider);
+  border-radius: 13px;
+  background: var(--noc-card);
+  color: var(--noc-neutral-500);
+  text-align: center;
+}
+
+.pa-guide-empty {
+  min-height: 150px;
+  margin-top: 0;
+}
+
+@media (max-width: 1080px) {
+  .pa-guide-hub-intro {
+    grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.9fr);
+    gap: 28px;
+  }
+
+  .pa-guide-path-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pa-guide-path-card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .pa-guide-hub-main {
+    width: min(calc(100% - 24px), 1380px);
+    padding-block: 22px 94px;
+  }
+
+  .pa-guide-hub-intro {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .pa-guide-breadcrumb {
+    margin-bottom: 8px;
+    font-size: 10px;
+  }
+
+  .pa-guide-hub-heading h1 {
+    max-width: 330px;
+    font-size: 31px;
+    line-height: 1.08;
+  }
+
+  .pa-guide-hub-heading > p {
+    margin-top: 7px;
+    font-size: 13px;
+  }
+
+  .pa-guide-search {
+    width: 100%;
+    min-height: 46px;
+    margin-top: 16px;
+  }
+
+  .pa-guide-utilities {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .pa-guide-utilities > a {
+    min-height: 92px;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 9px;
+    padding: 12px;
+  }
+
+  .pa-guide-utilities > a > i {
+    display: none;
+  }
+
+  .pa-guide-utilities strong {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .pa-guide-utilities small {
+    font-size: 9px;
+  }
+
+  .pa-guide-utilities .pa-guide-icon-well {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    font-size: 16px;
+  }
+
+  .pa-guide-section {
+    margin-top: 24px;
+  }
+
+  .pa-guide-section + .pa-guide-section {
+    margin-top: 24px;
+  }
+
+  .pa-guide-section-heading {
+    min-height: 34px;
+    margin-bottom: 9px;
+  }
+
+  .pa-guide-section-heading h2 {
+    font-size: 17px;
+  }
+
+  .pa-guide-section-heading p {
+    font-size: 10px;
+  }
+
+  .pa-guide-path-grid,
+  .pa-guide-topic-grid {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .pa-guide-path-card:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+
+  .pa-guide-path-card {
+    padding: 13px;
+    border-radius: 11px;
+  }
+
+  .pa-guide-path-title .pa-guide-icon-well {
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    font-size: 17px;
+  }
+
+  .pa-guide-path-title h3 {
+    font-size: 12px;
+  }
+
+  .pa-guide-path-title p {
+    font-size: 9.5px;
+  }
+
+  .pa-guide-path-links {
+    margin-top: 11px;
+  }
+
+  .pa-guide-path-links a {
+    min-height: 42px;
+    font-size: 10.5px;
+  }
+
+  .pa-guide-recent-list > a,
+  .pa-guide-search-result-list > a,
+  .pa-guide-recent-list > a.is-featured {
+    min-height: 66px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .pa-guide-recent-list .pa-guide-icon-well,
+  .pa-guide-search-result-list .pa-guide-icon-well {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    font-size: 17px;
+  }
+
+  .pa-guide-recent-copy strong,
+  .pa-guide-search-result-copy strong,
+  .pa-guide-recent-list > a.is-featured .pa-guide-recent-copy strong {
+    font-size: 11px;
+  }
+
+  .pa-guide-recent-copy small,
+  .pa-guide-search-result-copy small {
+    font-size: 9px;
+  }
+
+  .pa-guide-recent-date,
+  .pa-guide-search-result-date {
+    display: none;
+  }
+
+  .pa-guide-topic-column a {
+    min-height: 46px;
+    font-size: 10.5px;
+  }
+
+  .pa-guide-disclaimer {
+    align-items: flex-start;
+    font-size: 9.5px;
+  }
+}
+
+/* Nocturne - yeni tasarim sistemi tokenlari (Faz 1: sadece ana sayfa).
+   Mevcut --color-brand-* ve --color-accent-* tokenlarina (yukaridaki @theme)
+   bilerek dokunulmadi - henuz yeniden tasarlanmayan diger sayfalar hala
+   onlari kullaniyor. Bunlar Tailwind @theme'e degil, ham CSS custom
+   property olarak tanimlaniyor (nocturne-styles.css'in "var(--*) olarak
+   kullan" ilkesiyle birebir) ve yeni markette bg-[var(--noc-surface)]
+   gibi arbitrary-value soz dizimiyle kullanilacak. Degerler Nocturne'nin
+   varsayilani koyu - acik tema override'i ThemeService'in .dark class'ini
+   kaldirdigi durumda devreye giriyor. Bu, siteninkinin tersi bir kural:
+   Nocturne'de koyu varsayilan, site genelinde acik varsayilan. */
+:root {
+  color-scheme: dark;
+  --noc-bg: #0e1122;
+  --noc-surface: #181c31;
+  --noc-card: #1d2238;
+  --noc-text: #f5f6fb;
+  --noc-accent: #9b8cff;
+  /* Accent dolgulu bir ogenin (aktif sekme gibi) uzerindeki metin.
+     Koyu temada accent acik bir lila oldugu icin beyaz metin 2.76'da
+     kaliyordu; koyu murekkep 6.77 veriyor. Acik temada accent koyu
+     mor oldugundan orada beyaz dogru secim. */
+  --noc-on-accent: #16182a;
+
+  --noc-accent-100: #f5f4ff;
+  --noc-accent-200: #e7e5fe;
+  --noc-accent-300: #d2cefd;
+  --noc-accent-400: #b5abfc;
+  --noc-accent-500: #968ae0;
+  --noc-accent-600: #796cbf;
+  --noc-accent-700: #5d5294;
+  --noc-accent-800: #423a6a;
+  --noc-accent-900: #2b2741;
+
+  --noc-neutral-100: #f3f5fe;
+  --noc-neutral-200: #e4e7f5;
+  --noc-neutral-300: #cfd3e5;
+  --noc-neutral-400: #b2b6ca;
+  --noc-neutral-500: #9397ab;
+  /* Koyu temadaki sonuk metin rengi. #75798c iken kart zemininde (#1d2238)
+     kontrast 3.63'te kaliyordu, WCAG AA icin 4.5 gerekiyor; bu deger
+     kartta 4.59, sayfa zemininde 5.48 veriyor. */
+  --noc-neutral-600: #868a9e;
+  --noc-neutral-700: #595d6c;
+  --noc-neutral-800: #3f424d;
+  --noc-neutral-900: #292b31;
+
+  --noc-section: #171b3f;
+  --noc-section-glow: #292f69;
+
+  --pa-hero: #0b0f27;
+  --pa-hero-elevated: #171c3b;
+  --pa-hero-border: rgba(180, 188, 232, 0.18);
+  --pa-positive: #75d49d;
+  --pa-positive-bg: rgba(45, 139, 91, 0.18);
+  --pa-campaign: #f5ba63;
+  --pa-campaign-bg: rgba(178, 112, 27, 0.18);
+  --pa-danger: #ff8e9e;
+  --pa-focus: rgba(155, 140, 255, 0.42);
+
+  --noc-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+  --noc-shadow-sm: 0 0 0 1px #3f424d;
+  --noc-shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgba(0, 0, 0, 0.55);
+  --noc-shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgba(0, 0, 0, 0.65);
+
+  /* Nocturne'nin 0.7× yoğunluk skalası — Tailwind'in standart p-1/2/3/4/6/8
+     adımlarıyla (4/8/12/16/24/32px) AYNI oranda, sadece 0.7 kat küçük. Bu
+     değişkeni bir kapsayıcıda override etmek o kapsayıcı içindeki TÜM
+     p-, m- ve gap- utility'lerini otomatik 0.7×'e çeker (yeni token icat
+     etmeye gerek yok). Ana sayfa kökünde `.noc-shell` ile uygulanacak.
+     Not: siteye özgü bir gövde padding'i olmadığı için genel Tailwind
+     `--spacing` değeri dışarıda etkilenmiyor. */
+  --noc-spacing: 2.8px;
+}
+
+:root:not(.dark) {
+  color-scheme: light;
+  --noc-bg: #f6f7fb;
+  --noc-surface: #ffffff;
+  --noc-card: #ffffff;
+  --noc-text: #171a2e;
+  --noc-accent: #6556e8;
+  --noc-on-accent: #ffffff;
+  --noc-accent-100: #f2f0ff;
+  --noc-accent-200: #e5e0ff;
+  --noc-accent-300: #c8bfff;
+  --noc-accent-400: #9f91ff;
+  --noc-accent-500: #7c6cf2;
+  --noc-accent-600: #6556e8;
+  --noc-accent-700: #5042c6;
+  --noc-accent-800: #3d3496;
+  --noc-accent-900: #29245f;
+  --noc-neutral-100: #f7f8fc;
+  --noc-neutral-200: #eef0f6;
+  /* Eski sayfalar gövde metninde neutral-300 kullanıyor; açık temada
+     bu token da okunabilir bir metin rengi olmak zorunda. */
+  --noc-neutral-300: #535a70;
+  --noc-neutral-400: #646b80;
+  --noc-neutral-500: #70768a;
+  --noc-neutral-600: #60667a;
+  --noc-neutral-700: #484e60;
+  --noc-neutral-800: #303548;
+  --noc-neutral-900: #202438;
+  --noc-section: #171b3f;
+  --noc-section-glow: #292f69;
+  --pa-positive: #16794b;
+  --pa-positive-bg: #e8f7ef;
+  --pa-campaign: #9a5d0b;
+  --pa-campaign-bg: #fff4df;
+  --pa-danger: #b52e42;
+  --pa-focus: rgba(101, 86, 232, 0.24);
+  --noc-divider: #e4e6ef;
+  --noc-shadow-sm: 0 1px 2px rgba(20, 24, 48, 0.04), 0 0 0 1px rgba(36, 42, 73, 0.09);
+  --noc-shadow-md: 0 10px 30px rgba(20, 24, 48, 0.1), 0 0 0 1px rgba(36, 42, 73, 0.08);
+  --noc-shadow-lg: 0 24px 70px rgba(20, 24, 48, 0.16), 0 0 0 1px rgba(36, 42, 73, 0.08);
+}
+
+.noc-shell {
+  --spacing: var(--noc-spacing);
+}
+
+/* ProteinAvcısı 2026 hibrit arayüzü. Koyu marka alanı her iki temada
+   sabit; alttaki ticaret/içerik yüzeyleri kullanıcı tercihine uyuyor. */
+.pa-topbar,
+.pa-hero-zone {
+  --noc-text: #f7f7fc;
+  --noc-neutral-300: #c7cbe0;
+  --noc-neutral-500: #9399b7;
+  --noc-divider: rgba(188, 194, 231, 0.17);
+  color: var(--noc-text);
+  background: var(--pa-hero);
+}
+
+.pa-topbar {
+  position: relative;
+  z-index: 35;
+  border-bottom: 1px solid var(--noc-divider);
+}
+
+.pa-footer {
+  --noc-surface: rgba(255, 255, 255, 0.07);
+  --noc-card: rgba(255, 255, 255, 0.07);
+  --noc-accent: #a89dff;
+  --noc-on-accent: #16182a;
+  --noc-neutral-500: #aeb4ce;
+  color: #f7f7fc;
+  background: #0b0f27;
+}
+
+.pa-container {
+  width: min(100% - 40px, 1380px);
+  margin-inline: auto;
+}
+
+.pa-nav-link {
+  position: relative;
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  color: inherit;
+  transition: color 160ms ease;
+}
+
+.pa-nav-link:hover,
+.pa-nav-link.is-active {
+  color: #fff;
+}
+
+.pa-nav-link.is-active::after {
+  position: absolute;
+  right: 0;
+  bottom: -20px;
+  left: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: #8f80ff;
+  content: '';
+}
+
+.pa-brand-mark {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #7c6cf2;
+  border-radius: 10px;
+  color: #a89dff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.pa-search {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(38, 43, 70, 0.14);
+  border-radius: 10px;
+  background: #fff;
+  color: #171a2e;
+  box-shadow: 0 4px 18px rgba(8, 10, 27, 0.14);
+}
+
+.pa-search:focus {
+  border-color: #8c7cff;
+  outline: 4px solid rgba(140, 124, 255, 0.16);
+}
+
+.pa-hero-zone {
+  position: relative;
+  overflow: visible;
+}
+
+.pa-hero-zone::before {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(700px 310px at 8% 15%, rgba(94, 83, 190, 0.25), transparent 70%),
+    radial-gradient(520px 280px at 88% 20%, rgba(53, 83, 159, 0.16), transparent 72%);
+  content: "";
+  pointer-events: none;
+}
+
+.pa-hero-card {
+  border: 1px solid var(--pa-hero-border);
+  border-radius: 14px;
+  background: rgba(25, 30, 62, 0.78);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(14px);
+}
+
+.pa-primary-button,
+.pa-secondary-button,
+.pa-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  font-weight: 600;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.pa-primary-button {
+  border: 1px solid #7565ed;
+  background: #6556e8;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(83, 68, 207, 0.2);
+}
+
+.pa-primary-button:hover {
+  background: #5949db;
+  box-shadow: 0 10px 24px rgba(83, 68, 207, 0.28);
+  transform: translateY(-1px);
+}
+
+.pa-secondary-button {
+  border: 1px solid var(--noc-divider);
+  background: var(--noc-card);
+  color: var(--noc-text);
+}
+
+.pa-secondary-button:hover,
+.pa-icon-button:hover {
+  border-color: var(--noc-accent);
+  color: var(--noc-accent);
+}
+
+.pa-category-strip {
+  position: relative;
+  z-index: 2;
+  border-bottom: 1px solid var(--noc-divider);
+  background: var(--noc-card);
+}
+
+.pa-category-strip > div {
+  scrollbar-width: none;
+}
+
+.pa-category-strip > div::-webkit-scrollbar {
+  display: none;
+}
+
+.pa-category-link {
+  display: flex;
+  min-width: 92px;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 10px 16px;
+  border-radius: 12px;
+  color: var(--noc-neutral-700);
+  font-size: 12px;
+  white-space: nowrap;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.dark .pa-category-link {
+  color: var(--noc-neutral-300);
+}
+
+.pa-category-link:hover,
+.pa-category-link[aria-current="true"] {
+  background: color-mix(in srgb, var(--noc-accent) 10%, transparent);
+  color: var(--noc-accent);
+}
+
+.pa-category-icon {
+  display: inline-flex;
+  width: 46px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--noc-divider);
+  border-radius: 50%;
+  background: var(--noc-neutral-100);
+  color: var(--noc-neutral-700);
+  font-size: 21px;
+}
+
+.dark .pa-category-icon {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--noc-neutral-300);
+}
+
+.pa-card {
+  border: 1px solid var(--noc-divider);
+  border-radius: 14px;
+  background: var(--noc-card);
+  box-shadow: var(--noc-shadow-sm);
+}
+
+/* Ana sayfa: geçici olarak katalogdan günlük karıştırılan keşif bandı. */
+app-preferred-products {
+  display: block;
+  margin: 0 0 18px;
+}
+
+.pa-preferred {
+  position: relative;
+  padding: 17px 18px 12px;
+  overflow: hidden;
+  border: 1px solid var(--noc-divider);
+  border-radius: 14px;
+  background:
+    radial-gradient(540px 120px at 18% 0%, color-mix(in srgb, var(--noc-accent) 10%, transparent), transparent 72%),
+    var(--noc-card);
+  box-shadow: var(--noc-shadow-sm);
+}
+
+.pa-preferred-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 13px;
+}
+
+.pa-preferred-kicker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 3px;
+  color: var(--noc-accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.pa-preferred-head h2 {
+  margin: 0;
+  color: var(--noc-text);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -.025em;
+  line-height: 1.2;
+}
+
+.pa-preferred-head p:last-child {
+  margin: 3px 0 0;
+  color: var(--noc-neutral-500);
+  font-size: 11px;
+}
+
+.pa-preferred-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--noc-surface) 70%, transparent);
+}
+
+.pa-preferred-tabs button {
+  min-width: 90px;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--noc-neutral-500);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.pa-preferred-tabs button:hover { color: var(--noc-text); }
+
+.pa-preferred-tabs button.is-active {
+  background: var(--noc-accent);
+  color: var(--noc-on-accent);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--noc-accent) 24%, transparent);
+}
+
+.pa-preferred-carousel { position: relative; }
+
+.pa-preferred-rail {
+  display: flex;
+  gap: 10px;
+  padding: 1px 0 6px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-behavior: smooth;
+  scroll-padding-inline: 2px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.pa-preferred-rail::-webkit-scrollbar,
+.pa-preferred-tabs::-webkit-scrollbar { display: none; }
+
+/* Yatay kaydırmalı her şerit/tablo kendi kaydırmasını İÇİNDE tutsun.
+ *
+ * Kullanıcı mobilde bildirdi: ana sayfada sağa kaydırınca sağ tarafta siyah
+ * bir alan açılıyordu. Sayfada gerçek bir yatay taşma YOK (ölçüldü:
+ * scrollWidth === clientWidth, hem 360 hem 375 genişlikte, sayfanın her
+ * noktasında). Sebep kaydırma ZİNCİRLEMESİ: kategori şeridinin sonuna
+ * gelince kaydırma belgeye devroluyor, belge yana kayıyor ve arkasındaki
+ * koyu tuval görünüyordu.
+ *
+ * `pa-preferred-rail` bunu zaten yapıyordu; kategori şeridi ve geniş
+ * tablolar atlanmıştı. Tek tek eklemek yerine yatay kaydıran her kapsayıcıyı
+ * kapsıyoruz.
+ *
+ * Kök elemana `overscroll-behavior-x: none` verilmedi BİLİNÇLİ OLARAK:
+ * iOS Safari'de o kural kenardan kaydırarak geri gitme hareketini de
+ * kapatıyor. `contain` zincirlemeyi durdurmaya yetiyor ve tarayıcının
+ * gezinme hareketlerine dokunmuyor.
+ */
+.overflow-x-auto,
+.pa-responsive-table {
+  overscroll-behavior-inline: contain;
+}
+
+.pa-preferred-card {
+  position: relative;
+  display: grid;
+  min-width: clamp(255px, 24vw, 330px);
+  /* SABİT yükseklik DEĞİL: ürün adı iki satıra düştüğünde içerik 120px'e
+   * çıkıyor ve `overflow: hidden` yüzünden FİYAT SATIRI kesiliyordu
+   * (kullanıcı bildirdi; ölçüldü: masaüstünde 6 karttan 4'ü, mobilde
+   * hepsi taşıyordu). min-height ile kart büyüyebiliyor; şerit flex
+   * olduğu için tüm kartlar en uzununa eşitleniyor, yani hizalama
+   * bozulmuyor. */
+  min-height: 106px;
+  grid-template-columns: 88px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 10px 9px 9px;
+  overflow: hidden;
+  border: 1px solid var(--noc-divider);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--noc-accent) 2.5%, var(--noc-surface));
+  color: var(--noc-text);
+  scroll-snap-align: start;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.pa-preferred-card:hover {
+  border-color: color-mix(in srgb, var(--noc-accent) 55%, var(--noc-divider));
+  box-shadow: 0 10px 22px color-mix(in srgb, #080b1c 22%, transparent);
+  transform: translateY(-2px);
+}
+
+.pa-preferred-image {
+  display: flex;
+  width: 88px;
+  height: 86px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 9px;
+  background: var(--noc-neutral-100);
+  color: var(--noc-neutral-500);
+  font-size: 26px;
+}
+
+.dark .pa-preferred-image { background: rgba(255, 255, 255, .94); }
+
+.pa-preferred-image img {
+  width: 100%;
+  height: 100%;
+  padding: 6px;
+  object-fit: contain;
+}
+
+.pa-preferred-copy {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.pa-preferred-copy small {
+  overflow: hidden;
+  color: var(--noc-neutral-500);
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pa-preferred-copy strong {
+  display: -webkit-box;
+  margin-top: 4px;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Markanın kendi sitesindeki müşteri puanı. Fiyattan görsel olarak ayrı
+   duruyor (daha küçük, sönük) — bizim ölçtüğümüz bir değer değil. */
+.pa-preferred-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  color: var(--noc-neutral-300);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pa-preferred-rating i {
+  color: #f2b93b;
+  font-size: 13px;
+}
+
+.pa-preferred-rating small {
+  color: var(--noc-neutral-500);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.pa-preferred-price {
+  margin-top: auto;
+  padding-top: 6px;
+  color: var(--noc-text);
+  font-size: 16px;
+  font-weight: 750;
+  letter-spacing: -.025em;
+}
+
+.pa-preferred-open {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  align-self: end;
+  border: 1px solid var(--noc-divider);
+  border-radius: 8px;
+  color: var(--noc-accent);
+  font-size: 14px;
+}
+
+.pa-preferred-card:hover .pa-preferred-open {
+  border-color: var(--noc-accent);
+  background: color-mix(in srgb, var(--noc-accent) 9%, transparent);
+}
+
+.pa-preferred-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--noc-accent) 42%, var(--noc-divider));
+  border-radius: 50%;
+  background: var(--noc-card);
+  color: var(--noc-text);
+  box-shadow: var(--noc-shadow-md);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.pa-preferred-arrow:hover {
+  background: var(--noc-accent);
+  color: var(--noc-on-accent);
+  transform: translateY(-50%) scale(1.04);
+}
+
+.pa-preferred-arrow.is-previous { left: -11px; }
+.pa-preferred-arrow.is-next { right: -11px; }
+
+.pa-preferred-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin: 4px 0 0;
+  color: var(--noc-neutral-500);
+  font-size: 9px;
+}
+
+.pa-preferred-empty {
+  display: flex;
+  width: 100%;
+  min-height: 106px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--noc-neutral-500);
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  app-preferred-products { margin-bottom: 15px; }
+  .pa-preferred { padding: 14px 12px 10px; }
+  .pa-preferred-head { display: block; margin-bottom: 11px; }
+  .pa-preferred-head h2 { font-size: 16px; }
+  .pa-preferred-tabs { margin-top: 11px; overflow-x: auto; scrollbar-width: none; }
+  .pa-preferred-tabs button { min-width: 0; flex: 1 1 0; padding-inline: 5px; font-size: 9px; }
+  .pa-preferred-card { min-width: min(82vw, 292px); min-height: 100px; grid-template-columns: 78px minmax(0, 1fr) 26px; gap: 9px; }
+  .pa-preferred-image { width: 78px; height: 78px; }
+  .pa-preferred-arrow { display: none; }
+  .pa-preferred-hint { margin-top: 6px; font-size: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pa-preferred-rail { scroll-behavior: auto; }
+  .pa-preferred-card,
+  .pa-preferred-arrow { transition: none; }
+}
+
+/* AÇILIR LİSTE SEÇENEKLERİ OKUNMUYORDU. `select` elemanlarına koyu temanın
+   açık metin rengi veriliyor ama seçeneklerin zeminini tarayıcı/işletim
+   sistemi çiziyor ve o beyaz kalıyordu — açık gri yazı beyaz zeminde
+   görünmez oluyordu (kullanıcı markalar sayfasındaki sıralama kutusunda
+   fark etti, ama sitedeki BÜTÜN select'ler etkileniyordu: ana sayfadaki
+   dört filtre, marka ve kategori sayfalarındaki sıralama).
+   Zemin de renk de burada açıkça veriliyor. */
+option {
+  background: var(--noc-card);
+  color: var(--noc-text);
+}
+
+.pa-filter-control {
+  min-height: 42px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 9px;
+  background: var(--noc-card);
+  color: var(--noc-text);
+}
+
+.pa-filter-control:focus {
+  border-color: var(--noc-accent);
+  outline: 4px solid var(--pa-focus);
+}
+
+.pa-category-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 50;
+  display: grid;
+  width: min(520px, calc(100vw - 24px));
+  max-height: calc(100dvh - 96px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 8px;
+  margin-top: 10px;
+  padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--noc-divider);
+  border-radius: 14px;
+  background: var(--noc-card);
+  color: var(--noc-neutral-900);
+  box-shadow: var(--noc-shadow-lg);
+}
+
+.dark .pa-category-menu {
+  color: var(--noc-text);
+}
+
+.pa-category-menu-link {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.pa-category-menu-link:hover {
+  background: color-mix(in srgb, var(--noc-accent) 8%, transparent);
+  color: var(--noc-accent);
+}
+
+.pa-category-menu-footer {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 9px;
+  color: var(--noc-accent);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.pa-category-menu-footer:hover {
+  border-color: color-mix(in srgb, var(--noc-accent) 45%, var(--noc-divider));
+  background: color-mix(in srgb, var(--noc-accent) 6%, transparent);
+}
+
+@media (min-width: 1280px) {
+  .pa-category-menu {
+    width: 720px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.pa-product-list {
+  overflow: hidden;
+  border: 1px solid var(--noc-divider);
+  border-radius: 14px;
+  background: var(--noc-card);
+  box-shadow: var(--noc-shadow-sm);
+}
+
+.pa-product-row {
+  display: grid;
+  grid-template-columns: 146px minmax(240px, 1.55fr) minmax(135px, 0.72fr) minmax(180px, 0.9fr) minmax(135px, 0.68fr);
+  min-height: 146px;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--noc-divider);
+}
+
+.pa-product-row:last-child {
+  border-bottom: 0;
+}
+
+.pa-product-row:hover {
+  background: color-mix(in srgb, var(--noc-accent) 3.5%, var(--noc-card));
+}
+
+.pa-product-image-well {
+  display: flex;
+  height: 112px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--noc-neutral-100);
+}
+
+.dark .pa-product-image-well {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.pa-positive-badge,
+.pa-campaign-badge,
+.pa-outofstock-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.pa-positive-badge {
+  border: 1px solid color-mix(in srgb, var(--pa-positive) 30%, transparent);
+  background: var(--pa-positive-bg);
+  color: var(--pa-positive);
+}
+
+/* "Tükendi" rozeti bilinçli olarak NÖTR: ne olumlu (yeşil) ne kampanya
+   (kehribar). Ürün listelerden çıkarılmıyor — fiyat geçmişi kesintisiz
+   kalsın diye taranmaya devam ediyor — ama kullanıcı boşuna mağazaya
+   gitmesin diye açıkça işaretleniyor. */
+.pa-outofstock-badge {
+  border: 1px solid var(--noc-divider);
+  background: color-mix(in srgb, var(--noc-neutral-500) 12%, transparent);
+  color: var(--noc-neutral-500);
+}
+
+.pa-campaign-badge {
+  border: 1px solid color-mix(in srgb, var(--pa-campaign) 30%, transparent);
+  background: var(--pa-campaign-bg);
+  color: var(--pa-campaign);
+}
+
+.pa-section-title {
+  color: var(--noc-text);
+  font-size: clamp(1.55rem, 2.2vw, 2.2rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.noc-shell main h1 {
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+.pa-muted {
+  color: var(--noc-neutral-600);
+}
+
+.dark .pa-muted {
+  color: var(--noc-neutral-400);
+}
+
+.pa-skeleton {
+  background: linear-gradient(100deg, var(--noc-neutral-100) 20%, var(--noc-neutral-200) 38%, var(--noc-neutral-100) 56%);
+  background-size: 200% 100%;
+  animation: pa-shimmer 1.4s infinite linear;
+}
+
+@keyframes pa-shimmer {
+  to { background-position-x: -200%; }
+}
+
+*:focus-visible {
+  outline: 3px solid var(--pa-focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .pa-container { width: min(100% - 28px, 1380px); }
+
+  .pa-product-row {
+    grid-template-columns: 100px minmax(0, 1fr) auto;
+    min-height: 132px;
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .pa-product-image-well { height: 96px; }
+  .pa-product-chart { display: none; }
+  .pa-product-store { grid-column: 3; grid-row: 1; }
+}
+
+@media (max-width: 640px) {
+  .pa-container { width: min(100% - 24px, 1380px); }
+
+  .pa-product-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .pa-product-row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 120px auto auto 1fr auto;
+    min-height: 0;
+    height: 100%;
+    margin-bottom: 0;
+    align-content: start;
+    align-items: start;
+    gap: 10px;
+    padding: 10px;
+    overflow: hidden;
+    border: 1px solid var(--noc-divider);
+    border-radius: 13px;
+    background: var(--noc-card);
+  }
+
+  .pa-product-row:last-child { border-bottom: 1px solid var(--noc-divider); }
+  .pa-product-image-well { height: 120px; }
+  .pa-product-details h2 { font-size: 13px; line-height: 1.25; }
+  .pa-product-details > button { margin-top: 7px; }
+  .pa-product-details > button p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pa-product-meta { display: none; }
+  .pa-product-row .pa-positive-badge,
+  .pa-product-row .pa-campaign-badge {
+    max-width: 100%;
+    justify-content: center;
+    padding: 4px 6px;
+    text-align: center;
+    font-size: 9px;
+    line-height: 1.2;
+  }
+  .pa-product-price { grid-column: auto; min-width: 0; }
+  .pa-product-price > div:first-child { font-size: 18px; white-space: nowrap; }
+  .pa-product-price > div:nth-child(n+2) { font-size: 10px; }
+  .pa-product-store {
+    grid-column: auto;
+    grid-row: auto;
+    gap: 7px;
+    padding-top: 9px;
+    align-self: end;
+    border-top: 1px solid var(--noc-divider);
+  }
+  .pa-product-store > div { display: none; }
+  .pa-product-store .pa-primary-button { height: 38px; padding-inline: 8px; font-size: 11px; white-space: nowrap; }
+  .pa-product-store .pa-primary-button i { margin-left: 5px; font-size: 14px; }
+  .pa-product-store .pa-secondary-button { height: 34px; font-size: 10px; }
+  .pa-product-loading {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .pa-product-loading > * { height: 320px; }
+  .pa-category-link {
+    min-width: 98px;
+    padding-inline: 6px;
+    text-align: center;
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  .pa-featured-deal {
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .pa-featured-deal .pa-hero-product { height: 92px; }
+  .pa-featured-deal .pa-hero-info h2 { font-size: 14px; }
+  .pa-featured-deal .pa-hero-info p:last-child { margin-top: 7px; font-size: 10px; }
+  .pa-featured-deal .pa-hero-price {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+  .pa-featured-deal .pa-hero-price > div { margin-top: 0; }
+  .pa-featured-deal .pa-hero-price > div:first-of-type { white-space: nowrap; font-size: 24px; }
+  .pa-featured-deal .pa-hero-chart { display: none; }
+  .pa-featured-deal .pa-hero-actions { grid-column: 1 / -1; align-self: end; }
+  .pa-featured-deal .pa-hero-actions > button { display: none; }
+
+  .pa-responsive-table { overflow: visible; background: transparent; box-shadow: none; }
+  .pa-responsive-table table,
+  .pa-responsive-table tbody { display: block; min-width: 0; width: 100%; }
+  .pa-responsive-table thead { display: none; }
+  .pa-responsive-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 3px 10px;
+    margin-bottom: 10px;
+    padding: 12px;
+    border: 1px solid var(--noc-divider);
+    border-radius: 12px;
+    background: var(--noc-card);
+  }
+  .pa-responsive-table td { display: block; padding: 3px !important; border: 0 !important; }
+  .pa-responsive-table td:nth-child(1) { grid-column: 1 / -1; }
+  .pa-responsive-table td:nth-child(2) { grid-column: 1; }
+  .pa-responsive-table td:nth-child(3) { grid-column: 2; grid-row: 2; text-align: right; }
+  .pa-responsive-table td:nth-child(4) { grid-column: 1; grid-row: 3; text-align: left; }
+  .pa-responsive-table td:nth-child(5) { grid-column: 1; grid-row: 4; }
+  .pa-responsive-table td:nth-child(6) { grid-column: 2; grid-row: 3 / 5; align-self: center; }
+}
+
+/* Canlı tarama şeridindeki nabız noktası — sadece motion-safe: altında
+   (prefers-reduced-motion: no-preference), Nocturne kuralı gereği. */
+@keyframes noc-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
+}

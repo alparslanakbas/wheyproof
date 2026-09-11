@@ -1,0 +1,43 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Angular / Node
+node_modules/
+dist/
+.angular/
+
+# Env / secrets
+.env
+*.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# İş stratejisi / iç geliştirme günlüğü — public repo'da görünmesin
+CLAUDE.md
+AGENTS.md
+.claude/
+.agents/
+# Rakip/pazar analizi notları — repo public, dışarıya açılmamalı.
+RAKIP-ANALIZ.md
+
+# IDE
+.idea/
+.vscode/
+testsprite_tests/tmp/
+testsprite_tests/tmp/config.json
+
+# Tasarım denetimi sırasında üretilen geçici kanıt görüntüleri ve editör
+# eklentisi ayarları — diskte kalıyor ama depoya girmiyor.
+.continue/
+design-qa.md
+design-qa-*.png
+design-audit-*/
+design-qa-directory/
+indirim-takip-sistemi.sln
+caddy-log/

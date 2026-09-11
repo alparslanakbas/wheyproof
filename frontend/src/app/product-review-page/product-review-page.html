@@ -1,0 +1,312 @@
+<div class="noc-shell min-h-screen bg-[var(--noc-bg)] text-[var(--noc-text)]">
+  <app-site-header />
+
+  <main class="mx-auto max-w-[880px] px-[28px] py-[22px] pb-[80px]">
+    @if (loadError()) {
+      <div class="mx-auto max-w-md rounded-[8px] bg-[var(--noc-surface)] px-6 py-8 text-center">
+        Ürün bilgisi şu anda yüklenemedi. Lütfen birazdan tekrar dene.
+        <a routerLink="/" class="mt-2 block w-full text-sm font-medium text-[var(--noc-accent)]">Ana sayfaya dön</a>
+      </div>
+    } @else if (loading()) {
+      <div class="mx-auto max-w-md px-6 py-10 text-center text-sm text-[var(--noc-neutral-500)]">Yükleniyor…</div>
+    } @else if (deal(); as d) {
+      <nav class="mb-2 text-xs text-[var(--noc-neutral-500)]">
+        <a routerLink="/" class="hover:text-[var(--noc-accent)]">Ana Sayfa</a> /
+        @if (d.category) {
+          <a [routerLink]="['/kategori', d.category]" class="hover:text-[var(--noc-accent)]">{{ categoryLabel(d.category) }}</a> /
+        }
+        {{ displayName(d.productName) }} İncelemesi
+      </nav>
+
+      <h1 class="text-[28px] font-medium leading-tight tracking-[-0.03em] sm:text-[34px]">{{ displayName(d.productName) }} İncelemesi</h1>
+      <p class="mt-2 max-w-2xl text-[15px] text-[var(--noc-neutral-300)]">
+        {{ d.brandName }} markasının bu ürününü kendi verimize (fiyat geçmişi, besin değeri, kategori karşılaştırması)
+        dayanarak inceliyoruz — gerçek kullanım deneyimi iddia etmiyoruz, sadece elimizdeki nesnel veriyi şeffafça
+        sunuyoruz.
+      </p>
+
+      <!-- Özet kutusu -->
+      <div class="mt-[22px] flex flex-wrap items-start gap-4 rounded-[14px] bg-[var(--noc-card)] p-4 shadow-[var(--noc-shadow-sm)]">
+        @if (d.imageUrl) {
+          <img [src]="d.imageUrl" [alt]="displayName(d.productName)" class="h-[100px] w-[100px] shrink-0 object-contain" loading="lazy" />
+        }
+        <div class="min-w-0 flex-1">
+          <div class="text-[10px] uppercase tracking-[0.08em] text-[var(--noc-accent)]">{{ d.brandName }}</div>
+          <div class="mt-2 flex flex-wrap items-baseline gap-2">
+            <span class="text-2xl font-medium">{{ d.currentPrice | number: '1.2-2' }} ₺</span>
+            @if (d.discountPercent > 0) {
+              <span class="text-sm text-[var(--noc-neutral-500)] line-through">{{ d.referencePrice | number: '1.2-2' }} ₺</span>
+              <span class="rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-[var(--noc-accent-100)]" style="background: var(--noc-accent-800)">
+                Doğrulanmış -%{{ d.discountPercent }}
+              </span>
+            }
+          </div>
+          <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--noc-neutral-500)]">
+            <span>Paket: {{ d.size || '—' }}</span>
+            @if (pricePerServing(); as pps) {
+              <span>Servis başı: {{ pps | number: '1.2-2' }} ₺</span>
+            }
+            @if (proteinRatio(d); as ratio) {
+              <span>Porsiyonun %{{ ratio }}'i protein</span>
+            }
+            @if (proteinCostPerServing30g(d); as pc) {
+              <span>{{ proteinReferenceGrams }} g protein: {{ pc | number: '1.2-2' }} ₺</span>
+            }
+            <span>Son kontrol: {{ lastChecked() }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Porsiyon verisi bu üründe varsa, o verinin NEREDEN geldiğini
+           söylüyoruz. Rakiplerden biri porsiyonu bilmediğinde standart 30 g
+           varsayıp maliyeti onun üzerinden gösteriyor; bizim ölçülerimiz
+           markanın kendi beyanına dayanıyor ve beyan yoksa alan boş kalıyor.
+           Bunu yapıyorduk ama hiçbir yerde söylemiyorduk. -->
+      @if (d.servingSizeGrams) {
+        <p class="mt-3 text-xs leading-5 text-[var(--noc-neutral-500)]">
+          Servis başı ve protein maliyeti, {{ d.brandName }} markasının bu ürün için beyan ettiği
+          {{ d.servingSizeGrams }} gramlık porsiyona göre hesaplandı — standart bir porsiyon varsaymıyoruz.
+          Marka porsiyon bilgisi vermediğinde bu alanları boş bırakıyoruz.
+        </p>
+      }
+
+      <!-- Kategorisinde nasıl konumlanıyor -->
+      @if (categoryPricePosition(); as pos) {
+        <div class="mt-6 rounded-[8px] border-l-4 border-[var(--noc-accent)] bg-[var(--noc-surface)] px-5 py-4 text-sm leading-relaxed text-[var(--noc-neutral-300)]">
+          Bu ürün, {{ categoryLabel(d.category) }} kategorisinde takip ettiğimiz {{ categoryStats()?.productCount }}
+          üründen biri. Kategori ortalama fiyatı {{ categoryStats()?.averagePrice | number: '1.2-2' }} ₺ — bu ürün
+          ortalamaya göre
+          <span class="font-medium text-[var(--noc-text)]">%{{ pos.isCheaper ? -pos.diffPercent : pos.diffPercent }} {{ pos.isCheaper ? 'daha ucuz' : 'daha pahalı' }}</span>.
+        </div>
+      }
+
+      <!-- Fiyat geçmişi -->
+      <h2 class="mt-[45px] text-[20px] font-medium">Son {{ historyDays }} günün fiyat geçmişi</h2>
+      <div class="mt-3 rounded-[14px] bg-[var(--noc-card)] p-4 shadow-[var(--noc-shadow-sm)]">
+        @if (points().length > 1) {
+          <div class="relative">
+            <svg
+              [attr.viewBox]="'0 0 ' + chart.width + ' ' + chart.height"
+              class="h-[160px] w-full touch-none cursor-crosshair"
+              preserveAspectRatio="none"
+              (mousemove)="onChartMouseMove($event)"
+              (mouseleave)="onChartMouseLeave()"
+              (touchstart)="onChartTouchMove($event)"
+              (touchmove)="onChartTouchMove($event)"
+            >
+              <path [attr.d]="chartArea()" fill="var(--noc-accent)" opacity="0.14" />
+              <path [attr.d]="chartPath()" fill="none" stroke="var(--noc-accent)" stroke-width="2" />
+
+              @if (hoverInfo(); as hover) {
+                <line
+                  [attr.x1]="hover.x" y1="0" [attr.x2]="hover.x" [attr.y2]="chart.height"
+                  stroke="var(--noc-accent)" stroke-width="1" stroke-dasharray="4 3"
+                />
+                <circle [attr.cx]="hover.x" [attr.cy]="hover.y" r="4.5" fill="var(--noc-accent)" />
+              }
+            </svg>
+
+            @if (hoverInfo(); as hover) {
+              <div
+                class="pointer-events-none absolute -translate-y-[calc(100%+8px)] whitespace-nowrap rounded-[8px] bg-[var(--noc-card)] px-2 py-1 text-center shadow-[var(--noc-shadow-md)]"
+                [class]="hover.align === 'left' ? 'translate-x-0' : hover.align === 'right' ? '-translate-x-full' : '-translate-x-1/2'"
+                [style.left.%]="(hover.x / chart.width) * 100"
+                [style.top.%]="(hover.y / chart.height) * 100"
+              >
+                <div class="text-[10px] text-[var(--noc-neutral-500)]">{{ hover.dateLabel }}</div>
+                <div class="text-xs font-medium">{{ hover.price | number: '1.2-2' }} ₺</div>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="py-8 text-center text-xs text-[var(--noc-neutral-500)]">
+            Bu ürün için henüz yeterli fiyat geçmişi birikmedi.
+          </div>
+        }
+      </div>
+
+      <!-- Markanın kendi tanıtım metni bilinçli olarak yayınlanmıyor: başkasının
+           pazarlama yazısını birebir yeniden yayınlamak bize ait bir içerik değil.
+           Metni çekmeye devam ediyoruz (porsiyon/besin değeri ondan çıkıyor), sadece
+           göstermiyoruz. Yerine tamamen kendi ölçümümüzden türeyen liste geliyor. -->
+      <h2 class="mt-[45px] text-[20px] font-medium">Bu Ürün Hakkında Ne Ölçtük?</h2>
+      <p class="mt-2 text-sm text-[var(--noc-neutral-500)]">
+        Bu tablodaki her satır bizim kendi verimizden geliyor: {{ d.brandName }} sitesinden
+        düzenli olarak topladığımız fiyat geçmişi ve ürün etiketindeki sayılar. Markanın
+        tanıtım metnini burada yeniden yayınlamıyoruz.
+      </p>
+      <div class="mt-3 overflow-hidden rounded-[14px] bg-[var(--noc-card)] shadow-[var(--noc-shadow-sm)]">
+        @if (productFacts().length > 0) {
+          <table class="w-full text-sm">
+            <tbody>
+              @for (fact of productFacts(); track fact.label; let isLast = $last) {
+                <tr [class.border-b]="!isLast" class="border-[var(--noc-divider)]">
+                  <th scope="row" class="px-4 py-2.5 text-left font-normal text-[var(--noc-neutral-500)]">
+                    {{ fact.label }}
+                  </th>
+                  <td class="px-4 py-2.5 text-right font-medium">{{ fact.value }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <p class="p-4 text-sm text-[var(--noc-neutral-500)]">
+            Bu ürün için henüz ölçülebilir bir veri birikmedi.
+          </p>
+        }
+      </div>
+
+      <!-- Besin değerleri — veri yoksa dürüst not -->
+      <h2 class="mt-[45px] text-[20px] font-medium">Besin Değerleri</h2>
+      <div class="mt-3 overflow-hidden rounded-[14px] bg-[var(--noc-card)] shadow-[var(--noc-shadow-sm)]">
+        @if (nutritionRows().length > 0) {
+          <table class="w-full text-sm">
+            <tbody>
+              @for (row of nutritionRows(); track row.label; let isLast = $last) {
+                <tr [class.border-b]="!isLast" class="border-[var(--noc-divider)]">
+                  <th class="px-4 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)]">{{ row.label }}</th>
+                  <td class="px-4 py-3 text-[var(--noc-neutral-300)]">{{ row.value }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <p class="p-4 text-sm text-[var(--noc-neutral-500)]">
+            {{ d.brandName }}, bu ürün için besin değeri tablosu paylaşmıyor. Tahmini bir rakam uydurmak yerine bu
+            bölümü boş bırakıyoruz — bu ürünle ilgili başka bir bilgi kaynağına ihtiyacın olabilir.
+          </p>
+        }
+      </div>
+
+      <!-- Kategoride servis başına en uygun ürünler — /api/best-value-per-serving
+           zaten servis başı fiyata göre sıralı döndürüyor. -->
+      @if (bestValueInCategory().length > 0) {
+        <h2 class="mt-[45px] text-[20px] font-medium">{{ categoryLabel(d.category) }} Kategorisinde Servis Başına En Uygun</h2>
+        <div class="mt-3 overflow-x-auto rounded-[14px] bg-[var(--noc-card)] shadow-[var(--noc-shadow-sm)]">
+          <table class="w-full min-w-[480px] text-sm">
+            <thead>
+              <tr class="border-b border-[var(--noc-divider)] text-left text-xs text-[var(--noc-neutral-500)]">
+                <th class="px-4 py-2 font-normal">Ürün</th>
+                <th class="px-4 py-2 font-normal">Fiyat</th>
+                <th class="px-4 py-2 font-normal">Servis Başı</th>
+                <th class="px-4 py-2 font-normal">30g Protein Maliyeti</th>
+                <th class="px-4 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of bestValueInCategory(); track item.productId; let isLast = $last) {
+                <tr [class.border-b]="!isLast" class="border-[var(--noc-divider)]">
+                  <td class="px-4 py-3">
+                    <a [routerLink]="productLink(item)" class="font-medium hover:text-[var(--noc-accent)]">{{ displayName(item.productName) }}</a>
+                    <div class="text-xs text-[var(--noc-neutral-500)]">{{ item.brandName }}</div>
+                  </td>
+                  <td class="px-4 py-3">{{ item.currentPrice | number: '1.2-2' }} ₺</td>
+                  <td class="px-4 py-3">
+                    @if (pricePerServingFor(item); as pps) {
+                      {{ pps | number: '1.2-2' }} ₺
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td class="px-4 py-3">
+                    @if (proteinCostPerServing30g(item); as cost) {
+                      {{ cost | number: '1.2-2' }} ₺
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td class="px-4 py-3">
+                    <a [routerLink]="comparisonLink(item)" class="whitespace-nowrap text-xs font-medium text-[var(--noc-accent)] hover:underline">Karşılaştır →</a>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else if (priceFallbackProducts().length > 0) {
+        <!-- Kategoride porsiyon verisi olan ürün yoksa (servis başı tablo
+             boş) en azından FİYATA dayalı bir karşılaştırma göster —
+             uydurma servis başı/protein maliyeti YOK, veri yoksa "—". -->
+        <h2 class="mt-[45px] text-[20px] font-medium">{{ categoryLabel(d.category) }} Kategorisinden Fiyat Karşılaştırması</h2>
+        <div class="mt-3 overflow-x-auto rounded-[14px] bg-[var(--noc-card)] shadow-[var(--noc-shadow-sm)]">
+          <table class="w-full min-w-[420px] text-sm">
+            <thead>
+              <tr class="border-b border-[var(--noc-divider)] text-left text-xs text-[var(--noc-neutral-500)]">
+                <th class="px-4 py-2 font-normal">Ürün</th>
+                <th class="px-4 py-2 font-normal">Marka</th>
+                <th class="px-4 py-2 font-normal">Fiyat</th>
+                <th class="px-4 py-2 font-normal">Servis Başı</th>
+                <th class="px-4 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of priceFallbackProducts(); track item.productId; let isLast = $last) {
+                <tr [class.border-b]="!isLast" class="border-[var(--noc-divider)]">
+                  <td class="px-4 py-3">
+                    <a [routerLink]="productLink(item)" class="font-medium hover:text-[var(--noc-accent)]">{{ displayName(item.productName) }}</a>
+                  </td>
+                  <td class="px-4 py-3 text-[var(--noc-neutral-500)]">{{ item.brandName }}</td>
+                  <td class="px-4 py-3">{{ item.currentPrice | number: '1.2-2' }} ₺</td>
+                  <td class="px-4 py-3">
+                    @if (pricePerServingFor(item); as pps) {
+                      {{ pps | number: '1.2-2' }} ₺
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td class="px-4 py-3">
+                    <a [routerLink]="comparisonLink(item)" class="whitespace-nowrap text-xs font-medium text-[var(--noc-accent)] hover:underline">Karşılaştır →</a>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <!-- Ne servis başı ne fiyat bazlı bir karşılaştırma çıkarılabiliyor
+             (kategori yok ya da kategoride başka ürün yok) — sessizce
+             bölümü kaldırmak yerine dürüst bir not (kullanıcı isteğiyle
+             kurulan "eksik veri sessizce gizlenmez" ilkesiyle tutarlı). -->
+        <p class="mt-[45px] text-sm text-[var(--noc-neutral-500)]">
+          Bu kategoride karşılaştıracak başka ürün takip etmiyoruz.
+        </p>
+      }
+
+      <!-- Fiyatça en yakın alternatifler — sadece ölçülebilir farklar,
+           öznel "daha iyi" yorumu yok. -->
+      @if (closestAlternatives().length > 0) {
+        <h2 class="mt-[45px] text-[20px] font-medium">Fiyatça En Yakın Alternatifler</h2>
+        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+          @for (item of closestAlternatives(); track item.productId) {
+            <div class="flex items-center gap-3 rounded-[14px] bg-[var(--noc-card)] p-4 shadow-[var(--noc-shadow-sm)]">
+              @if (item.imageUrl) {
+                <img [src]="item.imageUrl" [alt]="displayName(item.productName)" class="h-14 w-14 shrink-0 object-contain" loading="lazy" />
+              }
+              <div class="min-w-0 flex-1">
+                <a [routerLink]="productLink(item)" class="line-clamp-2 text-sm font-medium hover:text-[var(--noc-accent)]">{{ displayName(item.productName) }}</a>
+                <div class="mt-0.5 text-xs text-[var(--noc-neutral-500)]">{{ item.currentPrice | number: '1.2-2' }} ₺ — {{ comparisonNote(item) }}</div>
+                <a [routerLink]="comparisonLink(item)" class="mt-1 inline-block text-xs font-medium text-[var(--noc-accent)] hover:underline">Karşılaştır →</a>
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      <div class="mt-[45px]">
+        <a
+          [href]="storeUrl()" (click)="magazaTiklamasi()"
+          target="_blank"
+          rel="noopener nofollow sponsored"
+          class="block rounded-[8px] py-2.5 text-center text-sm font-medium text-[var(--noc-accent-100)]"
+          style="background: var(--noc-accent-800)"
+        >
+          {{ d.brandName }} mağazasına git
+        </a>
+      </div>
+
+      <div class="mt-6 text-center">
+        <a [routerLink]="productLink(d)" class="text-sm font-medium text-[var(--noc-accent)]">Ürün detayına ve fiyat alarmına git →</a>
+      </div>
+    }
+  </main>
+</div>

@@ -1,0 +1,479 @@
+<div class="noc-shell min-h-screen bg-[var(--noc-bg)] text-[var(--noc-text)]">
+  <app-site-header />
+
+  <main class="mx-auto max-w-[1280px] px-[28px] py-[22px]">
+    @if (loadError()) {
+      <div class="mx-auto max-w-md rounded-[8px] bg-[var(--noc-surface)] px-6 py-8 text-center">
+        Marka bilgileri yüklenemedi. Lütfen daha sonra tekrar dene.
+        <a routerLink="/" class="mt-2 block w-full text-sm font-medium text-[var(--noc-accent)]">Ana sayfaya dön</a>
+      </div>
+    } @else {
+      <div class="flex flex-wrap items-start gap-6">
+        <div class="flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-[14px] border border-[var(--noc-accent)] text-2xl font-medium text-[var(--noc-accent)]">
+          {{ brandName().charAt(0) }}
+        </div>
+        <div class="min-w-0 flex-1">
+          @if (fixedCategory()) {
+            <!-- Marka × kategori kesişim sayfası: hem başlık hem giriş metni
+                 title/canonical ile aynı ifadeyi taşıyor. -->
+            <nav class="mb-2 text-xs text-[var(--noc-neutral-500)]">
+              <a routerLink="/" class="hover:text-[var(--noc-accent)]">Ana Sayfa</a> /
+              <a [routerLink]="['/marka', brandSlug(brandName()), 'indirim-kodu']" class="hover:text-[var(--noc-accent)]">{{ brandName() }}</a> /
+              {{ fixedCategoryLabel() }}
+            </nav>
+            @if (bayiGorunumu()) {
+              <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">{{ brandName() }} {{ fixedCategoryLabel() }} Bayi Fiyatları</h1>
+              <p class="mt-2 max-w-2xl text-[15px] text-[var(--noc-neutral-300)]">
+                {{ brandName() }} markasının {{ fixedCategoryLabel().toLowerCase() }} ürünlerini satan bayilerdeki
+                {{ totalCount() }} kayıt. Markanın kendi sitesindeki fiyatlar için
+                <a [routerLink]="[]" [queryParams]="{ satici: null, page: null }" queryParamsHandling="merge" class="text-[var(--noc-accent)] hover:underline">marka sayfasına</a> bak.
+              </p>
+            } @else {
+              <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">{{ brandName() }} {{ fixedCategoryLabel() }} Fiyatları</h1>
+              <p class="mt-2 max-w-2xl text-[15px] text-[var(--noc-neutral-300)]">
+                {{ brandName() }} markasının {{ totalCount() }} {{ fixedCategoryLabel().toLowerCase() }} ürünü, günde 4 kez
+                taranan güncel fiyatlarıyla. İndirim etiketleri markanın beyanına değil, kendi topladığımız gerçek fiyat
+                geçmişine dayanıyor.
+              </p>
+            }
+          } @else {
+            @if (bayiGorunumu()) {
+              <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">{{ brandName() }} Bayi Fiyatları</h1>
+              <p class="mt-2 max-w-2xl text-[15px] text-[var(--noc-neutral-300)]">
+                {{ brandName() }} ürünlerini satan bayilerdeki {{ totalCount() }} kayıt, günde 4 kez taranan güncel
+                fiyatlarıyla. Markanın kendi sitesindeki fiyatlar için
+                <a [routerLink]="[]" [queryParams]="{ satici: null, page: null }" queryParamsHandling="merge" class="text-[var(--noc-accent)] hover:underline">marka sayfasına</a> bak.
+              </p>
+            } @else {
+              <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">{{ brandName() }} İndirim Kodu ve Kampanyaları</h1>
+              <p class="mt-2 max-w-2xl text-[15px] text-[var(--noc-neutral-300)]">
+                {{ totalCount() }} ürün, günde 4 kez taranıyor. {{ brandName() }} markasının fiyatlarını düzenli olarak
+                takip ediyoruz — markanın beyanına değil, kendi topladığımız gerçek fiyat geçmişine dayanan indirimler.
+              </p>
+            }
+          }
+        </div>
+      </div>
+
+      <!-- Bu markaya özgün, kendi verimize dayanan istatistik bölümü —
+           markanın kopyalanmış tarihçesi/vizyonu yerine (bkz. CLAUDE.md
+           "marka sayfaları" tartışması), sadece bizde olan veri. -->
+      @if (brandStats(); as bs) {
+        <div class="mt-6 flex flex-wrap items-center divide-x divide-[var(--noc-divider)] rounded-[14px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] text-sm">
+          <div class="px-[18px] py-[11px]">
+            <span class="text-[15px] font-medium">{{ bs.totalProducts }}</span>
+            <span class="text-[var(--noc-neutral-500)]"> ürün takipte</span>
+          </div>
+          <div class="px-[18px] py-[11px]">
+            <span class="text-[15px] font-medium">{{ bs.discountCount }}</span>
+            <span class="text-[var(--noc-neutral-500)]"> gerçek indirim</span>
+          </div>
+          @if (bs.averageDiscountPercent; as avg) {
+            <div class="px-[18px] py-[11px]">
+              <span class="text-[15px] font-medium text-[var(--noc-accent)]">%{{ avg }}</span>
+              <span class="text-[var(--noc-neutral-500)]"> ortalama indirim derinliği</span>
+            </div>
+          }
+          <div class="px-[18px] py-[11px]">
+            <span class="text-[15px] font-medium">{{ bs.thirtyDayLowCount }}</span>
+            <span class="text-[var(--noc-neutral-500)]"> tanesi 30 günün en düşüğünde</span>
+          </div>
+          @if (!fixedCategory() && topCategoryLabel(); as topCat) {
+            <div class="px-[18px] py-[11px] text-[var(--noc-neutral-500)]">
+              En güçlü kategori: <span class="font-medium text-[var(--noc-text)]">{{ topCat }}</span>
+            </div>
+          }
+          <!-- Kesişimde markanın o kategorideki ortalama fiyatı, kategorinin
+               geneliyle birlikte — bu sayfaların tek özgün verisi. -->
+          @if (fixedCategory() && bs.averagePrice; as avgPrice) {
+            <div class="px-[18px] py-[11px] text-[var(--noc-neutral-500)]">
+              Ortalama fiyat: <span class="font-medium text-[var(--noc-text)]">{{ avgPrice | number: '1.2-2' }} ₺</span>
+              @if (categoryPriceStats(); as cs) {
+                <span class="text-[var(--noc-neutral-600)]"> · kategori geneli {{ cs.averagePrice | number: '1.2-2' }} ₺</span>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Kupon durumu. Kod YOKKEN de bir şey söylemek önemli: sayfaya
+           "{marka} indirim kodu" aramasından gelen kişi, kod olup olmadığını
+           öğrenmek istiyor. Boş bırakmak hem o kişiyi cevapsız bırakıyordu hem
+           de sayfayı sorguyla ilgisiz gösteriyordu. -->
+      @if (!fixedCategory()) {
+        <div id="kuponlar" class="mt-6 scroll-mt-24">
+          <h2 class="mb-2 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--noc-neutral-500)]">{{ brandName() }} Kupon Kodları</h2>
+          @if (coupons().length > 0) {
+            <div class="flex flex-wrap items-center gap-2">
+              @for (coupon of coupons(); track coupon.id) {
+                <div class="flex items-center gap-2 rounded-[8px] border border-dashed border-[var(--noc-accent)] px-3 py-1.5 text-xs">
+                  <code class="rounded-[6px] px-2 py-0.5 font-mono font-medium text-[var(--noc-accent)]" style="background: var(--noc-accent-800)">{{ coupon.code }}</code>
+                  <span class="text-[var(--noc-neutral-500)]">{{ coupon.description }}</span>
+                </div>
+              }
+            </div>
+            <p class="mt-2 max-w-2xl text-xs leading-5 text-[var(--noc-neutral-500)]">
+              Kodları otomatik toplamıyoruz; her birini elle kontrol edip ekliyor, süresi dolduğunda kaldırıyoruz.
+            </p>
+          } @else {
+            <p class="max-w-2xl text-[13px] leading-6 text-[var(--noc-neutral-500)]">
+              {{ brandName() }} için şu anda doğruladığımız aktif bir indirim kodu yok. Bulamadığımızda uydurma kod
+              listelemiyoruz — süresi geçmiş bir kodu ödeme sayfasında denemek, hiç kod olmamasından daha can sıkıcı.
+              Kod yerine aşağıdaki listeden markanın gerçek fiyat düşüşlerini takip edebilirsin.
+            </p>
+          }
+        </div>
+      }
+
+      <div class="mt-[22px] flex flex-wrap items-center gap-3">
+        <div class="inline-flex overflow-hidden rounded-[8px] border border-[var(--noc-divider)]">
+          <button type="button" class="border-l border-[var(--noc-divider)] px-3 py-[7px] text-[13px] first:border-l-0" [class]="viewMode() === 'deals' ? 'text-[var(--noc-accent)] shadow-[inset_0_0_0_1px_var(--noc-accent)]' : 'hover:bg-[color-mix(in_srgb,var(--noc-text)_7%,transparent)]'" (click)="setViewMode('deals')">Gerçek indirim</button>
+          <button type="button" class="border-l border-[var(--noc-divider)] px-3 py-[7px] text-[13px]" [class]="viewMode() === 'store' ? 'text-[var(--noc-accent)] shadow-[inset_0_0_0_1px_var(--noc-accent)]' : 'hover:bg-[color-mix(in_srgb,var(--noc-text)_7%,transparent)]'" (click)="setViewMode('store')">Mağaza kampanyası</button>
+          <button type="button" class="border-l border-[var(--noc-divider)] px-3 py-[7px] text-[13px]" [class]="viewMode() === 'all' ? 'text-[var(--noc-accent)] shadow-[inset_0_0_0_1px_var(--noc-accent)]' : 'hover:bg-[color-mix(in_srgb,var(--noc-text)_7%,transparent)]'" (click)="setViewMode('all')">Tümü</button>
+        </div>
+
+        <label class="relative min-w-[220px] flex-1 sm:max-w-[320px]">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--noc-neutral-500)]">
+            <circle cx="11" cy="11" r="7" />
+            <path stroke-linecap="round" d="m20 20-3-3" />
+          </svg>
+          <input
+            type="search"
+            placeholder="Bu markada ara"
+            [ngModel]="searchQuery()"
+            (ngModelChange)="onSearchChange($event)"
+            class="w-full rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] py-[6px] pl-9 pr-3 text-sm text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none"
+          />
+        </label>
+
+        <span class="ml-auto flex items-center gap-2 text-xs text-[var(--noc-neutral-500)]">
+          <label for="sortBy">Sırala:</label>
+          <select id="sortBy" [ngModel]="sortBy()" (ngModelChange)="onSortChange($event)" class="rounded-[6px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-2 py-1 text-xs text-[var(--noc-text)]">
+            <option value="">Varsayılan (İndirim Oranı)</option>
+            <option value="newest">Son Eklenenler</option>
+            <option value="oldest">İlk Eklenenler</option>
+            <option value="price_asc">Fiyat: Düşükten Yükseğe</option>
+            <option value="price_desc">Fiyat: Yüksekten Düşüğe</option>
+            <option value="name_asc">İsim: A-Z</option>
+            <option value="name_desc">İsim: Z-A</option>
+          </select>
+        </span>
+      </div>
+
+      <!-- Kesişim sayfasında kategori SABİT (URL'in bir parçası) — çiplerle
+           değiştirilebilir olsaydı sayfanın kendi kanonik konusundan
+           sapılırdı. Fiyat aralığı filtresi orada da anlamlı olduğu için
+           blok tamamen gizlenmiyor, sadece çipler çıkarılıyor. -->
+      @if (availableCategories().length > 0) {
+        <div class="mb-[22px] mt-[13px] flex flex-wrap items-center gap-1.5">
+          @for (category of fixedCategory() ? [] : availableCategories(); track category) {
+            <button
+              type="button"
+              class="rounded-[6px] border px-2.5 py-1 text-xs"
+              [class]="selectedCategories().has(category) ? 'border-[var(--noc-accent)] text-[var(--noc-accent)]' : 'border-[var(--noc-divider)] text-[var(--noc-neutral-500)] hover:text-[var(--noc-text)]'"
+              (click)="toggleCategory(category)"
+            >
+              {{ categoryLabel(category) }}
+            </button>
+          }
+          <input
+            type="number"
+            placeholder="Min ₺"
+            [ngModel]="priceMin()"
+            (ngModelChange)="onPriceMinChange($event)"
+            class="w-20 rounded-[6px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-2 py-1 text-xs placeholder:text-[var(--noc-neutral-500)]"
+          />
+          <span class="text-xs text-[var(--noc-neutral-500)]">—</span>
+          <input
+            type="number"
+            placeholder="Max ₺"
+            [ngModel]="priceMax()"
+            (ngModelChange)="onPriceMaxChange($event)"
+            class="w-20 rounded-[6px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-2 py-1 text-xs placeholder:text-[var(--noc-neutral-500)]"
+          />
+          @if (hasActiveFilters()) {
+            <button type="button" class="text-xs font-medium text-[var(--noc-accent)]" (click)="clearFilters()">Filtreleri Temizle</button>
+          }
+        </div>
+      }
+
+      @if (loading()) {
+        <div class="py-24 text-center text-[var(--noc-neutral-500)]">Yükleniyor...</div>
+      } @else if (itemsError()) {
+        <div class="mx-auto max-w-md rounded-[8px] bg-[var(--noc-surface)] px-6 py-8 text-center">Ürünler yüklenemedi. Lütfen daha sonra tekrar dene.</div>
+      } @else if (items().length === 0) {
+        <div class="mx-auto max-w-md rounded-[8px] bg-[var(--noc-surface)] px-6 py-10 text-center text-[var(--noc-neutral-500)]">
+          @if (hasActiveFilters()) {
+            Aramanla/filtrelerinle eşleşen ürün bulunamadı.
+            <button type="button" class="mt-2 block w-full text-sm font-medium text-[var(--noc-accent)]" (click)="clearFilters()">Filtreleri temizle</button>
+          } @else {
+            Bu görünümde {{ brandName() }} için ürün yok.
+          }
+        </div>
+      } @else {
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+          @for (deal of items(); track deal.productId) {
+            <div
+              role="button"
+              tabindex="0"
+              (click)="openDeal(deal)"
+              (keydown.enter)="openDeal(deal)"
+              class="flex cursor-pointer flex-col gap-[8.4px] rounded-[14px] bg-[var(--noc-card)] p-[11.2px] shadow-[var(--noc-shadow-sm)] transition-shadow hover:shadow-[var(--noc-shadow-md)]"
+            >
+              <div class="relative h-[152px] rounded-[8px] bg-[color-mix(in_srgb,var(--noc-text)_5%,transparent)]">
+                @if (deal.imageUrl) {
+                  <img [src]="deal.imageUrl" [alt]="displayName(deal.productName)" loading="lazy" class="h-full w-full object-contain p-2" />
+                }
+                @if (deal.discountPercent > 0) {
+                  <span class="absolute left-2 top-2 rounded-[6px] px-2 py-0.5 text-xs font-medium" style="background: var(--noc-accent-800); color: var(--noc-accent-100)">{{ discountBadge(deal) }}</span>
+                } @else if (deal.storeDiscountPercent && deal.storeDiscountPercent > 0) {
+                  <span title="Markanın kendi beyan ettiği indirim, bizim tarafımızdan doğrulanmamıştır" class="absolute left-2 top-2 rounded-[6px] px-2 py-0.5 text-xs font-medium" style="background: var(--noc-neutral-800); color: var(--noc-neutral-100)">{{ storeDiscountBadge(deal) }}</span>
+                }
+                @if (deal.isAtThirtyDayLow) {
+                  <span class="absolute left-2 top-[34px] rounded-[6px] border border-[var(--noc-accent)] bg-[var(--noc-card)] px-2 py-0.5 text-[10px] text-[var(--noc-accent)]">30 günün en düşüğü</span>
+                }
+
+                <!-- Karşılaştırma seçimi — ana sayfadaki kartla aynı desen
+                     (stopPropagation: kart tıklaması modalı açıyor). -->
+                <button
+                  type="button"
+                  class="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-[6px] border transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                  [class]="comparison.isSelected(deal.productId)
+                    ? 'border-[var(--noc-accent)] bg-[var(--noc-card)] text-[var(--noc-accent)]'
+                    : 'border-[var(--noc-divider)] bg-[var(--noc-card)] text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]'"
+                  [disabled]="comparison.isFull() && !comparison.isSelected(deal.productId)"
+                  [title]="comparison.isSelected(deal.productId) ? 'Karşılaştırmadan çıkar' : 'Karşılaştırmaya ekle'"
+                  [attr.aria-label]="displayName(deal.productName) + (comparison.isSelected(deal.productId) ? ' ürününü karşılaştırmadan çıkar' : ' ürününü karşılaştırmaya ekle')"
+                  (click)="$event.stopPropagation(); comparison.toggle(deal)"
+                >
+                  @if (comparison.isSelected(deal.productId)) {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="h-4 w-4">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  } @else {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L4 7m3-3l3 3M17 8v12m0 0l3-3m-3 3l-3-3" />
+                    </svg>
+                  }
+                </button>
+              </div>
+
+              <div class="flex items-center justify-between text-[10px] uppercase tracking-[0.08em] text-[var(--noc-accent)]">
+                <span>{{ deal.brandName }}</span>
+                <span class="text-[var(--noc-neutral-500)] normal-case tracking-normal">{{ lastCheckedText(deal) }}</span>
+              </div>
+
+              <h3 class="min-h-[38px]"><a [href]="productPath(deal)" (click)="onProductClick($event, deal)" [title]="displayName(deal.productName)" class="line-clamp-2 text-[15px] font-medium leading-[1.28] hover:text-[var(--noc-accent)]">{{ displayName(deal.productName) }}</a></h3>
+
+              @if (deal.size || deal.flavor) {
+                <span class="text-xs text-[var(--noc-neutral-500)]">{{ deal.size }}{{ deal.size && deal.flavor ? ' · ' : '' }}{{ deal.flavor }}</span>
+              }
+
+              @if (deal.inStock === false) {
+                <span class="pa-outofstock-badge">Tükendi</span>
+              }
+
+              <app-product-card-sparkline [points]="sparklineFor(deal.productId)" />
+
+              <div class="mt-auto flex items-end justify-between gap-2 pt-1">
+                <div class="flex items-baseline gap-1.5">
+                  <span class="text-[25px] font-medium tracking-[-0.025em]">{{ deal.currentPrice | number: '1.2-2' }} ₺</span>
+                  @if (deal.discountPercent > 0) {
+                    <span class="text-xs text-[var(--noc-neutral-500)] line-through">{{ deal.referencePrice | number: '1.2-2' }} ₺</span>
+                  } @else if (deal.storeDiscountPercent && deal.storeDiscountPercent > 0) {
+                    <span class="text-xs text-[var(--noc-neutral-500)] line-through">{{ deal.storeOldPrice | number: '1.2-2' }} ₺</span>
+                  }
+                </div>
+                @if (pricePerServing(deal); as perServing) {
+                  <div class="text-right">
+                    <div class="text-[15px] font-medium text-[var(--noc-accent-300)]">{{ perServing | number: '1.2-2' }} ₺</div>
+                    <div class="text-[10px] text-[var(--noc-neutral-500)]">/ servis</div>
+                  </div>
+                }
+              </div>
+
+              <a
+                [href]="goToStoreUrl(deal)" (click)="magazaTiklamasi(deal.productId)"
+                target="_blank"
+                rel="nofollow sponsored noopener"
+                (click)="$event.stopPropagation()"
+                class="mt-1 inline-flex items-center justify-center rounded-[8px] border border-[var(--noc-accent)] py-1.5 text-xs font-medium text-[var(--noc-accent)] hover:bg-[color-mix(in_srgb,var(--noc-accent)_12%,transparent)]"
+              >
+                Mağazaya git
+              </a>
+            </div>
+          }
+        </div>
+
+        <!-- Sayfalama GERÇEK BAĞLANTI olmak zorunda (<a href>), buton değil:
+             buton hâliyle sunucudan gelen HTML'de hiçbir sayfalama adresi
+             yoktu ve tarayıcılar her listede yalnızca ilk 24 ürünü
+             görebiliyordu. Numaralar da bilerek var — sadece ileri/geri
+             olsaydı son sayfa onlarca tıklama derinliğinde kalırdı. -->
+        @if (totalPages() > 1) {
+          <nav class="mt-10 flex flex-wrap items-center justify-center gap-2" aria-label="Sayfalama">
+            @if (currentPage() > 1) {
+              <a [routerLink]="[]" [queryParams]="sayfaSorgusu(currentPage() - 1)" (click)="sayfayaKaydir()" rel="prev" title="Önceki Sayfa" class="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[var(--noc-divider)] text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6" /></svg>
+              </a>
+            } @else {
+              <span class="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[var(--noc-divider)] text-[var(--noc-neutral-500)] opacity-45" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6" /></svg>
+              </span>
+            }
+
+            @for (oge of sayfaOgeleri(); track $index) {
+              @if (oge === null) {
+                <span class="px-1 text-sm text-[var(--noc-neutral-500)]" aria-hidden="true">…</span>
+              } @else if (oge === currentPage()) {
+                <span aria-current="page" class="flex h-9 min-w-9 items-center justify-center rounded-[8px] border border-[var(--noc-accent)] px-2 text-sm font-medium text-[var(--noc-accent)]">{{ oge }}</span>
+              } @else {
+                <a [routerLink]="[]" [queryParams]="sayfaSorgusu(oge)" (click)="sayfayaKaydir()" [attr.aria-label]="'Sayfa ' + oge" class="flex h-9 min-w-9 items-center justify-center rounded-[8px] border border-[var(--noc-divider)] px-2 text-sm text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]">{{ oge }}</a>
+              }
+            }
+
+            @if (currentPage() < totalPages()) {
+              <a [routerLink]="[]" [queryParams]="sayfaSorgusu(currentPage() + 1)" (click)="sayfayaKaydir()" rel="next" title="Sonraki Sayfa" class="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[var(--noc-divider)] text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6" /></svg>
+              </a>
+            } @else {
+              <span class="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[var(--noc-divider)] text-[var(--noc-neutral-500)] opacity-45" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6" /></svg>
+              </span>
+            }
+          </nav>
+          <p class="mt-3 text-center text-sm text-[var(--noc-neutral-500)]">Sayfa {{ currentPage() }} / {{ totalPages() }} ({{ totalCount() }} ürün)</p>
+        }
+      }
+
+      <!-- Marka × kategori kesişim sayfalarına iç linkler. Yalnızca bu
+           markanın GERÇEKTEN ürünü olan kategoriler listeleniyor (boş
+           kombinasyona link vermemek için) ve o anki kategori listede yok. -->
+      @if (brandCategories().length > 0) {
+        <div class="mt-[45px] text-center">
+          <h2 class="mb-3 text-sm font-medium">{{ brandName() }} Kategorileri</h2>
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            @for (item of brandCategories(); track item.slug) {
+              <a
+                [routerLink]="['/marka', brandSlug(brandName()), item.slug]"
+                class="rounded-[6px] border border-[var(--noc-divider)] px-2.5 py-1 text-xs text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]"
+              >
+                {{ brandName() }} {{ item.label }}
+                <span class="text-[var(--noc-neutral-600)]">({{ item.count }})</span>
+              </a>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Markaya ÖZEL SSS — kategori sayfalarındaki accordion deseninin
+           aynısı. Ürün listesinden SONRA geliyor: sayfaya gelenin asıl amacı
+           önce fiyatlara bakmak. Yalnızca marka ana sayfasında görünüyor,
+           marka × kategori kesişiminde değil. -->
+      <!-- Marka × kategori kesişimine özel SSS. Ayrı bir blok: sorular da,
+           başlık da marka ana sayfasındakinden farklı (orası kupon odaklı,
+           burası fiyat konumu odaklı). -->
+      <!-- BAYİ KAYITLARI BLOĞU.
+           Marka sayfası markanın kendi vitrini (7faad22) ve kendi mağazası
+           olan markalarda bayideki kopyalar listeden çıkarılıyor. Ölçüldü
+           (5 Eylül): katalogun %59'u bayi kaydı ve büyük kısmı sitede
+           HİÇBİR sayfadan bağlantı almıyordu — Google onları yalnızca
+           sitemap'ten biliyor, "Keşfedildi ama taranmadı" durumunda
+           bırakıyordu. Bu blok vitrini bozmadan o kayıtlara kapı açıyor;
+           tamamına bayi görünümündeki sayfalamayla ulaşılıyor. -->
+      @if (bayiBlogunuGoster()) {
+        <section class="mt-[45px]">
+          <div class="mb-4 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 class="text-lg font-medium">{{ brandName() }} ürünlerini satan bayiler</h2>
+              <p class="mt-1 text-sm text-[var(--noc-neutral-500)]">
+                Yukarıdaki liste markanın kendi sitesindeki fiyatları gösteriyor. Aynı ürünler bayilerde farklı
+                fiyatlarla da satılıyor — {{ bayiToplam() }} kayıt.
+              </p>
+            </div>
+            <a [routerLink]="[]" [queryParams]="{ satici: 'bayi', page: null }" queryParamsHandling="merge" class="shrink-0 rounded-[8px] border border-[var(--noc-divider)] px-3 py-[7px] text-[13px] hover:text-[var(--noc-accent)]">
+              Tümünü gör ({{ bayiToplam() }})
+            </a>
+          </div>
+          <ul class="flex flex-col divide-y divide-[var(--noc-divider)] rounded-[10px] border border-[var(--noc-divider)]">
+            @for (bayiUrun of bayiOrnekleri(); track bayiUrun.productId) {
+              <li>
+                <a [href]="productPath(bayiUrun)" (click)="onProductClick($event, bayiUrun)" class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:text-[var(--noc-accent)]">
+                  <span class="min-w-0 flex-1 text-[14px] leading-snug">{{ displayName(bayiUrun.productName) }}</span>
+                  <span class="text-[12px] text-[var(--noc-neutral-500)]">{{ bayiUrun.seller }}</span>
+                  <span class="text-[15px] font-medium tabular-nums">{{ bayiUrun.currentPrice | number: '1.2-2' }} ₺</span>
+                </a>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
+      @if (brandCategoryFaqs().length > 0) {
+        <section class="mt-[45px]">
+          <h2 class="mb-4 text-lg font-medium">{{ brandName() }} {{ fixedCategoryLabel() }} Hakkında Sık Sorulanlar</h2>
+          <div class="flex flex-col gap-2">
+            @for (item of brandCategoryFaqs(); track item.question) {
+              <details class="group rounded-[8px] border border-[var(--noc-divider)] px-4 py-3">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium">
+                  {{ item.question }}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4 shrink-0 text-[var(--noc-neutral-500)] transition-transform group-open:rotate-180">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />
+                  </svg>
+                </summary>
+                <p class="mt-2 text-sm leading-relaxed text-[var(--noc-neutral-500)]">{{ item.answer }}</p>
+              </details>
+            }
+          </div>
+        </section>
+      }
+
+      @if (brandFaqs().length > 0) {
+        <section class="mt-[45px]">
+          <h2 class="mb-4 text-lg font-medium">{{ brandName() }} İndirim Kodu Hakkında Sık Sorulanlar</h2>
+          <div class="flex flex-col gap-2">
+            @for (item of brandFaqs(); track item.question) {
+              <details class="group rounded-[8px] border border-[var(--noc-divider)] px-4 py-3">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium">
+                  {{ item.question }}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4 shrink-0 text-[var(--noc-neutral-500)] transition-transform group-open:rotate-180">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />
+                  </svg>
+                </summary>
+                <p class="mt-2 text-sm leading-relaxed text-[var(--noc-neutral-500)]">{{ item.answer }}</p>
+              </details>
+            }
+          </div>
+        </section>
+      }
+
+      @if (otherBrands().length > 0) {
+        <div class="mt-[45px] text-center">
+          <h2 class="mb-3 text-sm font-medium">Diğer Markalar</h2>
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            @for (brand of otherBrands(); track brand) {
+              <a [routerLink]="['/marka', brandSlug(brand), 'indirim-kodu']" class="rounded-[6px] border border-[var(--noc-divider)] px-2.5 py-1 text-xs text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]">{{ brand }} İndirim Kodu</a>
+            }
+          </div>
+        </div>
+
+        <div class="mt-6 text-center">
+          <h2 class="mb-3 text-sm font-medium">Fiyat Karşılaştırması</h2>
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            @for (brand of otherBrands(); track brand) {
+              <a [routerLink]="['/karsilastir', comparisonPairSlug(brand)]" class="rounded-[6px] border border-[var(--noc-accent)] px-2.5 py-1 text-xs text-[var(--noc-accent)]">{{ brandName() }} vs {{ brand }}</a>
+            }
+          </div>
+        </div>
+      }
+
+      <div class="mt-6 text-center">
+        <a routerLink="/" class="text-sm font-medium text-[var(--noc-accent)]">Tüm markaların indirimlerini gör →</a>
+      </div>
+    }
+
+    @if (selectedDeal(); as deal) {
+      <app-product-modal [deal]="deal" (closed)="closeDeal()" />
+    }
+  </main>
+</div>

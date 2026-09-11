@@ -1,0 +1,71 @@
+<div class="noc-shell bg-[var(--noc-bg)] text-[var(--noc-text)]">
+  <app-site-header />
+
+  <main class="pa-contact-main">
+    <header class="mx-auto max-w-[760px] text-center max-sm:text-left">
+      <p class="m-0 text-[11px] font-extrabold tracking-[.17em] text-[var(--noc-accent)] uppercase">İletişim</p>
+      <h1 class="my-3 text-[clamp(42px,4.5vw,54px)] leading-[1.02] font-bold tracking-[-.052em] text-[var(--noc-text)] max-sm:text-[39px]">Doğru konu, doğrudan doğru adrese.</h1>
+      <p class="mx-auto max-w-[650px] text-base leading-[1.6] text-[var(--noc-neutral-300)] max-sm:text-[15px]">Yanlış fiyat bildirimi, marka iş birliği veya kişisel veri talebi için bize doğrudan e-posta gönderebilirsin.</p>
+    </header>
+
+    <section class="pa-contact-mail" aria-label="E-posta iletişim bilgileri">
+      <span class="pa-contact-mail-icon" aria-hidden="true"><i class="ph ph-envelope-simple"></i></span>
+      <div class="pa-contact-address">
+        <span>Tek iletişim adresimiz</span>
+        <a href="mailto:destek&#64;proteinavcisi.com.tr">destek&#64;proteinavcisi.com.tr</a>
+      </div>
+      <p><strong>Tek kişi okuyor</strong>Genellikle birkaç iş günü içinde yanıt</p>
+      <a class="pa-contact-primary" href="mailto:destek&#64;proteinavcisi.com.tr">
+        E-posta gönder <i class="ph ph-arrow-right" aria-hidden="true"></i>
+      </a>
+    </section>
+
+    <section class="pa-contact-topics" aria-labelledby="contact-topics-title">
+      <h2 id="contact-topics-title">Ne hakkında yazmak istiyorsun?</h2>
+
+      <div class="pa-contact-grid">
+        <article class="pa-contact-topic">
+          <span class="pa-contact-topic-icon" aria-hidden="true"><i class="ph ph-chart-line-up"></i></span>
+          <h3>Yanlış fiyat bildir</h3>
+          <p>Ürün bağlantısını ve markanın sitesinde gördüğün gerçek fiyatı paylaş. Önce doğrulayıp sonra gerekiyorsa düzeltelim.</p>
+          <a href="mailto:destek&#64;proteinavcisi.com.tr?subject=Yanl%C4%B1%C5%9F%20fiyat%20bildirimi">
+            Bize e-posta gönder <i class="ph ph-arrow-right" aria-hidden="true"></i>
+          </a>
+        </article>
+
+        <article class="pa-contact-topic">
+          <span class="pa-contact-topic-icon" aria-hidden="true"><i class="ph ph-megaphone-simple"></i></span>
+          <h3>Marka ve iş birliği</h3>
+          <p>Ürün akışı, affiliate programı, reklam veya sponsorluk teklifleri için aynı adresi kullanabilirsin.</p>
+          <a href="mailto:destek&#64;proteinavcisi.com.tr?subject=Marka%20ve%20i%C5%9F%20birli%C4%9Fi">
+            İş birliğini konuşalım <i class="ph ph-arrow-right" aria-hidden="true"></i>
+          </a>
+        </article>
+
+        <article class="pa-contact-topic pa-contact-topic--external">
+          <span class="pa-contact-topic-icon" aria-hidden="true"><i class="ph ph-package"></i></span>
+          <h3>Sipariş, kargo ve iade</h3>
+          <p>Ürünleri biz satmıyoruz. Bu konularda sipariş onayında gördüğün markanın müşteri hizmetleri yardımcı olabilir.</p>
+          <span class="pa-contact-route">Markayla iletişim kur</span>
+        </article>
+
+        <article class="pa-contact-topic">
+          <span class="pa-contact-topic-icon" aria-hidden="true"><i class="ph ph-shield-check"></i></span>
+          <h3>KVKK talebi</h3>
+          <p>Verine erişme, düzeltme veya silme taleplerini aynı destek adresine iletebilirsin.</p>
+          <a href="mailto:destek&#64;proteinavcisi.com.tr?subject=KVKK%20talebi">
+            Talebini gönder <i class="ph ph-arrow-right" aria-hidden="true"></i>
+          </a>
+        </article>
+      </div>
+    </section>
+
+    <aside class="mt-[15px] flex items-center gap-6 rounded-[12px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-4 py-[13px] max-sm:flex-col max-sm:items-start">
+      <p class="m-0 text-[11px] leading-[1.45] text-[var(--noc-neutral-500)]"><strong class="block text-xs text-[var(--noc-text)]">Tek geliştiricili, doğrudan iletişim</strong>Otomatik destek sistemi veya çağrı merkezi yok.</p>
+      <nav class="ml-auto flex gap-[18px] max-sm:ml-0 max-sm:flex-wrap" aria-label="İletişim hakkında ek bilgiler">
+        <a routerLink="/hakkimizda" class="whitespace-nowrap text-[11px] font-bold text-[var(--noc-accent)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--noc-accent)]">Hakkımızda <span aria-hidden="true">→</span></a>
+        <a routerLink="/gizlilik-politikasi" class="whitespace-nowrap text-[11px] font-bold text-[var(--noc-accent)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--noc-accent)]">Gizlilik Politikası <span aria-hidden="true">→</span></a>
+      </nav>
+    </aside>
+  </main>
+</div>

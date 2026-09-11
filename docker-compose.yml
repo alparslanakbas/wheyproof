@@ -1,0 +1,172 @@
+services:
+  # Veritabanı Neon'dan (yönetilen, serverless) buraya taşındı. Neon'un
+  # ücretsiz planı compute-SAATİ faturalandırıyor: veritabanı "uyanık"
+  # durduğu her saat sayılıyor, sorgu sayısı değil. SSR bir site + arama
+  # motoru botları + izleme pingi yüzünden endpoint pratikte hiç uyumuyordu,
+  # bu da 100 CU-saatlik aylık kotayı döngü bitmeden tüketiyordu. Veri 24 MB;
+  # bu boyut için serverless'ın esnekliğine ihtiyaç yok, VM'de zaten boşta
+  # duran kaynak var.
+  #
+  # initdb argümanları Neon'daki ayarla BİREBİR aynı olmak zorunda:
+  # locale provider "builtin", locale "C.UTF-8", kodlama UTF8. Farklı bir
+  # collation ile kurulsaydı metin sıralaması ve index düzeni sessizce
+  # değişirdi (Türkçe içerikte fark eder).
+  db:
+    # alpine DEĞİL, bilinçli tercih: musl libc'de locale desteği sınırlı,
+    # "C.UTF-8" bir libc locale'i olarak bulunmuyor ve initdb sessizce
+    # imajın varsayılanına (en_US.utf8) düşüyor. Bu, taşınan veriyle farklı
+    # bir metin sıralama davranışı demek olurdu. Debian tabanlı imajda
+    # C.UTF-8 mevcut.
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=indirim_takip
+      - POSTGRES_USER=protein
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8
+    expose:
+      - "5432"
+    # Port YALNIZCA VM'in loopback arayüzüne bağlanıyor — "0.0.0.0:5432"
+    # DEĞİL. Yani veritabanı internetten erişilebilir değil; yalnızca VM'e
+    # SSH ile girebilen biri ulaşabiliyor. Yerel geliştirme buraya SSH
+    # tüneliyle bağlanıyor (ssh -L 5433:127.0.0.1:5432).
+    #
+    # Bu ayrım kritik: "5432:5432" yazılsaydı Postgres tüm dünyaya açılırdı.
+    ports:
+      - "127.0.0.1:5432:5432"
+    # Docker varsayılan olarak SIGTERM gönderiyor; Postgres bunu "smart
+    # shutdown" sayıp açık istemcileri bekliyor, süre dolunca SIGKILL
+    # geliyor ve açılışta kurtarma gerekiyor. SIGINT "fast shutdown" demek.
+    stop_signal: SIGINT
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U protein -d indirim_takip"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    # DİKKAT: Postgres 18 imajı veri dizini kuralını değiştirdi. Eskiden
+    # /var/lib/postgresql/data bağlanırdı; 18+ sürümde veri sürüme özel bir
+    # alt dizine (/var/lib/postgresql/18/docker) yazılıyor ve mount bir üst
+    # seviyeye yapılmalı. Eski yol bağlanırsa konteyner "yanlış yerde veri
+    # var" deyip hiç açılmıyor. Bu kural pg_upgrade'in mount sınırına
+    # takılmadan çalışabilmesi için konuldu.
+    volumes:
+      - pg_data:/var/lib/postgresql
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - PORT=8080
+      # Önbellek ısıtma isteğinin GERÇEK ziyaretçiyle aynı önbellek anahtarına
+      # düşmesi için: anahtar Host ve şemayı da içeriyor. Bu değer olmadan
+      # ısıtma "localhost" anahtarını doldurur ve hiçbir işe yaramaz.
+      - OutputCache__WarmupHost=api.proteinavcisi.com.tr
+      - ConnectionStrings__Default=${CONNECTION_STRING}
+      - AdminApiKey=${ADMIN_API_KEY}
+      # Dışarıda toplanan ürünleri kabul eden uç (POST /api/ingest/{kaynak}).
+      # AYRI anahtar: bu değer geliştirme makinesinde de duruyor, sızarsa
+      # admin uçlarına erişim vermemeli. Tanımlı değilse uç tamamen kapalı.
+      - IngestApiKey=${INGEST_API_KEY}
+      # Kaynak tazeliği alarmının eşiği (saat). Tanımlanmazsa 26.
+      # Deploy yapmadan ayarlanabilsin diye burada: bir alarmın eşiği,
+      # yanlış ayarlandığında kod değişikliği beklemeden düzeltilebilmeli.
+      # Yonetim paneli Cloudflare Access'in arkasinda; backend Access'in
+      # imzali kimlik jetonunu da kabul ediyor. IKISI DE TANIMLI DEGILSE
+      # bu yol tamamen KAPALI - eksik ayarda jetonu yine de kabul etmek,
+      # yanlis bir yapilandirmanin kapiyi sessizce acmasi demekti.
+      # Aud etiketi Access uygulamasinin panelinden aliniyor ve gizli
+      # bir deger degil; jetonu BU uygulamaya baglamak icin gerekli.
+      - CloudflareAccess__TeamDomain=${CF_ACCESS_TEAM_DOMAIN:-}
+      - CloudflareAccess__Aud=${CF_ACCESS_AUD:-}
+      - Health__StaleHours=${HEALTH_STALE_HOURS:-26}
+      - Brevo__ApiKey=${BREVO_API_KEY}
+      # Arama motoru bildirimi (Bing/Yandex/Seznam). Anahtar gizli değil —
+      # site sahipliğini doğrulamak için /{key}.txt adresinde zaten açıkta.
+      - IndexNow__Key=${INDEXNOW_KEY}
+      # Ortaklık programı takip kodları. Değerler .env'de (repoya girmiyor),
+      # tanımsız bırakılan marka için yönlendirme adresi hiç değişmiyor.
+      - Affiliate__TrackingCodes__Hardline=${AFFILIATE_HARDLINE}
+      - Affiliate__TrackingCodes__SSN=${AFFILIATE_SSN}
+      - PublicBaseUrl=https://api.proteinavcisi.com.tr
+      # ÜRÜN GÖRSELLERİ kendi sunucumuzda tutuluyor. Kaynakların CDN'lerine
+      # doğrudan bağlanmak (hotlink) ortalama 280 kB, en kötüsü 2,35 MB
+      # görsel demekti; ayrıca erişilemeyen bir host tarayıcıda `onerror`
+      # tetiklemediği için yedek görsel hiç devreye girmiyor.
+      # Adres öneki API alan adı üzerinden: dosyaları .NET sunuyor, Caddy'ye
+      # bilerek dosya sunucusu eklenmedi (bkz. Program.cs'teki gerekçe).
+      - ProductImages__Enabled=true
+      - ProductImages__Dizin=/app/urun-gorsel
+      - ProductImages__TabanAdres=https://api.proteinavcisi.com.tr/api/gorsel
+      - Cors__AllowedOrigins__0=https://proteinavcisi.com.tr
+      - Cors__AllowedOrigins__1=https://www.proteinavcisi.com.tr
+      - Scraping__Enabled=true
+      - Digest__Enabled=true
+      - DescriptionBackfill__Enabled=true
+    expose:
+      - "8080"
+    # Port YALNIZCA loopback'e bağlanıyor (db'deki desenin aynısı, "0.0.0.0"
+    # DEĞİL): internetten erişilemez, yalnızca VM'in kendi içinden.
+    #
+    # NEDEN GEREKLİ: Supplementler toplayıcısı VM'de çalışıyor ve topladığını
+    # /api/ingest ucuna gönderiyor. Public adrese gönderseydi istek WireGuard
+    # tünelinden ev bağlantısına, oradan Cloudflare'e ve tekrar buraya
+    # dönerdi — gereksiz ve kırılgan. Loopback trafiği yönlendirme
+    # kurallarına hiç girmiyor.
+    ports:
+      - "127.0.0.1:8080:8080"
+    # Görseller ADLANDIRILMIŞ VOLUME'da: konteyner her deploy'da yeniden
+    # oluşturuluyor ve imajın içinde tutulsalardı her deploy 4.900 görseli
+    # sıfırdan indirtirdi. `docker builder prune` (haftalık cron) adlandırılmış
+    # volume'lara dokunmuyor.
+    volumes:
+      - urun_gorsel:/app/urun-gorsel
+    # Backend açılışta EF migration çalıştırıyor; veritabanı hazır değilken
+    # başlarsa hata verir. Deploy workflow'u backend'i "--no-deps" ile
+    # yenilediği için bu koşul orada devreye girmiyor (db zaten sürekli
+    # ayakta, her deploy'da gereksizce yeniden başlatılmasın diye böyle).
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      - PORT=4000
+      - NG_ALLOWED_HOSTS=proteinavcisi.com.tr,www.proteinavcisi.com.tr
+    expose:
+      - "4000"
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Tek dosya DEĞİL, dizin bağlanıyor: tek dosyalık bind-mount
+      # inode'a bağlanıyor ve "git pull" dosyayı yenisiyle değiştirdiği
+      # için container eski içeriği görmeye devam ediyordu — yapılandırma
+      # değişiklikleri container yeniden oluşturulmadan hiç ulaşmıyordu.
+      - ./caddy:/etc/caddy
+      # Erisim logu HOST'A baglaniyor, isimli volume'e degil: bu kayit
+      # gerektiginde delil olarak disari verilecek. Host dizininde durunca
+      # normal araclarla (grep/arsivle/kopyala) erisilebiliyor; isimli
+      # volume icin her seferinde konteynere girmek gerekirdi.
+      - ./caddy-log:/var/log/caddy
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  urun_gorsel:
+  caddy_data:
+  caddy_config:
+  pg_data:

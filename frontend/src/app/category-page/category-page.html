@@ -1,0 +1,316 @@
+<div class="noc-shell min-h-screen bg-[var(--noc-bg)] text-[var(--noc-text)]">
+  <app-site-header />
+
+  <main class="mx-auto max-w-[1280px] px-[28px] py-[22px]">
+    @if (loadError()) {
+      <div class="mx-auto max-w-md rounded-[8px] bg-[var(--noc-surface)] px-6 py-8 text-center">
+        Kategori bilgileri yüklenemedi. Lütfen daha sonra tekrar dene.
+        <a routerLink="/" class="mt-2 block w-full text-sm font-medium text-[var(--noc-accent)]">Ana sayfaya dön</a>
+      </div>
+    } @else {
+      <nav class="mb-2 text-xs text-[var(--noc-neutral-500)]">
+        <a routerLink="/" class="hover:text-[var(--noc-accent)]">Ana Sayfa</a> / {{ categoryLabel() }}
+      </nav>
+      <!-- H1 bilinçli olarak title ile aynı ana ifadeyi ("... Fiyatları")
+           taşıyor — eskiden sadece kategori adıydı ("Kreatin"), title ise
+           "Kreatin Fiyatları ve İndirimleri"ydi; ikisinin uyuşmaması
+           Google'a zayıf/karışık bir konu sinyali veriyordu. -->
+      <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">{{ categoryLabel() }} Fiyatları</h1>
+      <p class="mt-2 max-w-2xl text-[15px] text-[var(--noc-neutral-300)]">
+        {{ totalCount() }} ürün takipte. {{ categoryIntro() }}
+      </p>
+
+      <div class="mt-[22px] flex flex-wrap items-center gap-3">
+        <div class="inline-flex overflow-hidden rounded-[8px] border border-[var(--noc-divider)]">
+          <button type="button" class="border-l border-[var(--noc-divider)] px-3 py-[7px] text-[13px] first:border-l-0" [class]="viewMode() === 'deals' ? 'text-[var(--noc-accent)] shadow-[inset_0_0_0_1px_var(--noc-accent)]' : 'hover:bg-[color-mix(in_srgb,var(--noc-text)_7%,transparent)]'" (click)="setViewMode('deals')">Gerçek indirim</button>
+          <button type="button" class="border-l border-[var(--noc-divider)] px-3 py-[7px] text-[13px]" [class]="viewMode() === 'store' ? 'text-[var(--noc-accent)] shadow-[inset_0_0_0_1px_var(--noc-accent)]' : 'hover:bg-[color-mix(in_srgb,var(--noc-text)_7%,transparent)]'" (click)="setViewMode('store')">Mağaza kampanyası</button>
+          <button type="button" class="border-l border-[var(--noc-divider)] px-3 py-[7px] text-[13px]" [class]="viewMode() === 'all' ? 'text-[var(--noc-accent)] shadow-[inset_0_0_0_1px_var(--noc-accent)]' : 'hover:bg-[color-mix(in_srgb,var(--noc-text)_7%,transparent)]'" (click)="setViewMode('all')">Tümü</button>
+        </div>
+
+        <label class="relative min-w-[220px] flex-1 sm:max-w-[320px]">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--noc-neutral-500)]">
+            <circle cx="11" cy="11" r="7" />
+            <path stroke-linecap="round" d="m20 20-3-3" />
+          </svg>
+          <input
+            type="search"
+            placeholder="Bu kategoride ara"
+            [ngModel]="searchQuery()"
+            (ngModelChange)="onSearchChange($event)"
+            class="w-full rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] py-[6px] pl-9 pr-3 text-sm text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none"
+          />
+        </label>
+
+        <span class="ml-auto flex items-center gap-2 text-xs text-[var(--noc-neutral-500)]">
+          <label for="sortBy">Sırala:</label>
+          <select id="sortBy" [ngModel]="sortBy()" (ngModelChange)="onSortChange($event)" class="rounded-[6px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-2 py-1 text-xs text-[var(--noc-text)]">
+            <option value="">Varsayılan (İndirim Oranı)</option>
+            <option value="newest">Son Eklenenler</option>
+            <option value="oldest">İlk Eklenenler</option>
+            <option value="price_asc">Fiyat: Düşükten Yükseğe</option>
+            <option value="price_desc">Fiyat: Yüksekten Düşüğe</option>
+            <option value="name_asc">İsim: A-Z</option>
+            <option value="name_desc">İsim: Z-A</option>
+          </select>
+        </span>
+      </div>
+
+      @if (availableBrands().length > 0) {
+        <div class="mb-[22px] mt-[13px] flex flex-wrap items-center gap-1.5">
+          @for (brand of availableBrands(); track brand) {
+            <button
+              type="button"
+              class="rounded-[6px] border px-2.5 py-1 text-xs"
+              [class]="selectedBrands().has(brand) ? 'border-[var(--noc-accent)] text-[var(--noc-accent)]' : 'border-[var(--noc-divider)] text-[var(--noc-neutral-500)] hover:text-[var(--noc-text)]'"
+              (click)="toggleBrand(brand)"
+            >
+              {{ brand }}
+            </button>
+          }
+          <input
+            type="number"
+            placeholder="Min ₺"
+            [ngModel]="priceMin()"
+            (ngModelChange)="onPriceMinChange($event)"
+            class="w-20 rounded-[6px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-2 py-1 text-xs placeholder:text-[var(--noc-neutral-500)]"
+          />
+          <span class="text-xs text-[var(--noc-neutral-500)]">—</span>
+          <input
+            type="number"
+            placeholder="Max ₺"
+            [ngModel]="priceMax()"
+            (ngModelChange)="onPriceMaxChange($event)"
+            class="w-20 rounded-[6px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-2 py-1 text-xs placeholder:text-[var(--noc-neutral-500)]"
+          />
+          @if (hasActiveFilters()) {
+            <button type="button" class="text-xs font-medium text-[var(--noc-accent)]" (click)="clearFilters()">Filtreleri Temizle</button>
+          }
+        </div>
+      }
+
+      @if (loading()) {
+        <div class="py-24 text-center text-[var(--noc-neutral-500)]">Yükleniyor...</div>
+      } @else if (itemsError()) {
+        <div class="mx-auto max-w-md rounded-[8px] bg-[var(--noc-surface)] px-6 py-8 text-center">Ürünler yüklenemedi. Lütfen daha sonra tekrar dene.</div>
+      } @else if (items().length === 0) {
+        <div class="mx-auto max-w-md rounded-[8px] bg-[var(--noc-surface)] px-6 py-10 text-center text-[var(--noc-neutral-500)]">
+          @if (hasActiveFilters()) {
+            Aramanla/filtrelerinle eşleşen ürün bulunamadı.
+            <button type="button" class="mt-2 block w-full text-sm font-medium text-[var(--noc-accent)]" (click)="clearFilters()">Filtreleri temizle</button>
+          } @else {
+            Bu görünümde {{ categoryLabel() }} kategorisinde ürün yok.
+          }
+        </div>
+      } @else {
+        <div class="pa-responsive-table overflow-x-auto rounded-[14px] bg-[var(--noc-card)] shadow-[var(--noc-shadow-sm)]">
+          <table class="w-full min-w-[720px] border-collapse text-sm">
+            <thead>
+              <tr class="text-left text-[11px] uppercase tracking-[0.08em] text-[var(--noc-neutral-500)]">
+                <th class="px-[16.8px] py-[11.2px] font-normal">Ürün</th>
+                <th class="px-[16.8px] py-[11.2px] font-normal">Varyant</th>
+                <th class="px-[16.8px] py-[11.2px] text-right font-normal">Güncel</th>
+                <th class="px-[16.8px] py-[11.2px] text-right font-normal">İndirim</th>
+                <th class="px-[16.8px] py-[11.2px] font-normal">Durum</th>
+                <th class="px-[16.8px] py-[11.2px] font-normal"></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (deal of items(); track deal.productId) {
+                <tr class="cursor-pointer border-t border-[var(--noc-divider)] hover:bg-[color-mix(in_srgb,var(--noc-text)_4%,transparent)]" (click)="openDeal(deal)">
+                  <td class="px-[16.8px] py-[11.2px]">
+                    <div class="flex items-center gap-3">
+                      <div class="h-12 w-12 shrink-0 rounded-[6px] bg-[color-mix(in_srgb,var(--noc-text)_5%,transparent)]">
+                        @if (deal.imageUrl) {
+                          <img [src]="deal.imageUrl" [alt]="displayName(deal.productName)" loading="lazy" class="h-full w-full object-contain p-1" />
+                        }
+                      </div>
+                      <div>
+                        <div class="text-[10px] uppercase tracking-[0.08em] text-[var(--noc-accent)]">{{ deal.brandName }}</div>
+                        <a [href]="productPath(deal)" (click)="onProductClick($event, deal)" [title]="displayName(deal.productName)" class="line-clamp-2 max-w-xs text-[13px] font-medium hover:text-[var(--noc-accent)]">{{ displayName(deal.productName) }}</a>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-[16.8px] py-[11.2px] text-[var(--noc-neutral-500)]">
+                    {{ deal.size }}{{ deal.size && deal.flavor ? ' · ' : '' }}{{ deal.flavor }}
+                    @if (deal.inStock === false) {
+                      <span class="pa-outofstock-badge">Tükendi</span>
+                    }
+                  </td>
+                  <td class="px-[16.8px] py-[11.2px] text-right">
+                    <div class="font-medium">{{ deal.currentPrice | number: '1.2-2' }} ₺</div>
+                    @if (deal.discountPercent > 0) {
+                      <div class="text-xs text-[var(--noc-neutral-500)] line-through">{{ deal.referencePrice | number: '1.2-2' }} ₺</div>
+                    } @else if (deal.storeDiscountPercent && deal.storeDiscountPercent > 0) {
+                      <div class="text-xs text-[var(--noc-neutral-500)] line-through">{{ deal.storeOldPrice | number: '1.2-2' }} ₺</div>
+                    }
+                  </td>
+                  <td class="px-[16.8px] py-[11.2px] text-right">
+                    @if (deal.discountPercent > 0) {
+                      <span class="text-[var(--noc-accent)]">{{ discountBadge(deal) }}</span>
+                    } @else if (deal.storeDiscountPercent && deal.storeDiscountPercent > 0) {
+                      <span title="Markanın kendi beyan ettiği indirim, bizim tarafımızdan doğrulanmamıştır" class="text-[var(--noc-neutral-500)]">{{ storeDiscountBadge(deal) }}</span>
+                    } @else {
+                      <span class="text-[var(--noc-neutral-500)]">—</span>
+                    }
+                  </td>
+                  <td class="px-[16.8px] py-[11.2px]">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      @if (deal.isAtThirtyDayLow) {
+                        <span class="rounded-[6px] border border-[var(--noc-accent)] px-1.5 py-0.5 text-[10px] text-[var(--noc-accent)]">30 günün en düşüğü</span>
+                      }
+                      <span class="text-xs text-[var(--noc-neutral-500)]">{{ lastCheckedText(deal) }}</span>
+                    </div>
+                  </td>
+                  <td class="px-[16.8px] py-[11.2px] text-right">
+                    <a
+                      [href]="goToStoreUrl(deal)" (click)="magazaTiklamasi(deal.productId)"
+                      target="_blank"
+                      rel="nofollow sponsored noopener"
+                      (click)="$event.stopPropagation()"
+                      class="pa-primary-button px-3 py-1.5 text-xs"
+                    >
+                      Mağazaya git
+                    </a>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Sayfalama GERÇEK BAĞLANTI olmak zorunda (<a href>), buton değil:
+             buton hâliyle sunucudan gelen HTML'de hiçbir sayfalama adresi
+             yoktu ve tarayıcılar her listede yalnızca ilk 24 ürünü
+             görebiliyordu. Numaralar da bilerek var — sadece ileri/geri
+             olsaydı son sayfa onlarca tıklama derinliğinde kalırdı. -->
+        @if (totalPages() > 1) {
+          <nav class="mt-10 flex flex-wrap items-center justify-center gap-2" aria-label="Sayfalama">
+            @if (currentPage() > 1) {
+              <a [routerLink]="[]" [queryParams]="{ page: currentPage() - 1 === 1 ? null : currentPage() - 1 }" (click)="sayfayaKaydir()" rel="prev" title="Önceki Sayfa" class="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[var(--noc-divider)] text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6" /></svg>
+              </a>
+            } @else {
+              <span class="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[var(--noc-divider)] text-[var(--noc-neutral-500)] opacity-45" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6" /></svg>
+              </span>
+            }
+
+            @for (oge of sayfaOgeleri(); track $index) {
+              @if (oge === null) {
+                <span class="px-1 text-sm text-[var(--noc-neutral-500)]" aria-hidden="true">…</span>
+              } @else if (oge === currentPage()) {
+                <span aria-current="page" class="flex h-9 min-w-9 items-center justify-center rounded-[8px] border border-[var(--noc-accent)] px-2 text-sm font-medium text-[var(--noc-accent)]">{{ oge }}</span>
+              } @else {
+                <a [routerLink]="[]" [queryParams]="{ page: oge === 1 ? null : oge }" (click)="sayfayaKaydir()" [attr.aria-label]="'Sayfa ' + oge" class="flex h-9 min-w-9 items-center justify-center rounded-[8px] border border-[var(--noc-divider)] px-2 text-sm text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]">{{ oge }}</a>
+              }
+            }
+
+            @if (currentPage() < totalPages()) {
+              <a [routerLink]="[]" [queryParams]="{ page: currentPage() + 1 }" (click)="sayfayaKaydir()" rel="next" title="Sonraki Sayfa" class="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[var(--noc-divider)] text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6" /></svg>
+              </a>
+            } @else {
+              <span class="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[var(--noc-divider)] text-[var(--noc-neutral-500)] opacity-45" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6" /></svg>
+              </span>
+            }
+          </nav>
+          <p class="mt-3 text-center text-sm text-[var(--noc-neutral-500)]">Sayfa {{ currentPage() }} / {{ totalPages() }} ({{ totalCount() }} ürün)</p>
+        }
+      }
+
+      <!-- Kategoriye ÖZEL SSS — ana sayfadakiyle aynı accordion deseni
+           (native details/summary, JS state gerekmiyor, SSR-güvenli), ama
+           sorular bu kategorinin kendisiyle ilgili. Aynı içerik FAQPage
+           structured data olarak da enjekte ediliyor (category-page.ts). -->
+      @if (faqItems().length > 0) {
+        <section class="mx-auto mt-[45px] max-w-2xl">
+          <h2 class="mb-4 text-center text-sm font-medium">{{ categoryLabel() }} Hakkında Sık Sorulan Sorular</h2>
+          <div class="space-y-2">
+            @for (item of faqItems(); track item.question) {
+              <details class="group rounded-[8px] border border-[var(--noc-divider)] px-4 py-3">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium">
+                  {{ item.question }}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4 shrink-0 text-[var(--noc-neutral-500)] transition-transform group-open:rotate-180">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />
+                  </svg>
+                </summary>
+                <p class="mt-2 text-sm leading-relaxed text-[var(--noc-neutral-500)]">{{ item.answer }}</p>
+              </details>
+            }
+          </div>
+        </section>
+      }
+
+      <!-- Uzun-format bilimsel rehber içeriği — şimdilik yalnızca en
+           yüksek hacimli 3 kategoride (bkz. core/category-guides.ts).
+           Ürün tablosu ve SSS'den SONRA: sayfaya gelenin asıl amacı
+           önce fiyatlara bakmak, derin içerik ikincil. -->
+      @if (categoryGuide(); as guide) {
+        <section class="mx-auto mt-[45px] max-w-3xl">
+          <p id="zero-click-answer" class="rounded-[8px] border-l-4 border-[var(--noc-accent)] bg-[var(--noc-surface)] px-5 py-4 text-sm leading-relaxed text-[var(--noc-neutral-300)]">
+            {{ guide.zeroClickAnswer }}
+          </p>
+
+          <div class="mt-8 space-y-8 text-sm leading-relaxed text-[var(--noc-neutral-300)]">
+            @for (section of guide.sections; track section.heading) {
+              <section>
+                <h2 class="mb-2 text-base font-medium text-[var(--noc-text)]">{{ section.heading }}</h2>
+                @for (paragraph of section.paragraphs; track paragraph) {
+                  <p class="mt-2">{{ paragraph }}</p>
+                }
+                @if (section.table; as table) {
+                  <div class="mt-3 overflow-x-auto rounded-[8px] border border-[var(--noc-divider)]">
+                    <table class="w-full min-w-[560px] border-collapse text-xs">
+                      <thead>
+                        <tr class="text-left uppercase tracking-[0.06em] text-[var(--noc-neutral-500)]">
+                          @for (header of table.headers; track header) {
+                            <th class="border-b border-[var(--noc-divider)] px-3 py-2 font-normal">{{ header }}</th>
+                          }
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (row of table.rows; track $index) {
+                          <tr class="border-t border-[var(--noc-divider)]">
+                            @for (cell of row; track $index) {
+                              <td class="px-3 py-2">{{ cell }}</td>
+                            }
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              </section>
+            }
+          </div>
+
+          <p class="mt-8 text-sm">
+            <a [routerLink]="['/rehber', guide.relatedArticleSlug]" class="font-medium text-[var(--noc-accent)] hover:underline">
+              {{ guide.relatedArticleTitle }} →
+            </a>
+          </p>
+        </section>
+      }
+
+      @if (otherCategories().length > 0) {
+        <div class="mt-[45px] text-center">
+          <h2 class="mb-3 text-sm font-medium">Diğer Kategoriler</h2>
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            @for (category of otherCategories(); track category.slug) {
+              <a [routerLink]="['/kategori', category.slug]" class="rounded-[6px] border border-[var(--noc-divider)] px-2.5 py-1 text-xs text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]">{{ category.label }}</a>
+            }
+          </div>
+        </div>
+      }
+
+      <div class="mt-6 text-center">
+        <a routerLink="/" class="text-sm font-medium text-[var(--noc-accent)]">Tüm markaların indirimlerini gör →</a>
+      </div>
+    }
+
+    @if (selectedDeal(); as deal) {
+      <app-product-modal [deal]="deal" (closed)="closeDeal()" />
+    }
+  </main>
+</div>

@@ -1,0 +1,250 @@
+{
+	servers {
+		# CLOUDFLARE GUVENILEN VEKIL OLARAK TANITILIYOR.
+		#
+		# NEDEN: bu ayar olmadan erisim logundaki `client_ip` alani
+		# CLOUDFLARE'IN adresini gosteriyor, ziyaretcininkini degil
+		# (6 Eylul'de olculdu: client_ip 172.69.109.232 iken gercek
+		# ziyaretci 2a00:1d35:...). Sessiz yanlis cevap: bir suc
+		# duyurusunda saldirganin adresi diye Cloudflare'in adresi
+		# bildirilirdi. Ayar acikken Caddy X-Forwarded-For'u cozup
+		# `client_ip` alanina GERCEK adresi yaziyor.
+		#
+		# LISTE ESKIRSE NE OLUR: Cloudflare yeni bir aralik eklerse o
+		# aralikten gelen istekte `client_ip` yine Cloudflare'i gosterir
+		# - yani kayit bozulur ama SITE DUSMEZ. Bilincli olarak bu
+		# guvenli basarisizlik secildi; listeyi otomatik uretip Caddy'yi
+		# yeniden yuklemek, bozuk bir listenin siteyi kapatmasi riskini
+		# getirirdi. Kayma olursa gunluk bekci uyariyor
+		# (scripts/origin-kilidi-koru.sh ile ayni kaynak).
+		trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22
+	}
+}
+
+# Erisim logu.
+#
+# NEDEN GEREKLI: .NET tarafindaki guvenlik olayi kaydi YALNIZCA
+# api.proteinavcisi.com.tr trafigini goruyor. Siteye gelen acik taramalarini
+# (wp-admin, .env, phpmyadmin...) Caddy karsiliyor ve backend onlari hic
+# gormuyor. Kotuye kullanimin buyuk kismi bu katmanda.
+#
+# SAKLAMA SINIRI ZORUNLU ve iki sebebi var: (a) sinirsiz buyuyen log, saldiri
+# trafigi altinda diskin kendisini ariza kaynagina cevirir; (b) kisisel veri
+# iceren bir kaydin suresiz tutulmasi savunulabilir degil. 90 gun, veritabani
+# tarafindaki SecurityLog:RetentionDays ile AYNI deger - iki kaydin farkli
+# surelerde tutulmasi acikladigimiz politikayi celiskiye dusururdu.
+(erisim-logu) {
+	log {
+		output file /var/log/caddy/erisim.log {
+			roll_size 20MiB
+			# 150 dosya x 20 MiB = 3 GB tavan. SATIR KUCULTULDUKTEN SONRA
+			# hesaplandi: eski satir 2.500 bayt ve gunde ~100 MB uretiyordu,
+			# 12 dosyalik tavanla saklama 90 gun degil ~2,4 GUN ediyordu -
+			# yani gizlilik metninde yazan sure ile gercek tutmuyordu ve
+			# kaydin varlik sebebi (gecmise bakabilmek) karsilanmiyordu.
+			# Baglayici olan DOSYA SAYISI, sure degil; roll_keep_for tek
+			# basina hicbir sey garanti etmiyor.
+			roll_keep 150
+			roll_keep_for 2160h
+		}
+		# Alanlar OLCULEREK secildi (7 Eylul, canli satir uzerinde):
+		#   resp_headers    1.348 bayt (%53)  <- kendi guvenlik basliklarimiz
+		#   request>headers   686 bayt (%27)
+		#   request>tls       125 bayt (%5)
+		# resp_headers bir erisim kaydinda ise yaramiyor: her satirda kendi
+		# CSP'mizi tekrar yaziyorduk. TLS ayrintisi da oyle.
+		#
+		# ISTEK BASLIKLARINDA SADECE ISE YARAYANLAR KALIYOR: User-Agent
+		# (tarayici mi tarayici botu mu), Cf-Ipcountry (rapor icin ulke),
+		# Referer (nereden geldi), Cf-Ray (Cloudflare ile eslestirme).
+		# Gerisi gurultu; adres zaten client_ip alaninda ve o alan artik
+		# GERCEK ziyaretciyi gosteriyor (trusted_proxies).
+		#
+		# Cf-Access-Jwt-Assertion SILINIYOR VE BU ONEMLI: o bir oturum
+		# kimligi. Logu eline geciren biri suresi dolana kadar kullanabilir;
+		# kimlik bilgisi erisim kaydinda durmamali. (Cookie'yi Caddy zaten
+		# kendisi gizliyor.)
+		format filter {
+			wrap json
+			fields {
+				# ABONE JETONLARI MASKELENIYOR.
+				#
+				# Abonelik onayi, listeden cikma ve favori kurtarma baglantilari
+				# jetonu ADRESTE tasiyor:
+				#   /api/subscribe/confirm/<jeton>
+				#   /api/subscribe/unsubscribe/<jeton>
+				#   /api/favorites?token=<jeton>
+				#   /favorilerim?recover=<jeton>
+				# O jeton kisinin KIMLIGI: takip listesini okumaya ve aboneligini
+				# iptal etmeye yariyor. Maskelenmeseydi 120 gun saklanan bir
+				# dosyada duracakti ve log bir gun delil olarak disari verilirse
+				# abonelerin kimlikleri de verilmis olurdu.
+				#
+				# 7 Eylul'de olculdu: logda 6 adet "favorites?token=" kaydi vardi.
+				# Ayni aile Cf-Access-Jwt-Assertion icin daha once kapatilmisti,
+				# ama yalnizca BASLIK dusunulmustu; adreste tasinanlar atlanmisti.
+				#
+				# Yerine gecen metin "$1-GIZLENDI" ve tire BILEREK: Go'nun regexp
+				# degistirmesinde "$1GIZLENDI" yazmak "1GIZLENDI" adli bir grup
+				# aranmasina yol acar ve sessizce BOS string uretir. Tire grup
+				# adini sonlandiriyor. Suslu parantezli ${1} yazimi da Caddyfile'da
+				# yer tutucu sanilabilecegi icin kullanilmadi.
+				request>uri regexp "(token=|recover=|confirm/|unsubscribe/)[0-9a-f]+" "$1-GIZLENDI"
+				resp_headers delete
+				request>tls delete
+				request>headers>Cf-Access-Jwt-Assertion delete
+				request>headers>Accept delete
+				request>headers>Accept-Encoding delete
+				request>headers>Accept-Language delete
+				request>headers>Cdn-Loop delete
+				request>headers>Cf-Connecting-Ip delete
+				request>headers>Cf-Visitor delete
+				request>headers>X-Forwarded-For delete
+				request>headers>X-Forwarded-Proto delete
+				request>headers>Sec-Fetch-Mode delete
+				request>headers>Sec-Fetch-Dest delete
+				request>headers>Sec-Fetch-Site delete
+				request>headers>Sec-Fetch-User delete
+				request>headers>Upgrade-Insecure-Requests delete
+				request>headers>If-Modified-Since delete
+				request>headers>If-None-Match delete
+			}
+		}
+	}
+}
+
+# Tarayıcı seviyesinde güvenlik başlıkları.
+#
+# NEDEN CADDY'DE: bunlar taşıma/tarayıcı katmanına ait ve üç host için de
+# aynı. Angular'ın SSR sunucusuna (Express) eklemek, aynı kuralı ikinci bir
+# yerde tutmak olurdu; kök domainin yönlendirme yanıtı ise oradan hiç
+# geçmiyor. API'nin KENDİ başlıkları var (Program.cs) ve onlar burada
+# TEKRARLANMIYOR — aynı başlık iki kez gönderilirse tarayıcı ilkini alır,
+# yani sessizce hangisinin geçerli olduğu belirsizleşirdi.
+#
+# 5 Eylül'de securityheaders.com taraması F verdi: frontend'de bu
+# başlıkların HİÇBİRİ yoktu (API'de zaten vardı).
+(guvenlik-basliklari) {
+	header {
+		# HTTPS zorunluluğu tarayıcıda hatırlansın. includeSubDomains
+		# güvenli: www ve api'nin ikisi de HTTPS, kök adres de HTTPS'e
+		# yönleniyor.
+		#
+		# "preload" BİLİNÇLİ OLARAK YOK. Preload listesine girmek TEK
+		# YÖNLÜ bir kapı: çıkmak aylar sürüyor ve bu arada HTTPS'i bir
+		# sebeple kapatmak zorunda kalırsak site hiç açılmaz. Gerekirse
+		# ayrıca karar verilir.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+		# Tarayıcı içerik tipini "tahmin etmesin" — yanlış tahmin, metin
+		# olarak sunulan bir dosyanın script gibi çalıştırılmasına yol
+		# açabiliyor.
+		X-Content-Type-Options "nosniff"
+
+		# Siteyi başka bir sayfanın iframe'ine koymayı engelliyor
+		# (clickjacking). SAMEORIGIN, DENY değil: kendi sayfalarımızı
+		# ileride kendi içimizde çerçevelemek gerekirse kırılmasın.
+		X-Frame-Options "SAMEORIGIN"
+
+		# Dışarıya çıkan bağlantılarda tam adres sızmasın; yalnızca origin
+		# gidiyor ve HTTPS'ten HTTP'ye hiç gitmiyor. Mağaza bağlantıları
+		# ortaklık kodunu ADRESTE taşıdığı için bu önemli.
+		Referrer-Policy "strict-origin-when-cross-origin"
+
+		# Kullanmadığımız cihaz API'lerini kapatıyor. Sitede kamera,
+		# mikrofon, konum, ödeme, USB kullanan hiçbir özellik yok.
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+
+		# Express'in kendini tanıtan başlığı. Sunucu yazılımını ve
+		# sürümünü duyurmak saldırgana bedava bilgi veriyor; işlevi yok.
+		-X-Powered-By
+	}
+}
+
+# İçerik Güvenliği Politikası — ZORLAYICI.
+#
+# ÖNCE RAPOR MODUNDA yayınlandı ve gerçek tarayıcıda doğrulandıktan sonra
+# çevrildi. Bu ara adım bilinçliydi: yanlış bir CSP siteyi SESSİZCE bozar
+# (görsel gelmez, script çalışmaz, hata sayfası da çıkmaz) ve işe yaradı —
+# ilk taslak AdSense'in reklam kalitesi altyapısını kaçırmıştı.
+#
+# ÖLÇÜLEREK yazıldı (5 Eylül, canlı ana sayfa tarandı):
+#   script  : yalnızca pagead2.googlesyndication.com (AdSense)
+#   style   : fonts.googleapis.com
+#   font    : fonts.gstatic.com
+#   img     : cdn.myikas.com, cdn.shopify.com, hardlinenutrition.com,
+#             s4u.com.tr, westnutrition.com.tr, musclepump.com.tr ...
+#   satır içi: 5 Angular script'i + 3 ld+json + 2 <style>
+#
+# RAPOR MODUNDA GERÇEK TARAYICIDA ÖLÇÜLDÜ (4 sayfa tipi: ana sayfa,
+# kategori, ürün, inceleme). Çıkan ihlallerin TAMAMI AdSense'in reklam
+# kalitesi altyapısıydı ve ilk taslakta eksikti:
+#   ep1/ep2.adtrafficquality.google (connect + script + frame)
+#   www.google.com (frame)
+# Görsel, font, stil ve kendi script'lerimizde TEK İHLAL YOK — img-src'nin
+# "https:" olması ve style/font listeleri doğruymuş. Zorlayıcı modda
+# yayınlansaydı AdSense kısmen bozulacaktı; başvuru 13 Ekim'de.
+#
+# img-src NEDEN "https:" (yani her HTTPS host)? Ürün görselleri markaların
+# kendi CDN'lerinden geliyor ve o liste HER YENİ KAYNAKLA BÜYÜYOR — bugün
+# 36 kaynak var. Host listesi tutmak, yeni bir marka eklendiği gün o markanın
+# bütün görsellerinin sessizce kaybolması demekti. "https:" en azından
+# karışık içeriği (http) engelliyor.
+#
+# script-src'de 'unsafe-inline' VAR ve bu politikayı zayıflatıyor; dürüst
+# olmak gerekirse bu CSP XSS'e karşı sıkı bir savunma DEĞİL. Angular'ın SSR
+# hidrasyon script'leri ve AdSense satır içi çalışıyor; nonce'a geçmek
+# Angular tarafında ayrı bir iş (ngCspNonce) ve Caddy istek başına nonce
+# üretemiyor. Yine de kazanç gerçek: object/embed tamamen kapalı, base-uri
+# ve form-action kendi originimizle sınırlı, script kaynakları bilinen bir
+# listeye indi.
+(csp) {
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.googleadservices.com https://*.doubleclick.net https://*.adtrafficquality.google https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.proteinavcisi.com.tr https://cloudflareinsights.com https://*.google-analytics.com https://*.adtrafficquality.google; frame-src https://*.googlesyndication.com https://*.doubleclick.net https://*.adtrafficquality.google https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+	}
+}
+
+# Kök domain kanonik adrese kalıcı olarak yönlendiriliyor.
+# Önceden ikisi de doğrudan frontend'e proxy'leniyordu; bu, server.ts'teki
+# "kanonik host dışı isteklere noindex" korumasının kök domaine de
+# uygulanmasına yol açıyordu — yani gerçek adresimiz arama motorlarına ve
+# AdSense tarayıcısına "Disallow: /" veriyordu. Yönlendirme, korumayı
+# yalnızca gerçekten yabancı hostlara bırakıyor.
+proteinavcisi.com.tr {
+	import guvenlik-basliklari
+	import erisim-logu
+	redir https://www.proteinavcisi.com.tr{uri} permanent
+}
+
+www.proteinavcisi.com.tr {
+	import guvenlik-basliklari
+	import erisim-logu
+	import csp
+
+	# YONETIM PANELI VE API'SI AYNI ORIGIN ALTINDA.
+	#
+	# NEDEN: Cloudflare Access bir ALAN ADI + YOL koruyor. Panel www'de ama
+	# API cagrilari api.proteinavcisi.com.tr'ye gitseydi o cagrilar Access'in
+	# DISINDA kalirdi - sayfa korunur, verinin kendisi korunmazdi. Ayrica
+	# capraz origin oldugu icin CORS ve cerez sorunlari cikardi (CORS bu
+	# projede bilerek kapali).
+	#
+	# Boylece TEK bir Access kurali (www.proteinavcisi.com.tr/yonetim*) hem
+	# sayfayi hem veriyi kapsiyor.
+	#
+	# handle_path onegi soyuyor: /yonetim/api/security-events -> /security-events
+	# rewrite ise backend'in bekledigi yola geri koyuyor: /api/dev/security-events
+	handle_path /yonetim/api/* {
+		rewrite * /api/dev{uri}
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		reverse_proxy frontend:4000
+	}
+}
+
+api.proteinavcisi.com.tr {
+	import erisim-logu
+	reverse_proxy backend:8080
+}

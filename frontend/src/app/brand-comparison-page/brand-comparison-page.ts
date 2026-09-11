@@ -1,0 +1,150 @@
+import { HttpErrorResponse } from '@angular/common/http';
+import { DecimalPipe } from '@angular/common';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+
+import { BrandComparison } from '../core/brand-comparison.model';
+import { BrandComparisonService } from '../core/brand-comparison.service';
+import { brandSlug, resolveBrandFromSlug } from '../core/brand-slug';
+import { DealsService } from '../core/deals.service';
+import { CATEGORY_LABELS } from '../core/category-labels';
+import { PageMetaService } from '../core/page-meta.service';
+import { SiteHeader } from '../site-header/site-header';
+import { showNotFound } from '../core/not-found-navigation';
+
+@Component({
+  selector: 'app-brand-comparison-page',
+  imports: [DecimalPipe, RouterLink, SiteHeader],
+  templateUrl: './brand-comparison-page.html',
+})
+export class BrandComparisonPage implements OnInit {
+  // Adres üretimi tek yerden: toLowerCase() marka adındaki boşluğu ve
+  // Türkçe harfi adrese taşıyıp kanonikten sapan bir kopya üretiyordu.
+  protected readonly brandSlug = brandSlug;
+
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly comparisonService = inject(BrandComparisonService);
+  private readonly dealsService = inject(DealsService);
+  private readonly pageMeta = inject(PageMetaService);
+
+  protected readonly comparison = signal<BrandComparison | null>(null);
+  protected readonly loading = signal(true);
+  protected readonly pairSlug = signal('');
+
+  ngOnInit(): void {
+    this.route.paramMap.subscribe((params) => {
+      const pair = params.get('pair') ?? '';
+      this.loadComparison(pair);
+    });
+  }
+
+  private loadComparison(pair: string): void {
+    this.loading.set(true);
+    const parts = pair.split('-vs-');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      showNotFound(this.router);
+      return;
+    }
+
+    this.pairSlug.set(pair);
+
+    // Adresteki parça bir slug ("torq-nutrition"); API gerçek marka adını
+    // bekliyor. Marka listesinden eşleştiriliyor, bulunamazsa parça olduğu
+    // gibi gönderiliyor — boşluklu eski adresler böyle çalışmaya devam ediyor.
+    this.dealsService.getFilterOptions().subscribe({
+      next: (filters) => {
+        const brand1 = resolveBrandFromSlug(parts[0], filters.brands) ?? parts[0];
+        const brand2 = resolveBrandFromSlug(parts[1], filters.brands) ?? parts[1];
+        this.compareBrands(brand1, brand2);
+      },
+      error: () => this.compareBrands(parts[0], parts[1]),
+    });
+  }
+
+  private compareBrands(brand1: string, brand2: string): void {
+    this.comparisonService.compare(brand1, brand2).subscribe({
+      next: (result) => {
+        this.comparison.set(result);
+        this.setMeta(result);
+        this.loading.set(false);
+      },
+      // 404 ile GEÇİCİ hata ayrılıyor. Önceden her hata ana sayfaya
+      // yönlendiriyordu; backend'in bir anlık 5xx'i yüzünden arama motoruna
+      // "bu sayfa yok" demek kalıcı zarar verirdi. Bu sayfada henüz bir hata
+      // ekranı yok, o yüzden geçici hatada eski davranış korunuyor.
+      error: (err: HttpErrorResponse) => {
+        if (err.status === 404) {
+          showNotFound(this.router);
+          return;
+        }
+        void this.router.navigate(['/']);
+      },
+    });
+  }
+
+  private setMeta(comparison: BrandComparison): void {
+    const title = `${comparison.brand1} vs ${comparison.brand2} Fiyat Karşılaştırması | ProteinAvcısı`;
+    const description = `${comparison.brand1} ve ${comparison.brand2} markalarının kategori bazında güncel ortalama fiyatlarını karşılaştır — gerçek fiyat verisine dayanır.`;
+
+    this.pageMeta.set({
+      title,
+      description,
+      canonicalPath: `/karsilastir/${this.pairSlug()}`,
+    });
+  }
+
+  protected categoryLabel(category: string): string {
+    return CATEGORY_LABELS[category] ?? category;
+  }
+
+  protected cheaperBrand(cat: { brand1AvgPrice: number | null; brand2AvgPrice: number | null }): 1 | 2 | null {
+    if (cat.brand1AvgPrice === null || cat.brand2AvgPrice === null) return null;
+    if (cat.brand1AvgPrice === cat.brand2AvgPrice) return null;
+    return cat.brand1AvgPrice < cat.brand2AvgPrice ? 1 : 2;
+  }
+
+  // Tablonun altına kısa bir özet paragrafı — kaç kategoride hangi markanın
+  // daha ucuz olduğu + en belirgin farkın hangi kategoride olduğu. Tamamen
+  // mevcut kategori verisinden türetiliyor, ekstra bir backend çağrısı
+  // gerekmiyor (dış bir kod incelemesinde önerildi: "sadece tablo, hiç
+  // yorum yok" eleştirisine cevap).
+  //
+  // "leader" alanı BİLİNÇLİ OLARAK eklendi (2026-08-24, ikinci bir dış
+  // inceleme bulgusu) — önceki şablon "daha ucuz olan taraf: {brand1}
+  // (Nwins), {brand2} (Mwins)" şeklinde brand1'i (alfabetik ilk marka,
+  // kazanan olsun olmasın) HER ZAMAN önce yazıyordu; "Hardline (0
+  // kategori), HIQ (7 kategori)" gibi Hardline'ı "daha ucuz taraf" diye
+  // açıp sonra 0 diyen kafa karıştırıcı cümleler üretiyordu. Artık kazanan
+  // marka ayrıca hesaplanıp şablonda TEK ve NET bir özne olarak kullanılıyor.
+  protected readonly summary = computed(() => {
+    const c = this.comparison();
+    if (!c || c.categories.length === 0) return null;
+
+    let brand1Wins = 0;
+    let brand2Wins = 0;
+    let biggestDiff: { category: string; percent: number; cheaper: 1 | 2 } | null = null;
+
+    for (const cat of c.categories) {
+      const winner = this.cheaperBrand(cat);
+      if (winner === 1) brand1Wins++;
+      else if (winner === 2) brand2Wins++;
+
+      if (winner !== null && cat.brand1AvgPrice !== null && cat.brand2AvgPrice !== null) {
+        const higher = winner === 1 ? cat.brand2AvgPrice : cat.brand1AvgPrice;
+        const lower = winner === 1 ? cat.brand1AvgPrice : cat.brand2AvgPrice;
+        const percent = Math.round(((higher - lower) / higher) * 100);
+        if (!biggestDiff || percent > biggestDiff.percent) {
+          biggestDiff = { category: cat.category, percent, cheaper: winner };
+        }
+      }
+    }
+
+    const ties = c.categories.length - brand1Wins - brand2Wins;
+    const leader: 1 | 2 | null = brand1Wins === brand2Wins ? null : brand1Wins > brand2Wins ? 1 : 2;
+    const leaderWins = leader === 1 ? brand1Wins : leader === 2 ? brand2Wins : 0;
+    const otherWins = leader === 1 ? brand2Wins : leader === 2 ? brand1Wins : 0;
+
+    return { brand1Wins, brand2Wins, ties, leader, leaderWins, otherWins, biggestDiff };
+  });
+}

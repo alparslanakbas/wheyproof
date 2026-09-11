@@ -1,0 +1,79 @@
+<header class="pa-topbar">
+  <div class="pa-container flex min-h-[76px] items-center gap-5">
+    <a routerLink="/" class="mr-auto flex shrink-0 items-center gap-2.5">
+      <span class="pa-brand-mark" aria-hidden="true">PA</span>
+      <span class="text-[19px] font-bold tracking-[-0.035em] text-white">PROTEİN<span class="text-[#8f80ff]">AVCISI</span></span>
+    </a>
+
+    <!-- Gerçek arama alanı. Önceden burada arama kutusu GÖRÜNÜMÜNDE ama
+         aslında ana sayfaya giden bir bağlantı vardı; tıklayan kişi arama
+         yaptığını sanıp ana sayfaya düşüyordu. Ürün listesi bu sayfalarda
+         olmadığı için arama, sonucu gösterebilen ana sayfaya ?search= ile
+         taşınıyor. -->
+    <form (ngSubmit)="submitSearch()" role="search" class="hidden h-11 min-w-[250px] items-center gap-2.5 rounded-[10px] border border-white/10 bg-white/[0.06] px-4 transition-colors focus-within:border-[#8879f6]/60 hover:border-[#8879f6]/60 xl:flex">
+      <i class="ph ph-magnifying-glass shrink-0 text-[18px] text-[#aeb4ce]" aria-hidden="true"></i>
+      <input
+        type="search"
+        name="search"
+        aria-label="Ürün, marka veya kategori ara"
+        placeholder="Ürün, marka veya kategori ara"
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+        class="w-full bg-transparent text-sm text-white placeholder:text-[#aeb4ce] focus:outline-none"
+      />
+    </form>
+
+    <nav class="hidden items-center gap-6 text-sm font-medium text-[#d8dbea] lg:flex" aria-label="Ana menü">
+      <div class="relative">
+        <button type="button" class="flex items-center gap-1.5 hover:text-white" [class.text-white]="categoriesOpen()" (click)="toggleCategories()">
+          Kategoriler
+          <i class="ph ph-caret-down text-xs transition-transform" [class.rotate-180]="categoriesOpen()" aria-hidden="true"></i>
+        </button>
+        @if (categoriesOpen()) {
+          <div class="fixed inset-0 z-40" (click)="closeCategories()"></div>
+          <div class="pa-category-menu">
+            @for (category of categories(); track category.slug) {
+              <a [routerLink]="['/kategori', category.slug]" (click)="closeCategories()" class="pa-category-menu-link">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--noc-neutral-100)] text-[var(--noc-accent)]"><i [class]="'ph ' + category.iconClass + ' text-lg'" aria-hidden="true"></i></span>
+                {{ category.label }}
+              </a>
+            }
+            <a routerLink="/kategoriler" (click)="closeCategories()" class="pa-category-menu-footer">Tüm kategorileri gör</a>
+          </div>
+        }
+      </div>
+
+      <a routerLink="/markalar" routerLinkActive="is-active" class="pa-nav-link">Markalar</a>
+
+      <div class="relative">
+        <button type="button" class="flex items-center gap-1.5 hover:text-white" [class.text-white]="calculatorsOpen()" (click)="toggleCalculators()">
+          Hesaplama
+          <i class="ph ph-caret-down text-xs transition-transform" [class.rotate-180]="calculatorsOpen()" aria-hidden="true"></i>
+        </button>
+        @if (calculatorsOpen()) {
+          <div class="fixed inset-0 z-40" (click)="closeCalculators()"></div>
+          <div class="absolute right-0 top-full z-50 mt-4 w-72 rounded-[14px] border border-[var(--noc-divider)] bg-[var(--noc-card)] p-2 text-[var(--noc-neutral-900)] shadow-[var(--noc-shadow-lg)] dark:text-[var(--noc-text)]">
+            @for (calc of calculators; track calc.path) {
+              <a [routerLink]="calc.path" (click)="closeCalculators()" class="flex items-center gap-3 rounded-[9px] px-3 py-2.5 text-sm hover:bg-[color-mix(in_srgb,var(--noc-accent)_8%,transparent)] hover:text-[var(--noc-accent)]">
+                <i [class]="'ph ' + calc.iconClass + ' text-lg text-[var(--noc-accent)]'" aria-hidden="true"></i>{{ calc.label }}
+              </a>
+            }
+            <a routerLink="/hesaplama" (click)="closeCalculators()" class="mt-1 block rounded-[9px] border border-[var(--noc-divider)] px-3 py-2.5 text-center text-sm font-semibold text-[var(--noc-accent)]">Tüm araçları gör</a>
+          </div>
+        }
+      </div>
+      <a routerLink="/rehber" routerLinkActive="text-white" class="hover:text-white">Rehber</a>
+    </nav>
+
+    <a routerLink="/favorilerim" routerLinkActive="border-[#8879f6]/70 text-white" class="hidden h-10 items-center gap-2 rounded-[9px] border border-white/15 px-3.5 text-sm font-medium text-[#e3e5f0] hover:border-[#8879f6]/70 hover:text-white sm:inline-flex">
+      <i class="ph ph-bookmark-simple text-[17px]" aria-hidden="true"></i>Takip listem
+      @if (favoritesCount() > 0) { <span class="rounded-full bg-[#6556e8] px-1.5 py-0.5 text-[10px] font-bold text-white">{{ favoritesCount() }}</span> }
+    </a>
+
+    <div class="flex items-center rounded-full border border-white/15 bg-white/[0.05] p-1" aria-label="Tema seçimi">
+      <button type="button" title="Açık tema" class="flex h-9 w-9 items-center justify-center rounded-full text-[#aeb4ce]" [class.bg-white]="theme.preference() === 'light'" [class.text-[#6556e8]]="theme.preference() === 'light'" (click)="setTheme('light')"><i class="ph ph-sun text-[15px]" aria-hidden="true"></i></button>
+      <button type="button" title="Koyu tema" class="flex h-9 w-9 items-center justify-center rounded-full text-[#aeb4ce]" [class.bg-white]="theme.preference() === 'dark'" [class.text-[#6556e8]]="theme.preference() === 'dark'" (click)="setTheme('dark')"><i class="ph ph-moon text-[15px]" aria-hidden="true"></i></button>
+      <button type="button" title="Sistem teması" class="hidden h-9 w-9 items-center justify-center rounded-full text-[#aeb4ce] md:flex" [class.bg-white]="theme.preference() === 'system'" [class.text-[#6556e8]]="theme.preference() === 'system'" (click)="setTheme('system')"><i class="ph ph-desktop text-[15px]" aria-hidden="true"></i></button>
+    </div>
+  </div>
+</header>

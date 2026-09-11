@@ -1,0 +1,41 @@
+/* Bu dosya scripts/build-icon-subset.mjs tarafından üretiliyor, elle
+   düzenlenmemeli. Yeni bir ikon eklendiğinde: npm run build:icons */
+@font-face {
+  font-family: "Phosphor-Fill";
+  src: url("./Phosphor-Fill.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+.ph-fill {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: "Phosphor-Fill" !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  /* Enable Ligatures ================ */
+  letter-spacing: 0;
+  -webkit-font-feature-settings: "liga";
+  -moz-font-feature-settings: "liga=1";
+  -moz-font-feature-settings: "liga";
+  -ms-font-feature-settings: "liga" 1;
+  font-feature-settings: "liga";
+  -webkit-font-variant-ligatures: discretionary-ligatures;
+  font-variant-ligatures: discretionary-ligatures;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.ph-fill.ph-bookmark-simple:before { content: "\e0ea"; }
+.ph-fill.ph-check-circle:before { content: "\e184"; }
+.ph-fill.ph-seal-check:before { content: "\e606"; }
+.ph-fill.ph-shield-check:before { content: "\e40c"; }
+.ph-fill.ph-sparkle:before { content: "\e6a2"; }
+.ph-fill.ph-star:before { content: "\e46a"; }

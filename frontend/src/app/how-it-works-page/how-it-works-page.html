@@ -1,0 +1,130 @@
+<div class="noc-shell bg-[var(--noc-bg)] text-[var(--noc-text)]">
+  <app-site-header />
+
+  <main class="pa-method-main">
+    <header class="pa-method-hero">
+      <p class="pa-method-eyebrow">Şeffaflık</p>
+      <h1>Nasıl Çalışıyoruz?</h1>
+      <p>Bir fiyatın fırsat sayılmasına kadar geçen yol.</p>
+    </header>
+
+    <ol class="pa-method-flow" aria-label="Fiyat takip süreci">
+      <li class="pa-method-step">
+        <span class="pa-method-step-icon" aria-hidden="true">
+          <i class="ph ph-storefront"></i>
+        </span>
+        <span class="pa-method-step-index" aria-hidden="true">1</span>
+        <h2>Resmî marka siteleri</h2>
+        <p><strong>8 markadan</strong> güncel ürün fiyatlarını topluyoruz.</p>
+      </li>
+
+      <li class="pa-method-step">
+        <span class="pa-method-step-icon" aria-hidden="true">
+          <i class="ph ph-clock-counter-clockwise"></i>
+        </span>
+        <span class="pa-method-step-index" aria-hidden="true">2</span>
+        <h2>6 saatte bir toplama</h2>
+        <p>Fiyatları otomatik olarak yeniliyor ve geçmişe kaydediyoruz.</p>
+      </li>
+
+      <li class="pa-method-step">
+        <span class="pa-method-step-icon" aria-hidden="true">
+          <i class="ph ph-chart-line-up"></i>
+        </span>
+        <span class="pa-method-step-index" aria-hidden="true">3</span>
+        <h2>30 günlük fiyat geçmişi</h2>
+        <p>Son 30 gündeki en yüksek fiyatı referans olarak alıyoruz.</p>
+      </li>
+
+      <li class="pa-method-step pa-method-step--active">
+        <span class="pa-method-step-icon" aria-hidden="true">
+          <i class="ph ph-shield-check"></i>
+        </span>
+        <span class="pa-method-step-index" aria-hidden="true">4</span>
+        <h2>Karar</h2>
+        <p>Güncel fiyatı kendi geçmişiyle karşılaştırıyoruz.</p>
+      </li>
+    </ol>
+
+    <section class="pa-method-decision" aria-labelledby="decision-title">
+      <header class="pa-method-decision-head">
+        <span class="pa-method-decision-icon" aria-hidden="true">
+          <i class="ph ph-scales"></i>
+        </span>
+        <div>
+          <p class="pa-method-eyebrow">Karar noktası</p>
+          <h2 id="decision-title">Güncel fiyat referans fiyattan düşük mü?</h2>
+          <p>
+            Referans fiyat, ürünün son 30 gün içinde gördüğümüz en yüksek fiyatıdır. Markanın kendi indirim
+            etiketini bu hesaba katmayız.
+          </p>
+        </div>
+      </header>
+
+      <div class="pa-method-outcomes">
+        <article class="pa-method-outcome pa-method-outcome--yes">
+          <span class="pa-method-answer">Evet</span>
+          <i class="ph ph-tag" aria-hidden="true"></i>
+          <h3>Gerçek indirim</h3>
+          <p>Ürün, kendi fiyat geçmişine göre gerçekten ucuzladıysa “İndirimdekiler” listesine girer.</p>
+        </article>
+
+        <article class="pa-method-outcome pa-method-outcome--no">
+          <span class="pa-method-answer">Hayır</span>
+          <i class="ph ph-minus-circle" aria-hidden="true"></i>
+          <h3>Gerçek indirim değil</h3>
+          <p>Marka sitesinde “indirim” yazsa bile referans fiyatın altına düşmeyen ürün bu listeye girmez.</p>
+        </article>
+      </div>
+
+      <aside class="pa-method-campaign-note">
+        <i class="ph ph-megaphone-simple" aria-hidden="true"></i>
+        <div>
+          <h3>Mağaza kampanyaları ayrı gösterilir</h3>
+          <p>
+            Markanın kendi sitesindeki eski/yeni fiyat farkı ayrı bir mağaza kampanyası olarak gösterilebilir;
+            bu beyanı <strong>doğrulanmamış</strong> etiketiyle gerçek indirimden ayırırız.
+          </p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="pa-method-principles" aria-labelledby="principles-title">
+      <h2 id="principles-title">Değişmeyen ilkeler</h2>
+
+      <div class="pa-method-principle-grid">
+        <article>
+          <span aria-hidden="true"><i class="ph ph-ticket"></i></span>
+          <div>
+            <h3>Kuponlar elle doğrulanır</h3>
+            <p>Kuponları otomatik toplamıyor, yayınlamadan önce geçerliliğini kontrol ediyoruz.</p>
+          </div>
+        </article>
+
+        <article>
+          <span aria-hidden="true"><i class="ph ph-shield-check"></i></span>
+          <div>
+            <h3>Sıralama ticari ilişkiden etkilenmez</h3>
+            <p>Affiliate veya komisyon anlaşmaları ürünlerin sırasını değiştirmez.</p>
+          </div>
+        </article>
+
+        <article>
+          <span aria-hidden="true"><i class="ph ph-eye-slash"></i></span>
+          <div>
+            <h3>Eksik bilgi tahmin edilmez</h3>
+            <p>Stok ve servis başı fiyat gibi alanları yalnız güvenilir kaynak varsa gösteririz.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <div class="pa-method-cta">
+      <a routerLink="/">
+        <i class="ph ph-compass" aria-hidden="true"></i>
+        İndirimleri keşfet
+        <i class="ph ph-arrow-right" aria-hidden="true"></i>
+      </a>
+    </div>
+  </main>
+</div>

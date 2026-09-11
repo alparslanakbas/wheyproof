@@ -1,0 +1,70 @@
+<div class="noc-shell bg-[var(--noc-bg)] text-[var(--noc-text)]">
+  <app-site-header />
+
+  <main class="pa-about-main">
+    <section class="pa-about-hero" aria-labelledby="about-title">
+      <div class="pa-about-copy">
+        <p class="pa-about-pill"><span aria-hidden="true"></span>Bağımsız fiyat takibi</p>
+        <h1 id="about-title">İndirimi etiketten değil, geçmişten okuyoruz.</h1>
+        <p class="pa-about-lead">
+          ProteinAvcısı; spor takviyesi fiyatlarını düzenli izleyen, gerçek düşüşleri kendi fiyat geçmişine göre
+          ayıran bağımsız bir platformdur.
+        </p>
+      </div>
+
+      <aside class="pa-about-founder" aria-labelledby="founder-title">
+        <div class="pa-about-portrait">
+          <img
+            src="/images/founder-portrait.jpg"
+            [alt]="founder.name"
+            width="512"
+            height="512"
+            fetchpriority="high"
+          />
+        </div>
+
+        <h2 id="founder-title">{{ founder.name }}</h2>
+        <p class="pa-about-role">Kurucu ve geliştirici</p>
+        <p class="pa-about-founder-story">
+          “İndirim” etiketine güvenmek yerine fiyatın geçmişine bakabilmek için ProteinAvcısı'nı kurdu.
+        </p>
+
+        <nav class="pa-about-profile-links" aria-label="Kurucu bağlantıları">
+          <a [href]="founder.linkedInUrl" target="_blank" rel="noopener nofollow">
+            LinkedIn <span aria-hidden="true">↗</span>
+          </a>
+          <a [href]="founder.blogUrl" target="_blank" rel="noopener nofollow">
+            Kişisel blog <span aria-hidden="true">↗</span>
+          </a>
+        </nav>
+      </aside>
+    </section>
+
+    <section class="pa-about-principles" aria-label="ProteinAvcısı'nın amacı ve ilkeleri">
+      <article>
+        <span class="pa-about-icon" aria-hidden="true"><i class="ph ph-scales"></i></span>
+        <h2>Neden buradayız?</h2>
+        <p>Pazarlama etiketleri ile gerçek fiyat düşüşlerini birbirinden ayırmayı kolaylaştırmak için.</p>
+      </article>
+
+      <article>
+        <span class="pa-about-icon" aria-hidden="true"><i class="ph ph-chart-line-up"></i></span>
+        <h2>Nasıl karar veriyoruz?</h2>
+        <p>Güncel fiyatı, ürünün düzenli olarak kaydettiğimiz fiyat geçmişiyle karşılaştırarak.</p>
+      </article>
+
+      <article>
+        <span class="pa-about-icon" aria-hidden="true"><i class="ph ph-shield-check"></i></span>
+        <h2>Neye söz veriyoruz?</h2>
+        <p>Ticari ilişkilerin sıralamayı etkilememesine ve eksik bilginin tahmin edilmemesine.</p>
+      </article>
+    </section>
+
+    <div class="pa-about-cta">
+      <a routerLink="/nasil-calisiyoruz">
+        Nasıl çalıştığımızı gör
+        <i class="ph ph-arrow-right" aria-hidden="true"></i>
+      </a>
+    </div>
+  </main>
+</div>
