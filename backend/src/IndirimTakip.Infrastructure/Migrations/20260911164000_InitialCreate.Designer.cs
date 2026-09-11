@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace IndirimTakip.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260814225448_AddProductHelpfulVotes")]
-    partial class AddProductHelpfulVotes
+    [Migration("20260911164000_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,46 @@ namespace IndirimTakip.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("IndirimTakip.Core.Entities.AdminOperationFailure", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Ip")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("StatusCode")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt")
+                        .IsDescending();
+
+                    b.ToTable("AdminOperationFailures");
+                });
 
             modelBuilder.Entity("IndirimTakip.Core.Entities.Article", b =>
                 {
@@ -69,6 +109,30 @@ namespace IndirimTakip.Infrastructure.Migrations
                     b.ToTable("Articles");
                 });
 
+            modelBuilder.Entity("IndirimTakip.Core.Entities.BackgroundJobRun", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("JobName")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTimeOffset>("LastCompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobName")
+                        .IsUnique();
+
+                    b.ToTable("BackgroundJobRuns");
+                });
+
             modelBuilder.Entity("IndirimTakip.Core.Entities.Brand", b =>
                 {
                     b.Property<int>("Id")
@@ -106,11 +170,10 @@ namespace IndirimTakip.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("BrandId")
+                    b.Property<int?>("BrandId")
                         .HasColumnType("integer");
 
                     b.Property<string>("Code")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
@@ -125,6 +188,10 @@ namespace IndirimTakip.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("LastVerifiedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Seller")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<DateTimeOffset?>("ValidUntil")
                         .HasColumnType("timestamp with time zone");
 
@@ -132,7 +199,10 @@ namespace IndirimTakip.Infrastructure.Migrations
 
                     b.HasIndex("BrandId");
 
-                    b.ToTable("Coupons");
+                    b.ToTable("Coupons", t =>
+                        {
+                            t.HasCheckConstraint("CK_Coupons_ExactlyOneTarget", "(\"BrandId\" IS NULL) <> (\"Seller\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("IndirimTakip.Core.Entities.PriceHistory", b =>
@@ -181,6 +251,12 @@ namespace IndirimTakip.Infrastructure.Migrations
                     b.Property<int>("ClickCount")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("ContentUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
                     b.Property<string>("Flavor")
                         .HasColumnType("text");
 
@@ -193,13 +269,65 @@ namespace IndirimTakip.Infrastructure.Migrations
                     b.Property<string>("ImageUrl")
                         .HasColumnType("text");
 
+                    b.Property<bool?>("InStock")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal?>("LatestPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTimeOffset?>("LatestScrapedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("LatestStoreOldPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("LocalImagePath")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<decimal?>("LowestPrice30")
+                        .HasColumnType("numeric");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<DateTimeOffset?>("NutritionCheckedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NutritionJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("PriceSummaryUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("ProteinPerServingGrams")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTimeOffset?>("RatingCheckedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("RatingCount")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("RatingValue")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("ReferencePrice30")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Seller")
+                        .HasColumnType("text");
+
                     b.Property<decimal?>("ServingSizeGrams")
                         .HasColumnType("numeric");
+
+                    b.Property<int?>("ServingsPerPackage")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Size")
                         .HasColumnType("text");
@@ -214,6 +342,33 @@ namespace IndirimTakip.Infrastructure.Migrations
                     b.HasIndex("BrandId");
 
                     b.ToTable("Products");
+                });
+
+            modelBuilder.Entity("IndirimTakip.Core.Entities.ProductFavorite", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SubscriberId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("SubscriberId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("ProductFavorites");
                 });
 
             modelBuilder.Entity("IndirimTakip.Core.Entities.ProductWatch", b =>
@@ -246,6 +401,60 @@ namespace IndirimTakip.Infrastructure.Migrations
                     b.ToTable("ProductWatches");
                 });
 
+            modelBuilder.Entity("IndirimTakip.Core.Entities.SecurityEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<string>("Ip")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("StatusCode")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kind");
+
+                    b.HasIndex("OccurredAt")
+                        .IsDescending();
+
+                    b.HasIndex("Ip", "OccurredAt");
+
+                    b.ToTable("SecurityEvents");
+                });
+
             modelBuilder.Entity("IndirimTakip.Core.Entities.Subscriber", b =>
                 {
                     b.Property<int>("Id")
@@ -264,6 +473,15 @@ namespace IndirimTakip.Infrastructure.Migrations
 
                     b.Property<bool>("IsConfirmed")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("LastConfirmationEmailSentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LastDigestSentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LastRecoveryEmailSentAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("SubscribedAt")
                         .HasColumnType("timestamp with time zone");
@@ -292,8 +510,7 @@ namespace IndirimTakip.Infrastructure.Migrations
                     b.HasOne("IndirimTakip.Core.Entities.Brand", "Brand")
                         .WithMany()
                         .HasForeignKey("BrandId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Brand");
                 });
@@ -318,6 +535,25 @@ namespace IndirimTakip.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Brand");
+                });
+
+            modelBuilder.Entity("IndirimTakip.Core.Entities.ProductFavorite", b =>
+                {
+                    b.HasOne("IndirimTakip.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("IndirimTakip.Core.Entities.Subscriber", "Subscriber")
+                        .WithMany()
+                        .HasForeignKey("SubscriberId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Subscriber");
                 });
 
             modelBuilder.Entity("IndirimTakip.Core.Entities.ProductWatch", b =>
