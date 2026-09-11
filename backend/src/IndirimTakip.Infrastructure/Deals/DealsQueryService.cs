@@ -829,34 +829,10 @@ public partial class DealsQueryService(
         return null;
     }
 
-    // "900 Gr" / "2 Kg" gibi metinleri grama çevirir. Kapsül/adet/ml gibi
-    // birimlerde servis başı gram hesabı anlamsız olurdu — null dönüp o
-    // ürünler listeye hiç girmiyor.
-    private static decimal? ParsePackageGrams(string? size)
-    {
-        if (string.IsNullOrWhiteSpace(size))
-            return null;
+    // Package weight in grams (lb/oz/kg/g). Counts such as capsules or
+    // servings have no weight, so those products stay out of per-gram lists.
+    private static decimal? ParsePackageGrams(string? size) => ProductAttributeParser.ToGrams(size);
 
-        var match = PackageSizeRegex().Match(size.Trim());
-        if (!match.Success)
-            return null;
-
-        if (!decimal.TryParse(
-                match.Groups["value"].Value.Replace(',', '.'),
-                NumberStyles.Number,
-                CultureInfo.InvariantCulture,
-                out var value) || value <= 0)
-        {
-            return null;
-        }
-
-        return match.Groups["unit"].Value.Equals("kg", StringComparison.OrdinalIgnoreCase)
-            ? value * 1000
-            : value;
-    }
-
-    [GeneratedRegex(@"^(?<value>\d+(?:[.,]\d+)?)\s*(?<unit>gr|kg)$", RegexOptions.IgnoreCase)]
-    private static partial Regex PackageSizeRegex();
 
     // sitemap.xml üretimi için hafif bir liste — DealDto'daki fiyat
     // hesaplarına gerek yok, sadece URL kurmak için Id ve son tarama

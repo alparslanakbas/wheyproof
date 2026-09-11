@@ -37,6 +37,11 @@ internal sealed class ShopifyProduct
     [JsonPropertyName("variants")]
     public List<ShopifyVariant> Variants { get; set; } = [];
 
+    // Option definitions in position order (1..3). Variant option1..option3
+    // hold the values; the names tell size apart from flavor.
+    [JsonPropertyName("options")]
+    public List<ShopifyOption> Options { get; set; } = [];
+
     // Mağazanın kendi etiketleri. HIQ bunu "type:wearable"/"type:equipment"
     // biçiminde kullanıp takviye olmayan ürünleri ayıklıyor. Her mağaza
     // etiketlemiyor: Commander Nutrition'da yalnızca "NOREVIEW" var, orada
@@ -53,6 +58,21 @@ internal sealed class ShopifyImage
 
 internal sealed class ShopifyVariant
 {
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    [JsonPropertyName("option1")]
+    public string? Option1 { get; set; }
+
+    [JsonPropertyName("option2")]
+    public string? Option2 { get; set; }
+
+    [JsonPropertyName("option3")]
+    public string? Option3 { get; set; }
+
     [JsonPropertyName("price")]
     public decimal Price { get; set; }
 
@@ -61,4 +81,13 @@ internal sealed class ShopifyVariant
 
     [JsonPropertyName("available")]
     public bool Available { get; set; }
+}
+
+internal sealed class ShopifyOption
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("position")]
+    public int Position { get; set; }
 }

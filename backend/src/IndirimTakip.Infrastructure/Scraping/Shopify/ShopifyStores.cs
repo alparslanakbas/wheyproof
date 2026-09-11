@@ -33,7 +33,9 @@ public static class ShopifyStores
         new("Quest Nutrition", "https://www.questnutrition.com"),
         new("Clean Simple Eats", "https://cleansimpleeats.com"),
         new("Jocko Fuel", "https://www.jockofuel.com"),
-        new("Optimum Nutrition", "https://www.optimumnutrition.com"),
+        // The root storefront serves the EU catalog in EUR to our server;
+        // /en-us is the US catalog in USD (measured 2026-09-11).
+        new("Optimum Nutrition", "https://www.optimumnutrition.com/en-us"),
         new("Orgain", "https://www.orgain.com"),
         new("Ascent", "https://ascentprotein.com"),
         new("Ghost", "https://www.ghostlifestyle.com"),

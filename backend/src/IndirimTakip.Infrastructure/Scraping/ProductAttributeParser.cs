@@ -10,127 +10,140 @@ namespace IndirimTakip.Infrastructure.Scraping;
 // kutusunun markadan bağımsız çalışması da buna dayanıyor (bkz. Category).
 public static partial class ProductAttributeParser
 {
-    private static readonly Dictionary<string, string> UnitCanonical = new(StringComparer.OrdinalIgnoreCase)
+    // Every spelling a store uses for a unit, mapped to one display form.
+    // Turkish spellings stay mapped so older shared parsing keeps working.
+    private static readonly Dictionary<string, string> UnitCanonical = new(StringComparer.Ordinal)
     {
-        ["g"] = "Gr",
-        ["gr"] = "Gr",
-        ["kg"] = "Kg",
-        ["mg"] = "Mg",
-        ["ml"] = "Ml",
-        ["lt"] = "Lt",
-        ["l"] = "Lt",
-        ["adet"] = "Adet",
-        ["tablet"] = "Tablet",
-        ["kapsul"] = "Kapsül",
-        ["kapsül"] = "Kapsül",
-        ["kaps"] = "Kapsül",
-        ["caps"] = "Kapsül",
-        ["softjel"] = "Softjel",
-        ["sase"] = "Şase",
-        ["şase"] = "Şase",
+        ["g"] = "g", ["gr"] = "g", ["gram"] = "g", ["grams"] = "g",
+        ["kg"] = "kg", ["kilogram"] = "kg", ["kilograms"] = "kg",
+        ["mg"] = "mg",
+        ["ml"] = "ml", ["l"] = "L", ["lt"] = "L",
+        ["lb"] = "lb", ["lbs"] = "lb", ["pound"] = "lb", ["pounds"] = "lb",
+        ["oz"] = "oz", ["ounce"] = "oz", ["ounces"] = "oz",
+        ["serving"] = "servings", ["servings"] = "servings",
+        ["capsule"] = "capsules", ["capsules"] = "capsules", ["veg capsule"] = "capsules",
+        ["veg capsules"] = "capsules", ["vegcapsule"] = "capsules", ["vegcapsules"] = "capsules",
+        ["vcaps"] = "capsules", ["caps"] = "capsules",
+        ["kapsül"] = "capsules", ["kapsul"] = "capsules", ["kaps"] = "capsules",
+        ["tablet"] = "tablets", ["tablets"] = "tablets", ["tab"] = "tablets", ["tabs"] = "tablets",
+        ["softgel"] = "softgels", ["softgels"] = "softgels", ["softjel"] = "softgels",
+        ["gummy"] = "gummies", ["gummies"] = "gummies",
+        ["pack"] = "pack", ["packs"] = "pack", ["pk"] = "pack",
+        ["sachet"] = "sachets", ["sachets"] = "sachets", ["şase"] = "sachets", ["sase"] = "sachets",
+        ["can"] = "cans", ["cans"] = "cans",
+        ["count"] = "count", ["ct"] = "count", ["adet"] = "count",
+        ["bar"] = "bars", ["bars"] = "bars",
     };
 
-    // Kategori tahmini için anahtar kelimeler — SSN'in kendi kategori
-    // slug'larıyla tutarlı olacak şekilde adlandırıldı.
+    private static string CanonicalUnit(string raw)
+    {
+        var key = WhitespaceRegex().Replace(raw.Trim().ToLowerInvariant(), " ");
+        return UnitCanonical.GetValueOrDefault(key, key);
+    }
+
+    // Category slugs and the words that identify them, checked in order: the
+    // first match wins, so the more specific families come first ("Pre-Workout
+    // with Creatine" is a pre-workout; "Mass Gainer Protein" is a gainer).
+    // Words match as whole words with an optional plural, so "pump" does not
+    // catch "Pumpkin Spice Iced Coffee" and "mass" does not catch "grass".
+    // "bulk" is deliberately absent: BulkSupplements would turn every one of
+    // its products into a mass gainer.
     private static readonly (string Category, string[] Keywords)[] CategoryKeywords =
     [
-        // "collagen"/"hipro"/"high pro" eklendi (2026-08-17 kapsamlı kategori
-        // taraması) — üçü de gerçek protein ürünleri, HIQ/Hardline'da hiç
-        // yakalanmıyordu. "high pro" araya boşluklu yazıldığı için "hipro"
-        // (Hardline'ın bitişik yazımı) onu yakalamıyordu, ayrıca eklendi.
-        // "creapure"/"glutapure" markalı ama şeffaf isimler (Creapure = saf
-        // kreatin monohidrat, Glutapure = Hardline'ın glutamin ürün adı) —
-        // gerçek bileşeni doğrudan taşıyor, tahmin değil.
-        ("protein-tozu", ["protein", "whey", "isolate", "izole", "casein", "kazein", "collagen", "hipro", "high pro"]),
-        ("kreatin", ["creatine", "kreatin", "creapure"]),
-        // Aynı taramada eklenen tekil amino asitler — "amino" kelimesi geçmeyen
-        // (ör. sadece "Glycine", "Taurine" yazan) ürünler hiç yakalanmıyordu.
-        ("amino-asitler", ["amino", "bcaa", "eaa", "glutamin", "arginin", "arjinin", "sitrulin", "citrulline", "alanine", "alanin", "glycine", "taurine", "theanine", "tyrosine", "leucine", "glutapure"]),
-        // "caffeine" eklendi: hem HIQ/Hardline/ProteinOcean'da tek başına
-        // satılan kafein ürünleri var, enerji/odaklanma amaçlı pre-workout
-        // ailesine en yakın kategori bu.
-        // "pre-w-out": GNC'nin kendi kısaltması ("GNC Pro Pre-W-Out – 339 g").
-        // 1 Eylül'de canlı katalogda ölçüldü — bu dizi yalnızca o iki ürüne
-        // çarpıyor, ikisi de o güne kadar kategorisizdi.
-        // "glycerol"/"gliserol" 4 Eylül'de eklendi. Canlıda ölçüldü: adında
-        // gliserol geçen 13 ürün ÜÇ parçaya bölünmüştü — 7'si hiçbir
-        // kategoride değildi (yani kategori sayfalarında hiç görünmüyorlardı),
-        // 3'ü "pump" kelimesi sayesinde zaten buradaydı, 3'ü kaynağın kendi
-        // kategorisiyle amino-asitler'de.
-        //
-        // Kategori olarak pre-workout seçildi çünkü kaynakların çoğunluğu da
-        // öyle diyor: gliserol bir amino asit DEĞİL, antrenman öncesi
-        // hiperhidrasyon/pump maddesi ("Hydro Pump + Glycerol", "Glycerol
-        // %90 Hydroxypump" adlarının kendisi bunu söylüyor).
-        //
-        // Kaynağın kendi kategorisini VEREN 3 ürün yine amino-asitler'de
-        // kalıyor: yutma servisinde kaynak kategorisi parser'ı eziyor
-        // (scraped.Category ?? InferCategory) ve bu önceliği tek bir kelime
-        // için tersine çevirmek ayrı bir karar. Kazanç yine de net:
-        // kategorisiz 7 ürün artık bir kategoride.
-        ("pre-workout", ["pre workout", "preworkout", "pump", "nitric", "hellfire", "pre-workout", "pre-w-out", "caffeine", "glycerol", "gliserol"]),
-        // SSN kendi ürünlerinde bu kategoriyi doğrudan veriyor (elle set edilmiş
-        // slug); diğer markalarda (HIQ/Hardline/ProteinOcean) daha önce burada
-        // hiç bir giriş olmadığı için l-carnitine/karnitin/cla ürünleri yanlışlıkla
-        // "yag-yakici"nin anahtar kelime listesine düşüp o kategoriye gidiyordu —
-        // kullanıcı L-Carnitine kategori sayfasında sadece SSN görünce fark etti.
-        // "alcar" (Acetyl L-Carnitine'in sektörde standart kısaltması) ve
-        // Hardline'ın "Carnifit"/"Carnıfıt" (Carni+Fit) ürün adı da eklendi.
-        ("l-carnitine-cla", ["l-carnitine", "karnitin", "carnitine", "cla", "alcar", "carnifit", "carnıfıt"]),
-        // "termojenik" (bundle paket adında geçiyor, kelimenin kendisi zaten
-        // "yağ yakıcı/termojenik" anlamına geliyor) eklendi.
-        ("yag-yakici", ["burner", "yag yakici", "thermo", "termojenik"]),
-        // "gain" ayrı eklendi: "gainer" ile eşleşmeyen "HIQ Gain Deluxe" gibi
-        // ürünler var. Karbonhidrat/kütle kaynakları da (maltodextrin,
-        // dextrose, Vitargo, Cream of Rice, Carbopure) bu kategoriye eklendi.
-        // "bulk": kütle artırıcıların sektördeki ortak adı ("GNC Pro Bulk 1340
-        // – 5443 g"). 1 Eylül'de 1100 üründe tarandı; "bulk" geçen diğer üç
-        // ürün SSN'in ve onların kategorisi KAYNAKTAN geliyor (SSN kendi slug'ını
-        // veriyor), parser'a hiç düşmüyorlar — yani bu ekleme onları taşımaz.
-        ("kilo-hacim", ["gainer", "gain", "mass", "kilo", "hacim", "bulk", "maltodextrin", "dextrose", "vitargo", "cream of rice", "carbopure", "pirinç unu", "muscle rice"]),
-        // Kapsamlı kategori taraması (2026-08-17): vitamin/mineral kategorisinin
-        // kendi açıklaması zaten geniş bir yelpaze tanımlıyor ("multivitaminden
-        // omega-3'e, magnezyumdan çinkoya") — bu ruhla, önceden hiç bir kategoriye
-        // düşmeyen ama gerçek, tanınabilir sağlık takviyesi bileşenleri eklendi.
-        // "glucoflex" (Glucosamine+Flex, HIQ'nun eklem sağlığı ürünü, mevcut
-        // glucosamine ailesiyle aynı yerde), "curcumin" (zerdeçal özütü) ve
-        // "spirulina" (tanınmış bir süperfood takviyesi) de eklendi.
-        // Markalı/özel karışım isimleri (GH-UP, Smash Pro, T-Prime vb.) BİLİNÇLİ
-        // OLARAK eklenmedi — isimden çıkarım değil tahmin olurdu.
-        ("vitamin", ["vitamin", "mineral", "magnesium", "magnezyum", "zinc", "cinko", "omega", "multivitamin", "biotin", "d3k2", "coenzyme", "ginkgo", "glutathione", "hyaluronic", "inulin", "milk thistle", "panax", "ginseng", "psyllium", "rhodiola", "saw palmetto", "selenium", "tribulus", "zma", "glucosamine", "chondroitin", "nmn", "tudca", "ester-c", "5-htp", "b-complex", "lion's mane", "maca", "iron", "chromium", "glucoflex", "curcumin", "spirulina", "coq-10", "coq10", "quercetin", "fish oil", "krill", "bromelain", "turmeric", "folat"]),
-        // "bar" BİLİNÇLİ OLARAK burada YOK: alt dizi olarak arandığı için
-        // "Barbekü Baharatı"yı atıştırmalık sayıyordu. Bar biçimi artık
-        // yukarıda kelime sınırlı SnackBarFormRegex ile yakalanıyor.
-        ("saglikli-atistirmaliklar", ["cookie", "kurabiye", "atistirmalik", "rice cake", "pirinc", "fıstık ezmesi", "fıstığı ezmesi", "fındık ezmesi", "fındığı ezmesi", "peanut butter", "ekmek"]),
+        ("pre-workout", ["pre-workout", "pre workout", "preworkout", "pump", "nitric oxide", "stim-free", "caffeine", "glycerol"]),
+        ("creatine", ["creatine", "creapure"]),
+        ("amino-acids", ["amino", "bcaa", "eaa", "glutamine", "arginine", "citrulline", "beta-alanine", "alanine", "glycine", "taurine", "theanine", "tyrosine", "leucine", "hmb"]),
+        ("hydration", ["electrolyte", "hydration", "hydrate"]),
+        ("fat-burners", ["fat burner", "burner", "thermogenic", "l-carnitine", "carnitine", "cla", "fat loss", "weight loss"]),
+        ("mass-gainers", ["gainer", "mass", "creamy rice", "cream of rice", "carb", "carbohydrate", "maltodextrin", "dextrose", "cyclic dextrin", "highly branched"]),
+        ("protein-powder", ["protein", "whey", "isolate", "casein", "collagen"]),
+        ("vitamins", ["vitamin", "multivitamin", "mineral", "magnesium", "zinc", "omega", "fish oil", "krill", "biotin", "iron", "calcium", "potassium", "d3", "d3k2", "k2", "b12", "b-complex", "greens", "probiotic", "prebiotic", "synbiotic", "ashwagandha", "turmeric", "curcumin", "ginger", "elderberry", "melatonin", "nmn", "coq10", "berberine", "ginseng", "moringa", "extract", "testosterone", "glucosamine", "chondroitin", "msm", "tudca", "quercetin", "spirulina", "maca", "rhodiola"]),
+    ];
+
+    private static readonly (string Category, Regex Pattern)[] CategoryPatterns =
+    [
+        .. CategoryKeywords.Select(c => (c.Category, new Regex(
+            @"(?<![a-z0-9])(?:" + string.Join("|", c.Keywords.Select(Regex.Escape)) + @")(?:s|es)?(?![a-z0-9])",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant))),
     ];
 
     /// <summary>
-    /// Paket büyüklüğü. "mg" bir PAKET birimi değil, ETKEN MADDE DOZUdur —
-    /// bu yüzden isimde başka bir birim varsa mg'li eşleşme atlanıyor.
-    ///
-    /// Gerçek örnek: "Herbina Magnezyum Sitrat 500 mg 120 Tablet". İlk
-    /// eşleşmeyi almak paket boyutunu "500 Mg" yapıyordu; doğru cevap
-    /// "120 Tablet". Aynı hata canlıda West Nutrition'ın üç ürününde de
-    /// duruyordu ("200 Mg", "600 Mg", "8300 Mg"), yani Swiss'e özel değil.
-    ///
-    /// mg TAMAMEN elenmiyor: isimde başka birim hiç yoksa ("SWISS GH MATRIX
-    /// 2900MG") elde olan tek ölçü odur, boş bırakmaktansa o gösteriliyor.
+    /// Package size from a product or variant name, e.g. "5 lb", "250 g",
+    /// "30 servings", "240 capsules".
     /// </summary>
+    /// <remarks>
+    /// A weight wins over a count when both appear ("634 g (186 servings)"):
+    /// weight is what the per-gram price needs, and servings are read
+    /// separately by <see cref="ExtractServings"/>. "mg" is a dose, not a
+    /// package size, so it is used only when nothing else is present
+    /// ("Magnesium 400 mg 120 Capsules" is 120 capsules).
+    /// </remarks>
     public static string? ExtractSize(string productName)
     {
         var matches = SizeRegex().Matches(productName);
         if (matches.Count == 0)
             return null;
 
-        static bool IsDoseUnit(Match m) =>
-            m.Groups["unit"].Value.Equals("mg", StringComparison.OrdinalIgnoreCase);
+        var candidates = matches
+            .Select(m => (Value: m.Groups["value"].Value.Replace(',', '.'), Unit: CanonicalUnit(m.Groups["unit"].Value)))
+            .ToList();
 
-        var match = matches.FirstOrDefault(m => !IsDoseUnit(m)) ?? matches[0];
+        var chosen = candidates.FirstOrDefault(c => WeightUnitsInGrams.ContainsKey(c.Unit));
+        if (chosen.Unit is null)
+            chosen = candidates.FirstOrDefault(c => c.Unit != "mg");
+        if (chosen.Unit is null)
+            chosen = candidates[0];
 
-        var value = match.Groups["value"].Value.Replace(',', '.');
-        var unitKey = match.Groups["unit"].Value.ToLowerInvariant();
-        var unit = UnitCanonical.GetValueOrDefault(unitKey, unitKey);
-        return $"{value} {unit}";
+        return $"{chosen.Value} {chosen.Unit}";
+    }
+
+    // Grams per unit. 1 lb = 453.59237 g and 1 oz = 28.349523125 g exactly
+    // (international avoirdupois definitions). US tubs are sold in pounds, so
+    // a mistake here would silently skew every per-gram price.
+    private static readonly Dictionary<string, decimal> WeightUnitsInGrams = new(StringComparer.Ordinal)
+    {
+        ["g"] = 1m,
+        ["kg"] = 1000m,
+        ["lb"] = 453.59237m,
+        ["oz"] = 28.349523125m,
+    };
+
+    /// <summary>
+    /// Converts a size from <see cref="ExtractSize"/> to grams; null for counts
+    /// (servings, capsules), where a weight would be invented.
+    /// </summary>
+    public static decimal? ToGrams(string? size)
+    {
+        if (string.IsNullOrWhiteSpace(size))
+            return null;
+
+        var parts = size.Trim().Split(' ', 2);
+        if (parts.Length != 2
+            || !decimal.TryParse(parts[0], NumberStyles.Number, CultureInfo.InvariantCulture, out var value)
+            || value <= 0
+            || !WeightUnitsInGrams.TryGetValue(CanonicalUnit(parts[1]), out var gramsPerUnit))
+        {
+            return null;
+        }
+
+        return value * gramsPerUnit;
+    }
+
+    /// <summary>
+    /// Servings when the store states them ("30 Servings", "634 g (186
+    /// servings)"). This is the store's own declaration, never a derived guess.
+    /// </summary>
+    public static int? ExtractServings(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+
+        var match = ServingsCountRegex().Match(text);
+        return match.Success
+            && int.TryParse(match.Groups["count"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var count)
+            && count is > 0 and <= 2000
+                ? count
+                : null;
     }
 
     // Aroma sözlüğü. "Parantez içini ya da tireden sonrasını aroma say" gibi
@@ -318,11 +331,11 @@ public static partial class ProductAttributeParser
         // Kelime sınırı ŞART: liste "bar" alt dizisini arıyordu ve
         // "Barbekü Baharatı" bu yüzden atıştırmalık sayılıyordu.
         if (SnackBarFormRegex().IsMatch(normalized))
-            return "saglikli-atistirmaliklar";
+            return "protein-snacks";
 
-        foreach (var (category, keywords) in CategoryKeywords)
+        foreach (var (category, pattern) in CategoryPatterns)
         {
-            if (keywords.Any(keyword => normalized.Contains(keyword, StringComparison.Ordinal)))
+            if (pattern.IsMatch(normalized))
                 return category;
         }
 
@@ -352,36 +365,15 @@ public static partial class ProductAttributeParser
     // BİLİNÇLİ OLARAK hiçbir grupta yer almıyor — kendi başlarına aranıyorlar.
     private static readonly string[][] SynonymGroups =
     [
-        // protein-tozu
-        ["isolate", "izole"],
-        ["casein", "kazein"],
-        ["hipro", "high pro"],
-        // kreatin (kategori zaten dar/tutarlı, ama tutarlılık için burada da var)
-        ["creatine", "kreatin", "creapure"],
-        // amino-asitler — "amino"/"bcaa"/"eaa"/"glycine"/"taurine"/"theanine"/
-        // "tyrosine"/"leucine" BİLİNÇLİ OLARAK burada yok, hepsi ayrı amino asit/
-        // terim, birbirinin eşanlamlısı değil.
-        ["arginin", "arjinin"],
-        ["sitrulin", "citrulline"],
-        ["alanine", "alanin"],
-        ["glutamin", "glutapure"],
-        // pre-workout — "pump"/"nitric"/"hellfire"/"caffeine" ayrı kalıyor.
         ["pre workout", "preworkout", "pre-workout"],
-        // l-carnitine-cla — "cla" BİLİNÇLİ OLARAK hariç, karnitinden farklı bir
-        // bileşen (conjugated linoleic acid), karnitin aramasında çıkmamalı.
-        ["l-carnitine", "karnitin", "carnitine", "alcar", "carnifit", "carnıfıt"],
-        // yag-yakici (kategori zaten dar/tutarlı)
-        ["burner", "yag yakici", "thermo", "termojenik"],
-        // kilo-hacim — "mass"/"maltodextrin"/"dextrose"/"vitargo"/"cream of
-        // rice"/"carbopure" BİLİNÇLİ OLARAK ayrı, her biri farklı bir
-        // karbonhidrat kaynağı/terim.
-        ["gainer", "gain", "kilo", "hacim"],
-        // vitamin — 2026-08-24'te bulunan ilk vaka.
-        ["magnezyum", "magnesium"],
-        ["cinko", "çinko", "zinc"],
-        // saglikli-atistirmaliklar — "bar"/"atistirmalik" ayrı kalıyor.
-        ["cookie", "kurabiye"],
-        ["rice cake", "pirinc"],
+        ["creatine", "creapure"],
+        ["bcaa", "branched chain amino acids"],
+        ["eaa", "essential amino acids"],
+        ["electrolyte", "electrolytes", "hydration"],
+        ["gainer", "mass gainer"],
+        ["burner", "fat burner", "thermogenic"],
+        ["multivitamin", "multi vitamin"],
+        ["isolate", "whey isolate"],
     ];
 
     public static IReadOnlyCollection<string> GetSearchSynonyms(string term)
@@ -457,7 +449,7 @@ public static partial class ProductAttributeParser
     [GeneratedRegex(@"servis[^0-9]{0,20}(?<value>\d+(?:[.,]\d+)?)\s*(?:gr|gram|g)\b", RegexOptions.IgnoreCase)]
     private static partial Regex ServingServisRegex();
 
-    [GeneratedRegex(@"(?<value>\d+(?:[.,]\d+)?)\s*(?<unit>gr|g|kg|mg|ml|lt|l|adet|tablet|kaps[uü]l|kaps|caps|softjel|[şs]ase)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?<value>\d+(?:[.,]\d+)?)\s*(?<unit>kilograms?|kg|grams?|gr|g|mg|ml|lbs?|pounds?|ounces?|oz|lt|l|servings?|veg\s*capsules?|capsules?|vcaps|caps|kaps[uü]l|kaps|softgels?|softjel|tablets?|tabs?|gummies|gummy|packs?|pk|sachets?|cans?|count|ct|bars?|adet|[şs]ase)\b", RegexOptions.IgnoreCase)]
     private static partial Regex SizeRegex();
 
     [GeneratedRegex(@"\(([^)]+)\)")]
@@ -468,6 +460,12 @@ public static partial class ProductAttributeParser
     /// ("barı", "barlar"), ama "Barbekü"/"Barbell" gibi kelimelerin içine
     /// denk gelmemesi için kelime sınırıyla.
     /// </summary>
-    [GeneratedRegex(@"\bbar(s|ı|i|lar|ler|ları|leri)?\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(bars?|cookies?|chips|crisps|puffs|brownies?|wafers?|pretzels?)\b", RegexOptions.IgnoreCase)]
     private static partial Regex SnackBarFormRegex();
+
+    [GeneratedRegex(@"(?<count>\d+)\s*servings?\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ServingsCountRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 }
