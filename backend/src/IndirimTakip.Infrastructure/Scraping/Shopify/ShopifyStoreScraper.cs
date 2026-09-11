@@ -164,9 +164,7 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         var categoryText = string.IsNullOrWhiteSpace(product.ProductType) ? title : $"{title} {product.ProductType}";
         var category = ProductAttributeParser.InferCategory(categoryText, brand ?? store.BrandName);
 
-        // BulkSupplements: 897 uncategorised products were sorbitol, mannitol,
-        // nutritional yeast, fruit powders and the like.
-        if (category is null && store.RequireCategory)
+        if (store.OnlyCategories is { } allowed && (category is null || !allowed.Contains(category)))
             yield break;
 
         var sizePositions = product.Options

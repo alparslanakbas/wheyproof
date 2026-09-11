@@ -140,15 +140,19 @@ public class ShopifyStoreScraperTests
     }
 
     [Fact]
-    public void Ingredient_store_keeps_only_categorised_products()
+    public void Ingredient_store_keeps_only_its_sport_categories()
     {
-        var ingredients = new ShopifyStore("BulkSupplements", "https://www.bulksupplements.com", RequireCategory: true);
+        var ingredients = ShopifyStores.All.Single(s => s.BrandName == "BulkSupplements");
         var yeast = Product("Nutritional Yeast Flakes", "", ["Title"], (36, "Default Title", null, 12m, true));
-        var creatine = Product("Creatine Monohydrate Powder", "", ["Title"], (37, "Default Title", null, 30m, true));
+        var vitamin = Product("Vitamin K2 MK7 Powder", "", ["Title"], (37, "Default Title", null, 20m, true));
+        var creatine = Product("Creatine Monohydrate Powder", "", ["Title"], (38, "Default Title", null, 30m, true));
 
         Assert.Empty(ShopifyStoreScraper.ToScrapedProducts(yeast, ingredients, null));
+        Assert.Empty(ShopifyStoreScraper.ToScrapedProducts(vitamin, ingredients, null));
         Assert.Single(ShopifyStoreScraper.ToScrapedProducts(creatine, ingredients, null));
-        // Brand stores are not narrowed: their uncategorised items are stacks and bundles.
+        // Brand stores are not narrowed: their vitamins stay, and their
+        // uncategorised items are stacks and bundles.
+        Assert.Single(ShopifyStoreScraper.ToScrapedProducts(vitamin, Brand, null));
         Assert.Single(ShopifyStoreScraper.ToScrapedProducts(yeast, Brand, null));
     }
 
