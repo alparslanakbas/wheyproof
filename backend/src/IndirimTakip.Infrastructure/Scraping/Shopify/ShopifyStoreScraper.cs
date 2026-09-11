@@ -262,7 +262,7 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
     //   bottles match;
     // - "cup" is food ("PB Cup Nut Butter") and "cooler" can be a flavor name;
     // - "tumbler" is left out: Transparent Labs bundles a real tub with one.
-    [GeneratedRegex(@"\b((t-?)?shirts?|button\s*downs?|tees?|tank\s*tops?|tanks?|hoodies?|crewnecks?|sweatshirts?|sweatpants|joggers?|shorts|socks|hats?|beanies?|snapbacks?|(baseball|dad|swim)\s*caps?|headbands?|jackets?|leggings|sports?\s*bras?|apparel|towels?|backpacks?|duffels?|gym\s*bags?|cooler\s*bags?|retro\s*cooler|totes?|stickers?|posters?|keychains?|lockbox(es)?|scarf|scarves|watch(es)?|(exercise|resistance)\s*bands?|(weight)?lifting\s*belts?|gift\s*cards?|shipping\s*protection|shakers?|(blender|water|sport|squeeze|trimr|classic)\s*bottles?|jugs?|mugs?|(metal|enamel)\s*cups?|crunchcup|pill\s*(cases?|organizers?)|funnels?|lanyards?|empty\s*capsules|pantry|drinkware)\b",
+    [GeneratedRegex(@"\b((t-?)?shirts?|button\s*downs?|tees?|tank\s*tops?|tanks?|hoodies?|crewnecks?|sweatshirts?|sweatpants|joggers?|shorts|socks|hats?|beanies?|snapbacks?|(baseball|dad|swim)\s*caps?|headbands?|jackets?|leggings|sports?\s*bras?|apparel|towels?|backpacks?|duffels?|gym\s*bags?|cooler\s*bags?|retro\s*cooler|totes?|stickers?|posters?|keychains?|lockbox(es)?|scarf|scarves|watch(es)?|(exercise|resistance)\s*bands?|(weight)?lifting\s*belts?|gift\s*cards?|shipping\s*protection|free\s*shipping|shakers?|(blender|water|sport|squeeze|trimr|classic)\s*bottles?|jugs?|mugs?|(metal|enamel)\s*cups?|crunchcup|pill\s*(cases?|organizers?)|funnels?|lanyards?|empty\s*capsules|pantry|drinkware)\b",
         RegexOptions.IgnoreCase)]
     private static partial Regex ApparelOrMerchRegex();
 }

@@ -330,7 +330,11 @@ public static partial class ProductAttributeParser
         //
         // Kelime sınırı ŞART: liste "bar" alt dizisini arıyordu ve
         // "Barbekü Baharatı" bu yüzden atıştırmalık sayılıyordu.
-        if (SnackBarFormRegex().IsMatch(normalized))
+        // Snack words are also flavor names: "Cookies & Cream Protein Powder",
+        // "Protein Powder: Brownie Batter", "GHOST WHEY | Cocoa Puffs". In the
+        // first US crawl 38 of 329 snacks were powders, stacks or sample
+        // packets, so a powder or serving word vetoes the snack rule.
+        if (SnackBarFormRegex().IsMatch(normalized) && !PowderFormRegex().IsMatch(normalized))
             return "protein-snacks";
 
         foreach (var (category, pattern) in CategoryPatterns)
@@ -462,6 +466,13 @@ public static partial class ProductAttributeParser
     /// </summary>
     [GeneratedRegex(@"\b(bars?|cookies?|chips|crisps|puffs|brownies?|wafers?|pretzels?)\b", RegexOptions.IgnoreCase)]
     private static partial Regex SnackBarFormRegex();
+
+    /// <summary>
+    /// Words that say the product is a powder or a dosed supplement, not a
+    /// snack, whatever its flavor is called.
+    /// </summary>
+    [GeneratedRegex(@"\b(powders?|whey|isolate|casein|servings?|packets?|scoops?|canisters?|tubs?|stacks?|shakes?)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex PowderFormRegex();
 
     [GeneratedRegex(@"(?<count>\d+)\s*servings?\b", RegexOptions.IgnoreCase)]
     private static partial Regex ServingsCountRegex();

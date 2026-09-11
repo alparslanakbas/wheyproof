@@ -83,6 +83,19 @@ public class UsSizeCategoryParserTests
         Assert.Equal(expected, ProductAttributeParser.InferCategory(name));
     }
 
+    // Snack words that are only flavor names, from the first local crawl.
+    [Theory]
+    [InlineData("Cookies & Cream Protein Powder - 1.6 lb. Canister", "protein-powder")]
+    [InlineData("Protein Powder: Brownie Batter (10 Serving Bag)", "protein-powder")]
+    [InlineData("GHOST® WHEY | CHOCOLATE CHIP COOKIES - 2lb", "protein-powder")]
+    [InlineData("Basic Supplements Basic Isolate 5lb, Peanut Butter Cookie", "protein-powder")]
+    [InlineData("Protein Cookie - 12 count", "protein-snacks")]
+    [InlineData("Protein Chips - Nacho Cheese", "protein-snacks")]
+    public void Flavor_names_do_not_turn_powders_into_snacks(string name, string expected)
+    {
+        Assert.Equal(expected, ProductAttributeParser.InferCategory(name));
+    }
+
     // Real product seen in the survey (Ascent). A substring match on "pump"
     // made it a pre-workout.
     [Fact]

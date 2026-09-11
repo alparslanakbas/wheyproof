@@ -94,6 +94,7 @@ public class ShopifyStoreScraperTests
     [InlineData("Empty Capsules - Clear - Size 0", "")]
     [InlineData("Bodybuilding.com Contour Nylon Weightlifting Belt", "")]
     [InlineData("Shipping Protection", "")]
+    [InlineData("Free Shipping", "")]
     public void Non_supplements_are_dropped(string title, string type)
     {
         var p = Product(title, type, ["Title"], (30, "Default Title", null, 25m, true));
