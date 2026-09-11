@@ -79,11 +79,85 @@ public class ShopifyStoreScraperTests
     [InlineData("Division Socks", "")]
     [InlineData("Nutricost Pantry Fine Ground Black Pepper", "")]
     [InlineData("Gift Card", "Gift Card")]
+    // Leaks found in the first full local crawl.
+    [InlineData("Men's Dry Shirt - Large", "")]
+    [InlineData("GHOST® CORE SHORT SLEEVE BUTTON DOWN | CHAMBRAY", "")]
+    [InlineData("Endurance Swim Cap - Grey/Black", "")]
+    [InlineData("Ascent JUNK Headband", "")]
+    [InlineData("NAKED C.C. Dad Cap - Blue", "")]
+    [InlineData("RAW Mug", "")]
+    [InlineData("GHOST® RETRO COOLER", "")]
+    [InlineData("Cooler Bag", "")]
+    [InlineData("Nutricost Trimr Classic Bottle (Black)", "")]
+    [InlineData("RAW Sport Bottle - 750ml", "")]
+    [InlineData("Enamel Metal Cup 16 oz", "")]
+    [InlineData("Empty Capsules - Clear - Size 0", "")]
+    [InlineData("Bodybuilding.com Contour Nylon Weightlifting Belt", "")]
+    [InlineData("Shipping Protection", "")]
     public void Non_supplements_are_dropped(string title, string type)
     {
         var p = Product(title, type, ["Title"], (30, "Default Title", null, 25m, true));
 
         Assert.Empty(ShopifyStoreScraper.ToScrapedProducts(p, Brand, null));
+    }
+
+    // The same words inside real supplement titles.
+    [Theory]
+    [InlineData("Magnesium Glycinate 1 Bottle")]
+    [InlineData("Tongkat Ali - 3 Bottle Value Pack")]
+    [InlineData("Chocolate PB Cup Nut Butter (28 ounce)")]
+    [InlineData("Hydrate Cherry Watermelon - TL x Diana Conforti - 40sv Tub & Signature Tumbler")]
+    public void Supplements_with_merch_words_are_kept(string title)
+    {
+        var p = Product(title, "", ["Title"], (31, "Default Title", null, 25m, true));
+
+        Assert.Single(ShopifyStoreScraper.ToScrapedProducts(p, Brand, null));
+    }
+
+    // Quest lists loyalty rewards at $0.01.
+    [Fact]
+    public void Sub_dollar_items_are_skipped()
+    {
+        var p = Product("Whey Protein Bar", "", ["Title"], (32, "Default Title", null, 0.01m, true));
+
+        Assert.Empty(ShopifyStoreScraper.ToScrapedProducts(p, Brand, null));
+    }
+
+    [Fact]
+    public void Wholesale_drums_are_dropped_but_big_consumer_tubs_stay()
+    {
+        var p = Product("Creatine Monohydrate Powder", "", ["Style", "Size"],
+            (33, "Powder", "1 Kilogram (2.2 lbs)", 29.96m, true),
+            (34, "Powder", "25 Kilograms (55 lbs)", 499.96m, true),
+            (35, "Powder", "20 lb", 104.99m, true));
+
+        var sizes = ShopifyStoreScraper.ToScrapedProducts(p, Brand, null)
+            .Select(i => ProductAttributeParser.ExtractSize(i.Name))
+            .ToList();
+
+        Assert.Equal(["1 kg", "20 lb"], sizes);
+    }
+
+    [Fact]
+    public void Ingredient_store_keeps_only_categorised_products()
+    {
+        var ingredients = new ShopifyStore("BulkSupplements", "https://www.bulksupplements.com", RequireCategory: true);
+        var yeast = Product("Nutritional Yeast Flakes", "", ["Title"], (36, "Default Title", null, 12m, true));
+        var creatine = Product("Creatine Monohydrate Powder", "", ["Title"], (37, "Default Title", null, 30m, true));
+
+        Assert.Empty(ShopifyStoreScraper.ToScrapedProducts(yeast, ingredients, null));
+        Assert.Single(ShopifyStoreScraper.ToScrapedProducts(creatine, ingredients, null));
+        // Brand stores are not narrowed: their uncategorised items are stacks and bundles.
+        Assert.Single(ShopifyStoreScraper.ToScrapedProducts(yeast, Brand, null));
+    }
+
+    [Fact]
+    public void Retailer_gear_vendor_is_dropped()
+    {
+        var p = Product("Contour Nylon Lifting Aid", "", ["Title"], (38, "Default Title", null, 29.99m, true));
+        p.Vendor = "Bodybuilding.com Accessories";
+
+        Assert.Empty(ShopifyStoreScraper.ToScrapedProducts(p, Retailer, "bodybuilding.com"));
     }
 
     [Fact]

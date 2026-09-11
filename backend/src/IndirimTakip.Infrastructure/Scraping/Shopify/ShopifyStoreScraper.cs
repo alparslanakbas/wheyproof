@@ -140,9 +140,20 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         return match.Success ? match.Groups["code"].Value.ToUpperInvariant() : null;
     }
 
+    // Nothing under a dollar on these stores is a supplement: Quest lists
+    // loyalty rewards (a scarf, a watch) at $0.01 and Ascent sells "Shipping
+    // Protection" at $0.75 (measured 2026-09-11). The floor also keeps a zero
+    // price out of the discount maths.
+    private const decimal MinimumPrice = 1m;
+
+    // From 10 kg up a package is a wholesale drum: BulkSupplements sells up to
+    // 30 kg, one of them at $68,474. The largest consumer tub in the survey was
+    // a 20 lb gainer (9.07 kg), so the line sits just above it.
+    private const decimal WholesaleGrams = 10_000m;
+
     internal static IEnumerable<ScrapedProduct> ToScrapedProducts(ShopifyProduct product, ShopifyStore store, string? seller)
     {
-        if (IsExcluded(product))
+        if (IsExcluded(product, store))
             yield break;
 
         var title = product.Title.Trim();
@@ -153,15 +164,19 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         var categoryText = string.IsNullOrWhiteSpace(product.ProductType) ? title : $"{title} {product.ProductType}";
         var category = ProductAttributeParser.InferCategory(categoryText, brand ?? store.BrandName);
 
+        // BulkSupplements: 897 uncategorised products were sorbitol, mannitol,
+        // nutritional yeast, fruit powders and the like.
+        if (category is null && store.RequireCategory)
+            yield break;
+
         var sizePositions = product.Options
             .Where(o => !FlavorOptionNames.Contains(o.Name.Trim()))
             .Select(o => o.Position)
             .OrderBy(p => p)
             .ToList();
 
-        // A zero price would divide by zero in the discount maths.
         var groups = product.Variants
-            .Where(v => v.Price > 0)
+            .Where(v => v.Price >= MinimumPrice)
             .GroupBy(v => SizeKey(v, sizePositions))
             .ToList();
 
@@ -176,6 +191,9 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
             var name = label.Length == 0 || title.Contains(label, StringComparison.OrdinalIgnoreCase)
                 ? title
                 : $"{title} - {label}";
+
+            if (ProductAttributeParser.ToGrams(ProductAttributeParser.ExtractSize(name)) >= WholesaleGrams)
+                continue;
 
             // A size-specific link lands the shopper on that size. Products with
             // no size dimension keep the plain URL, which also stays their
@@ -198,11 +216,20 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         }
     }
 
-    private static bool IsExcluded(ShopifyProduct product)
+    private static bool IsExcluded(ShopifyProduct product, ShopifyStore store)
     {
         var type = product.ProductType?.Trim();
         if (!string.IsNullOrEmpty(type) && ExcludedProductTypes.Contains(type))
             return true;
+
+        // Retailers file their own gear under a vendor such as
+        // "Bodybuilding.com Accessories" (weightlifting belts).
+        if (store.IsRetailer && product.Vendor is { } vendor
+            && (vendor.Contains("accessor", StringComparison.OrdinalIgnoreCase)
+                || vendor.Contains("apparel", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
 
         return ApparelOrMerchRegex().IsMatch(product.Title)
             || NonSupplementProductFilter.IsAccessoryOrApparel(product.Title);
@@ -227,9 +254,15 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
     [GeneratedRegex(@"Shopify\.currency\s*=\s*\{\s*""active""\s*:\s*""(?<code>[A-Za-z]{3})""")]
     private static partial Regex StorefrontCurrencyRegex();
 
-    // English apparel and merch words, as whole words. "caps" is deliberately
-    // absent: supplement titles use it for capsules ("Ashwagandha 120 Caps").
-    [GeneratedRegex(@"\b(t-?shirts?|tees?|tank\s*tops?|tanks?|hoodies?|crewnecks?|sweatshirts?|sweatpants|joggers?|shorts|socks|hats?|beanies?|snapbacks?|baseball\s*caps?|jackets?|leggings|sports?\s*bras?|apparel|towels?|backpacks?|duffels?|gym\s*bags?|totes?|stickers?|posters?|keychains?|gift\s*cards?|shakers?|blender\s*bottles?|water\s*bottles?|jugs?|pill\s*(cases?|organizers?)|funnels?|lanyards?|pantry|drinkware)\b",
+    // English apparel and merch words, as whole words. Some words need their
+    // qualifier because they also appear in supplement titles:
+    // - "caps" alone means capsules ("Ashwagandha 120 Caps"), so only dad,
+    //   swim and baseball caps match;
+    // - "bottle" is a count ("Magnesium Glycinate 1 Bottle"), so only drink
+    //   bottles match;
+    // - "cup" is food ("PB Cup Nut Butter") and "cooler" can be a flavor name;
+    // - "tumbler" is left out: Transparent Labs bundles a real tub with one.
+    [GeneratedRegex(@"\b((t-?)?shirts?|button\s*downs?|tees?|tank\s*tops?|tanks?|hoodies?|crewnecks?|sweatshirts?|sweatpants|joggers?|shorts|socks|hats?|beanies?|snapbacks?|(baseball|dad|swim)\s*caps?|headbands?|jackets?|leggings|sports?\s*bras?|apparel|towels?|backpacks?|duffels?|gym\s*bags?|cooler\s*bags?|retro\s*cooler|totes?|stickers?|posters?|keychains?|lockbox(es)?|scarf|scarves|watch(es)?|(exercise|resistance)\s*bands?|(weight)?lifting\s*belts?|gift\s*cards?|shipping\s*protection|shakers?|(blender|water|sport|squeeze|trimr|classic)\s*bottles?|jugs?|mugs?|(metal|enamel)\s*cups?|crunchcup|pill\s*(cases?|organizers?)|funnels?|lanyards?|empty\s*capsules|pantry|drinkware)\b",
         RegexOptions.IgnoreCase)]
     private static partial Regex ApparelOrMerchRegex();
 }

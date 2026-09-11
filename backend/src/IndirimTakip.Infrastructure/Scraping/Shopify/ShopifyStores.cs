@@ -8,7 +8,11 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 /// Shopify "vendor" field and carry the store host as the seller, which is
 /// what lets the same product be compared across a brand site and a retailer.
 /// </param>
-public sealed record ShopifyStore(string BrandName, string BaseUrl, bool IsRetailer = false);
+/// <param name="RequireCategory">
+/// True for stores whose catalog is mostly raw ingredients outside our scope.
+/// Only products that fall into one of our categories are kept.
+/// </param>
+public sealed record ShopifyStore(string BrandName, string BaseUrl, bool IsRetailer = false, bool RequireCategory = false);
 
 public static class ShopifyStores
 {
@@ -20,7 +24,7 @@ public static class ShopifyStores
     /// </summary>
     public static readonly IReadOnlyList<ShopifyStore> All =
     [
-        new("BulkSupplements", "https://www.bulksupplements.com"),
+        new("BulkSupplements", "https://www.bulksupplements.com", RequireCategory: true),
         new("Naked Nutrition", "https://www.nakednutrition.com"),
         new("Transparent Labs", "https://www.transparentlabs.com"),
         new("Momentous", "https://www.livemomentous.com"),
