@@ -20,6 +20,11 @@ internal sealed class ShopifyProduct
     [JsonPropertyName("handle")]
     public required string Handle { get; set; }
 
+    // Brand name as the store records it. For a single-brand store this is
+    // the brand itself; for a retailer it is the actual manufacturer.
+    [JsonPropertyName("vendor")]
+    public string? Vendor { get; set; }
+
     [JsonPropertyName("product_type")]
     public string? ProductType { get; set; }
 

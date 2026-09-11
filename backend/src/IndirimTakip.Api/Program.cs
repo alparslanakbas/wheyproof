@@ -309,7 +309,6 @@ app.Use(async (context, next) =>
 // rotalar, önbellek politikaları, hız sınırları ve filtreler birebir aynı.
 app.MapAdminEndpoints(adminApiKey);
 app.MapYonetimSession(adminApiKey);
-app.MapCollectorEndpoints(ingestApiKey);
 app.MapHealthEndpoints();
 app.MapDealsEndpoints(PublicDataCachePolicy);
 app.MapCouponEndpoints(PublicDataCachePolicy);
