@@ -1,8 +1,8 @@
 namespace IndirimTakip.Core.Entities;
 
-// Hesap/login gerektirmeyen hafif "favorilerim" listesi — Subscriber'ın
-// (e-posta + token) aynı altyapısına bağlı ama e-posta hiç gönderilmediği
-// için onay akışına (IsConfirmed) hiç girmiyor.
+// Lightweight watchlist that needs no account or login. It hangs off the same
+// Subscriber (email + token) infrastructure, but since no email is sent it never
+// enters the confirmation flow (IsConfirmed).
 public class ProductFavorite
 {
     public int Id { get; set; }

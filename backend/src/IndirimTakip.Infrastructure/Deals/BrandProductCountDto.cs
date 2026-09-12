@@ -1,15 +1,14 @@
 namespace IndirimTakip.Infrastructure.Deals;
 
-// Markalar dizini (/markalar) için: markanın takip edilen ürün sayısı.
+// For the brands directory: the number of tracked products per brand.
 //
-// AYRI BİR UÇ GEREKTİ çünkü dizin sayfası bu sayıyı önce
-// BrandCategoryPairDto'ları toplayarak hesaplıyordu ve o liste yalnızca
-// KATEGORİSİ OLAN ürünleri içeriyor. Sonuç: aynı marka için iki farklı
-// sayı görünüyordu — /markalar "HIQ 85 ürün", /marka/hiq "113 ürün"
-// (schema.org SSS bloğunda da 113). Katalog genelinde 414 ürün (%16)
-// sayılmıyordu ve kategorisi hiç olmayan üç marka (BioBee, Dr Pan, SiS)
-// "0 ürün" görünüyordu.
+// A SEPARATE ENDPOINT WAS NEEDED because the directory page first computed this
+// number by summing BrandCategoryPairDto rows, and that list only contains
+// products THAT HAVE A CATEGORY. The result: one brand showed two different
+// numbers (the directory said 85 products, the brand page 113, and the
+// schema.org FAQ block 113 too). Across the catalog 16% of products weren't
+// counted, and brands with no categorised products showed "0 products".
 //
-// Buradaki sayı GetBrandStatsAsync ile AYNI tanımı kullanıyor (aktif marka +
-// bayat olmayan ürün), böylece iki sayfa aynı rakamı veriyor.
+// This count uses the SAME definition as GetBrandStatsAsync (active brand + not
+// stale), so both pages show the same number.
 public record BrandProductCountDto(string BrandName, int ProductCount);

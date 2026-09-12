@@ -11,160 +11,150 @@ public class Product
     public string? ImageUrl { get; set; }
 
     /// <summary>
-    /// Kendi sunucumuzdaki küçültülmüş kopyanın dosya adı; henüz
-    /// indirilmediyse null.
+    /// File name of the resized copy on our own server; null until downloaded.
     /// </summary>
     /// <remarks>
-    /// <b>ImageUrl'in YERİNE GEÇMİYOR, YANINDA DURUYOR.</b> Kaynak adres
-    /// tarama tarafının doğru kaydı bulması ve değişikliği görmesi için
-    /// gerekli; ayrıca yerel kopya henüz yokken ya da indirme başarısızken
-    /// gösterilecek adres o. Yani bu alan boşken site eskisi gibi çalışıyor.
+    /// <b>IT DOESN'T REPLACE ImageUrl, IT SITS NEXT TO IT.</b> The source URL is
+    /// what lets scraping find the right record and notice a change; it is also
+    /// the URL shown while no local copy exists or the download failed. So with
+    /// this field empty the site works exactly as before.
     /// </remarks>
     public string? LocalImagePath { get; set; }
     public string? Category { get; set; }
     public string? Size { get; set; }
     public string? Flavor { get; set; }
 
-    // Son taramada mağazada satın alınabilir miydi?
-    //
-    // NULL = "bu kaynak stok bilgisi vermiyor" demek, "stokta yok" DEĞİL.
-    // Sekiz kaynaktan üçü (HIQ, ProteinOcean, Yeşilmarka) bu bilgiyi
-    // veriyor; diğerlerinde alan boş kalır ve arayüzde hiçbir rozet
-    // gösterilmez. Üç durumlu olması bilinçli: bilinmeyeni "stokta var"
-    // saymak uydurma veri olurdu.
     /// <summary>
-    /// Ürün sitede görünsün mü. Yönetim panelinden kapatılabiliyor.
+    /// Whether the product is shown on the site. Can be turned off in the admin panel.
     /// </summary>
     /// <remarks>
-    /// Süzme GLOBAL SORGU FİLTRESİYLE yapılıyor (bkz. AppDbContext), her
-    /// sorguya elle eklenmiyor: yalnızca DealsQueryService içinde 20 ayrı
-    /// ürün sorgusu var ve birini atlamak, gizlenmiş bir ürünün başka bir
-    /// sayfada ya da sitemap'te görünmeye devam etmesi demekti.
+    /// Filtering is done by a GLOBAL QUERY FILTER (see AppDbContext), not added
+    /// to each query by hand: DealsQueryService alone has about 20 product
+    /// queries, and missing one would leave a hidden product visible on another
+    /// page or in the sitemap.
     ///
-    /// Markanın <c>IsActive</c> alanı BUNDAN AYRI ve zaten çalışıyor;
-    /// o sorgularda açıkça kontrol ediliyor.
+    /// The brand's <c>IsActive</c> field is SEPARATE and already works; those
+    /// queries check it explicitly.
     /// </remarks>
     public bool IsActive { get; set; } = true;
 
+    // Could the product be bought at the store in the last scrape?
+    //
+    // NULL means "this source doesn't report stock", NOT "out of stock". Not
+    // every source reports it; where it doesn't, the field stays empty and the
+    // UI shows no badge. Three states on purpose: counting the unknown as "in
+    // stock" would be made-up data.
     public bool? InStock { get; set; }
 
-    // Ürünü SATAN mağaza; Brand (üretici) alanından ayrı.
-    // NULL = markanın kendi sitesinden alınıyor. Bayi kataloglarında dolu.
+    // The store SELLING the product; separate from Brand (the manufacturer).
+    // NULL = bought from the brand's own store. Filled for retailer catalogs.
     public string? Seller { get; set; }
 
     public int ClickCount { get; set; }
 
-    // Ürün sayfasındaki "Bu bilgi faydalı mıydı?" oyu — basit bir güven
-    // sinyali, auth gerektirmiyor (ClickCount ile aynı desen).
+    // "Was this helpful?" vote on the product page: a simple trust signal that
+    // needs no auth (same pattern as ClickCount).
     public int HelpfulYesCount { get; set; }
     public int HelpfulNoCount { get; set; }
 
-    // Gerçek besin değeri tablosundan gelen porsiyon büyüklüğü (gram).
-    // Sadece markanın verisi güvenilir şekilde sağladığı ürünlerde dolu.
+    // Serving size (grams) from the real nutrition table. Filled only where the
+    // brand's data provides it reliably.
     public decimal? ServingSizeGrams { get; set; }
 
-    // Paketten kaç servis çıktığı — markanın DOĞRUDAN beyan ettiği sayı.
-    // ProteinOcean bunu variant verisinde ("Servis" attribute'u) veriyor;
-    // o markada paket gramajı (Size) hiç gelmediği için servis başı fiyat
-    // başka türlü hesaplanamıyordu. Diğer markalarda null — orada hesap
-    // Size ÷ ServingSizeGrams üzerinden yapılıyor. İkisi de varsa bu alan
-    // önceliklidir (türetilmiş değil, markanın kendi beyanı).
+    // Servings per package as DIRECTLY declared by the brand. Where a source
+    // gives no package weight (Size), price per serving can't be derived any
+    // other way. Elsewhere it is null and the calculation uses
+    // Size ÷ ServingSizeGrams. When both exist this field wins (it is the
+    // brand's own statement, not derived).
     public int? ServingsPerPackage { get; set; }
 
-    // Markanın kendi sitesinden gelen gerçek ürün açıklaması (düz metin,
-    // HTML temizlenmiş) — uydurma değil, sadece marka bunu sağlıyorsa dolu.
-    // Bir kez doldurulduktan sonra sonraki taramalarda korunur (bkz.
-    // ScrapeIngestionService) — markanın açıklamayı çekmeyen scraper'ları
-    // (henüz SSN/Hardline) mevcut değeri sıfırlamaz.
+    // The real product description from the brand's own site (plain text, HTML
+    // stripped). Never made up; filled only when the brand provides it. Once
+    // filled it is kept across later scrapes (see ScrapeIngestionService), so
+    // scrapers that don't fetch descriptions don't reset the stored value.
     public string? Description { get; set; }
 
-    // Markanın kendi besin değeri tablosu, normalize edilmiş anahtar/değer
-    // JSON'u olarak ("Protein": "24 g" gibi). Marka tablo vermiyorsa null —
-    // tahmin üretilmiyor. Karşılaştırma sayfasında "içindekiler" tablosu
-    // olarak gösteriliyor.
+    // The brand's own nutrition table as normalized key/value JSON
+    // ("Protein": "24 g"). Null when the brand gives no table; nothing is
+    // guessed. Shown as the nutrition table on the comparison page.
     public string? NutritionJson { get; set; }
 
-    // Yukarıdaki tablodan ayrıştırılmış porsiyon başı protein (gram).
-    // Ayrı bir kolon çünkü "servis başı protein maliyeti" hesabı ve buna
-    // göre sıralama/filtreleme JSON içinden yapılamaz. Tabloda protein
-    // satırı yoksa null.
+    // Protein per serving (grams) parsed from the table above. A separate
+    // column because "protein cost per serving" and sorting/filtering by it
+    // can't be done inside JSON. Null when the table has no protein row.
     public decimal? ProteinPerServingGrams { get; set; }
 
-    // Besin değeri için ürün sayfasına en son ne zaman BAKILDIĞI — tablo
-    // bulunmuş olsun olmasın set ediliyor. Çoğu üründe (aksesuar, bar,
-    // atıştırmalık) gerçekten tablo yok; bu alan olmadan backfill her hafta
-    // aynı ürünleri sonsuza kadar tekrar denerdi.
+    // When the product page was last CHECKED for nutrition, set whether or not
+    // a table was found. Many products (accessories, bars, snacks) really have
+    // no table; without this field the backfill would retry the same products
+    // forever.
     public DateTimeOffset? NutritionCheckedAt { get; set; }
 
-    // Sayfanın İÇERİĞİNİN en son ne zaman gerçekten değiştiği — sitemap'teki
-    // <lastmod> bunu kullanıyor.
+    // When the page's CONTENT last really changed; the sitemap's <lastmod> uses it.
     //
-    // Neden ayrı bir alan: önce son tarama zamanı (PriceHistory.ScrapedAt)
-    // kullanılıyordu, ama tarama 6 saatte bir TÜM katalogu ölçtüğü için
-    // sitemap'teki 1639 adresin 1591'i aynı damgayı taşıyordu. Google
-    // lastmod'u yalnızca tutarlı biçimde doğruysa dikkate alıyor; "1600
-    // sayfam aynı anda değişti" diyen bir sitede sinyali tamamen yok
-    // sayıyor. Sonuç: hangi sayfanın taranmaya değer olduğuna dair elinde
-    // hiçbir ipucu kalmıyordu (bkz. "Keşfedildi - dizine eklenmedi").
+    // Why a separate field: the last scrape time (PriceHistory.ScrapedAt) was used
+    // first, but the scrape measures the WHOLE catalog every 6 hours, so nearly
+    // every sitemap URL carried the same stamp. Google only trusts lastmod when
+    // it is consistently accurate; on a site claiming "all my pages changed at
+    // once" it ignores the signal entirely, leaving no hint about which page is
+    // worth crawling.
     //
-    // Burası YALNIZCA gerçek bir değişiklikte güncelleniyor: fiyat gerçekten
-    // değiştiyse, ya da isim/kategori/besin değeri/açıklama/puan değiştiyse.
-    // Fiyatın aynı değerde yeniden ölçülmesi bir değişiklik DEĞİL.
+    // It is updated ONLY on a real change: the price actually changed, or the
+    // name/category/nutrition/description/rating changed. Measuring the same
+    // price again is NOT a change.
     public DateTimeOffset? ContentUpdatedAt { get; set; }
 
-    // Markanın KENDİ sitesinde gösterdiği yıldız ortalaması ve kaç kişinin
-    // puanladığı. Bizim değerlendirmemiz değil, markanın müşterilerinin —
-    // arayüzde de bu şekilde etiketleniyor.
+    // The star average shown on the brand's OWN site and how many people rated.
+    // Not our assessment but the brand's customers', and labeled that way in
+    // the UI.
     //
-    // Markalar arası kıyaslanabilir DEĞİL: her marka farklı bir yorum
-    // sistemi kullanıyor ve hepsinde yorum bırakma koşulu farklı. Bu yüzden
-    // sıralamada tek başına puan değil, yorum sayısıyla birlikte kullanılıyor.
-    // Yalnızca 4 markada veri var (HIQ, Torq, Yeşilmarka, Hardline);
-    // diğerleri yorum toplamıyor, onlarda null kalıyor.
+    // NOT comparable across brands: each brand uses a different review system
+    // with different conditions for leaving a review. So ranking uses the
+    // rating together with the review count, never the rating alone. Brands
+    // that don't collect reviews stay null.
     public decimal? RatingValue { get; set; }
     public int? RatingCount { get; set; }
 
-    // Puan zamanla DEĞİŞİYOR (açıklama ve besin değerinin aksine), bu yüzden
-    // "bir kez çekildi, bitti" damgası değil, tazeleme sırası belirleyen bir
-    // alan: en eski kontrol edilen ürünler önce yenileniyor.
+    // Ratings CHANGE over time (unlike descriptions and nutrition), so this is
+    // not a "fetched once, done" stamp but a refresh-order field: the products
+    // checked longest ago are refreshed first.
     public DateTimeOffset? RatingCheckedAt { get; set; }
 
     public ICollection<PriceHistory> PriceHistories { get; set; } = new List<PriceHistory>();
 
-    // ---- Fiyat özeti (önceden hesaplanmış) --------------------------------
+    // ---- Price summary (precomputed) ----------------------------------------
     //
-    // Bu beş alan PriceHistories'ten TÜRETİLİR, kaynak veri değildir; fiyat
-    // geçmişi tek doğru kaynak olmaya devam ediyor. Her taramadan sonra tek
-    // bir küme sorgusuyla yeniden hesaplanıyorlar
-    // (PriceSummaryRefresher).
+    // These five fields are DERIVED from PriceHistories, not source data; price
+    // history remains the single source of truth. They are recomputed after
+    // every scrape with one set-based query (PriceSummaryRefresher).
     //
-    // NEDEN: /api/deals isteğinin %97,7'si PostgreSQL'de geçiyordu, çünkü
-    // sorgu 2713 ürünün HER BİRİ için PriceHistories üzerinde 6-8
-    // korelasyonlu alt sorgu çalıştırıyordu (son fiyat, 30 günün en yükseği,
-    // en düşüğü, indirim yüzdesi hesabında aynı alt sorgular tekrar tekrar).
-    // Ölçüm: COUNT 654 ms + veri sorgusu 1.437 ms.
+    // WHY: 97.7% of /api/deals time was spent in PostgreSQL, because the query
+    // ran 6-8 correlated subqueries over PriceHistories for EVERY product (last
+    // price, 30-day high, low, and the same subqueries repeated for the discount
+    // percentage). Measured: COUNT 654 ms + data query 1,437 ms.
     //
-    // PENCERE SABİT 30 GÜN. `days` parametresi 30'dan farklı gelirse sorgu
-    // eski canlı hesaba düşüyor — o yol silinmedi, kasıtlı olarak duruyor.
+    // THE WINDOW IS FIXED AT 30 DAYS. If the `days` parameter differs from 30
+    // the query falls back to the old live calculation; that path was kept on
+    // purpose.
 
-    /// <summary>En son taranan fiyat.</summary>
+    /// <summary>Most recently scraped price.</summary>
     public decimal? LatestPrice { get; set; }
 
-    /// <summary>En son taramada mağazanın beyan ettiği eski fiyat.</summary>
+    /// <summary>Old price the store declared in the latest scrape.</summary>
     public decimal? LatestStoreOldPrice { get; set; }
 
-    /// <summary>En son fiyat noktasının zamanı. Bayat ürün süzgeci bunu kullanıyor.</summary>
+    /// <summary>Time of the latest price point. The stale product filter uses it.</summary>
     public DateTimeOffset? LatestScrapedAt { get; set; }
 
-    /// <summary>Son 30 günün EN YÜKSEK fiyatı — "doğrulanmış indirim" bunun üzerinden hesaplanıyor.</summary>
+    /// <summary>HIGHEST price of the last 30 days; the "verified discount" is calculated from it.</summary>
     public decimal? ReferencePrice30 { get; set; }
 
-    /// <summary>Son 30 günün EN DÜŞÜK fiyatı — "30 günün en düşüğü" rozeti.</summary>
+    /// <summary>LOWEST price of the last 30 days; the "30-day low" badge.</summary>
     public decimal? LowestPrice30 { get; set; }
 
     /// <summary>
-    /// Özetin en son ne zaman hesaplandığı. Taramadan sonra güncelleniyor;
-    /// çok bayatsa sorgu güvenli tarafa geçip canlı hesaba düşebilir.
+    /// When the summary was last computed. Updated after a scrape; if it is very
+    /// stale the query can take the safe side and fall back to the live calculation.
     /// </summary>
     public DateTimeOffset? PriceSummaryUpdatedAt { get; set; }
 }

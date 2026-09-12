@@ -37,12 +37,11 @@ public class PriceHistoryQueryService(AppDbContext db)
             MaxPrice: points.Max(p => p.Price));
     }
 
-    // Ürün kartlarındaki mini sparkline'lar için — Faz 1'de N+1 istek riski
-    // yüzünden bilinçli olarak ertelenmişti (bkz. CLAUDE.md). Bir sayfa
-    // (24 kart) için tek istekte tüm fiyat noktalarını dönüyor. Anonim tip +
-    // bellek içinde gruplama kullanıyor (DealsQueryService'te daha önce
-    // yaşanan "adlandırılmış record EF Core'a çevrilemedi" bug'ıyla aynı
-    // hatayı tekrarlamamak için, bkz. CLAUDE.md).
+    // For the mini sparklines on product cards (postponed at first because of the
+    // N+1 request risk). Returns every price point for one page (24 cards) in a
+    // single request. It uses an anonymous type + in-memory grouping, to avoid
+    // repeating the earlier DealsQueryService bug where a named record couldn't
+    // be translated by EF Core.
     public async Task<IReadOnlyList<ProductSparklineDto>> GetSparklinesAsync(
         IReadOnlyList<int> productIds,
         int days,

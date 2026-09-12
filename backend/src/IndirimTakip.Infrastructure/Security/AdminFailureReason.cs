@@ -5,74 +5,73 @@ using System.Text.Unicode;
 namespace IndirimTakip.Infrastructure.Security;
 
 /// <summary>
-/// Başarısız bir yönetim işleminin kayda geçecek SEBEP metnini üretir.
+/// Builds the REASON text recorded for a failed admin operation.
 /// </summary>
 /// <remarks>
-/// Saf fonksiyon olarak ayrıldı, çünkü bu özelliğin tamamı buna bağlı: sebep
-/// yanlış çıkarılırsa panelde boş bir sütun kalır ve kullanıcı yine tahmin
-/// etmek zorunda kalır — yani kayıt var ama işe yaramaz. Saf olduğu için
-/// teste bağlanabiliyor.
+/// Kept as a pure function because the whole feature depends on it: if the
+/// reason comes out wrong, the panel shows an empty column and the admin is back
+/// to guessing, so the record exists but is useless. Being pure, it can be tested.
 /// </remarks>
 public static class AdminFailureReason
 {
-    /// <summary>Sebep metninin ve <c>Reason</c> kolonunun sınırı.</summary>
-    public const int EnFazlaUzunluk = 2000;
+    /// <summary>Limit of the reason text and of the <c>Reason</c> column.</summary>
+    public const int MaxLength = 2000;
 
-    // TÜRKÇE TUZAĞI. System.Text.Json VARSAYILAN OLARAK ASCII dışındaki her
-    // karakteri kaçırıyor: "'DrSupplement' adında marka bulunamadı" cümlesi
-    // JSON'a çevrilince "bulunamadı" oluyor. Kayıt teknik olarak doğru
-    // ama panelde okunmuyor — yani hatayı açıklamak için tutulan alan
-    // okunamaz hâle geliyor. Kaçış Türkçe blokta gevşetiliyor.
-    private static readonly JsonSerializerOptions JsonSecenekleri = new()
+    // System.Text.Json escapes every non-ASCII character BY DEFAULT: a brand
+    // name such as "GHOST®" or "Café" would be stored as "GHOST®". The
+    // record would be technically right but unreadable in the panel, which
+    // defeats a field kept to explain the error. Escaping is relaxed for Latin
+    // letters and symbols.
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
         Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Latin1Supplement,
             UnicodeRanges.LatinExtendedA),
     };
 
     /// <summary>
-    /// Ucun döndürdüğü değerden sebep metni. Metin olmayan değerler JSON'a
-    /// çevriliyor: alan adını tahmin etmeye çalışmaktan sağlam, çünkü uç
-    /// hangi biçimi kullanırsa kullansın metin kayda giriyor.
+    /// Reason text from the value an endpoint returned. Non-text values are
+    /// serialized to JSON: sturdier than guessing a field name, because the text
+    /// is recorded whatever shape the endpoint uses.
     /// </summary>
-    public static string? Degerden(object? deger)
+    public static string? FromValue(object? value)
     {
-        if (deger is null)
+        if (value is null)
             return null;
 
-        if (deger is string metin)
-            return Kirp(metin);
+        if (value is string text)
+            return Truncate(text);
 
         try
         {
-            return Kirp(JsonSerializer.Serialize(deger, JsonSecenekleri));
+            return Truncate(JsonSerializer.Serialize(value, JsonOptions));
         }
         catch (Exception)
         {
-            // Serileştirilemeyen bir değer yüzünden kaydın tamamını kaybetmek
-            // istemiyoruz; durum kodu ve yol yine kaydediliyor.
+            // Losing the whole record over a value that can't be serialized isn't
+            // worth it; the status code and path are still recorded.
             return null;
         }
     }
 
-    /// <summary>İstisnadan sebep metni.</summary>
-    public static string Istisnadan(Exception ex)
+    /// <summary>Reason text from an exception.</summary>
+    public static string FromException(Exception ex)
     {
-        var metin = ex.GetType().Name + ": " + ex.Message;
+        var text = ex.GetType().Name + ": " + ex.Message;
 
-        // ASIL SEBEP ÇOĞU ZAMAN İÇERİDE. EF ve Npgsql hatayı sarmalıyor;
-        // 7 Eylül'deki "only offset 0 (UTC) is supported" tam olarak böyle bir
-        // iç istisnaydı ve dış mesaj tek başına hiçbir şey söylemiyordu.
-        if (ex.InnerException is { } ic)
-            metin += " → " + ic.GetType().Name + ": " + ic.Message;
+        // THE REAL CAUSE IS OFTEN INSIDE. EF and Npgsql wrap the error; Npgsql's
+        // "only offset 0 (UTC) is supported" was exactly such an inner exception,
+        // and the outer message alone said nothing.
+        if (ex.InnerException is { } inner)
+            text += " → " + inner.GetType().Name + ": " + inner.Message;
 
-        return Kirp(metin)!;
+        return Truncate(text)!;
     }
 
-    private static string? Kirp(string? deger)
+    private static string? Truncate(string? value)
     {
-        if (string.IsNullOrEmpty(deger))
+        if (string.IsNullOrEmpty(value))
             return null;
 
-        return deger.Length <= EnFazlaUzunluk ? deger : deger[..EnFazlaUzunluk];
+        return value.Length <= MaxLength ? value : value[..MaxLength];
     }
 }

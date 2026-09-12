@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace IndirimTakip.Api.Endpoints;
 
-// Doğrulanmış kupon/kampanya listesi.
+// Verified coupon and promotion list.
 internal static class CouponEndpoints
 {
     public static void MapCouponEndpoints(this WebApplication app, string cachePolicy)

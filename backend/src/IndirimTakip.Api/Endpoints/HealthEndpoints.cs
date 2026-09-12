@@ -4,131 +4,128 @@ using Microsoft.EntityFrameworkCore;
 namespace IndirimTakip.Api.Endpoints;
 
 /// <summary>
-/// Kaynak tazeliği sağlık ucu — dışarıdan izlenmek için.
+/// Source freshness health endpoint, for external monitoring.
 ///
-/// <b>NEDEN VAR.</b> Taramanın SESSİZCE durması bu projedeki en sinsi arıza
-/// tipi: site çalışmaya devam ediyor, sayfalar açılıyor, hiçbir yerde hata
-/// görünmüyor. Sorun ancak 48 saat sonra, ürünler bayatlama eşiğini geçip
-/// listelerden düşünce fark ediliyor — o da ancak biri siteye bakarsa.
+/// <b>WHY IT EXISTS.</b> Scraping stopping SILENTLY is the sneakiest failure in
+/// this project: the site keeps working, pages open, no error shows anywhere.
+/// The problem only surfaces 48 hours later, when products cross the staleness
+/// threshold and drop off the lists, and only if someone looks at the site.
 ///
-/// Somut tetikleyici: Supplementler artık WireGuard tüneliyle toplanıyor ve
-/// tünel düşerse toplayıcı DOĞRU davranıp turu atlıyor (boş veri göndermiyor),
-/// ama bunu yalnızca kimsenin okumadığı bir log dosyasına yazıyor. Aynı sessiz
-/// arıza her kaynak için mümkün: site yapısını değiştirir, IP'mizi engeller,
-/// scraper'ın regex'i tutmaz olur.
+/// The same silent failure is possible for every source: a store changes its
+/// markup, blocks our IP, or a scraper's pattern stops matching.
 ///
-/// Bu uç UptimeRobot gibi bir izleyicinin okuyabilmesi için AÇIK ve
-/// kimlik doğrulamasız: içeriği zaten herkese açık bilgi (marka/satıcı adları
-/// ve son tarama zamanı, sitede de görünüyor). Yazma yapmıyor.
+/// The endpoint is PUBLIC and unauthenticated so a monitor such as UptimeRobot
+/// can read it: its content is already public (store names and last scrape
+/// time, visible on the site). It doesn't write anything.
 /// </summary>
 internal static class HealthEndpoints
 {
     /// <summary>
-    /// Bir kaynağın "bayat" sayılması için geçmesi gereken süre.
+    /// How long a source may go without a scrape before it counts as stale.
     ///
-    /// 26 saat SEÇİLDİ, 6 değil: kaynakların hepsi 6 saatte bir taranmıyor.
-    /// protein7 ve Provitamin günde bir kez (00:00 TSİ), Supplementler günde
-    /// iki kez (09:30/21:30 TSİ) çalışıyor. En seyrek kaynak günlük olduğu için
-    /// eşik 24 saat + 2 saat pay. Bu, listelerin kullandığı 48 saatlik
-    /// bayatlama eşiğinin ALTINDA kalıyor — yani ürünler siteden düşmeden
-    /// önce haber alıyoruz, düzeltmek için ~22 saat kalıyor.
+    /// 26 hours, not 6: not every source is scraped every 6 hours. The least
+    /// frequent sources run once a day, so the threshold is 24 hours plus a
+    /// 2 hour margin. That stays BELOW the 48 hour staleness threshold the lists
+    /// use, so we hear about it before products drop off the site, with about
+    /// 22 hours left to fix it.
     ///
-    /// Yapılandırmadan (<c>Health:StaleHours</c>) ezilebiliyor. Sebebi sadece
-    /// esneklik değil: bu bir ALARM ve hiç çalıştığı görülmemiş bir alarm,
-    /// olmayan alarmdan beterdir. Eşiği geçici olarak düşürmek, 503 yolunun
-    /// gerçekten çalıştığını CANLIDA kanıtlamanın tek yolu — ve alarm
-    /// kurulduktan sonra da eşiği deploy yapmadan ayarlayabilmek gerekiyor.
+    /// Overridable through configuration (<c>Health:StaleHours</c>), and not only
+    /// for flexibility: this is an ALARM, and an alarm never seen firing is worse
+    /// than no alarm. Lowering the threshold temporarily is the only way to prove
+    /// in production that the 503 path really works, and the threshold must be
+    /// adjustable without a deploy once the alarm is set up.
     /// </summary>
-    private const int VarsayilanBayatlikSaati = 26;
+    private const int DefaultStaleHours = 26;
 
     /// <summary>
-    /// Bundan eskisi "arıza" değil, "emekli kaynak" sayılıyor.
+    /// Older than this counts as a "retired source", not a failure.
     ///
-    /// Gerekçe: devre dışı bıraktığımız bir kaynağın ürünleri veritabanında
-    /// kalmaya devam ediyor (fiyat geçmişi kaybolmasın diye, bilinçli bir
-    /// karar). Bu satırlar eşiği sonsuza kadar aşacağı için uç KALICI OLARAK
-    /// kırmızı kalırdı — ve sürekli kırmızı yanan bir alarm, bakılmayan bir
-    /// alarma dönüşür. Bir aydır güncellenmeyen bir kaynak yeni bir haber
-    /// değil; gövdede bilgi olarak listeleniyor ama 503 ÜRETMİYOR.
+    /// The products of a source we disable stay in the database (so price history
+    /// isn't lost, a deliberate decision). Those rows would exceed the threshold
+    /// forever and the endpoint would stay red PERMANENTLY, and an alarm that is
+    /// always red becomes an alarm nobody looks at. A source not updated for a
+    /// month isn't news; it is listed in the body for information but does NOT
+    /// produce a 503.
     /// </summary>
-    private const int EmekliGunu = 30;
+    private const int RetiredAfterDays = 30;
 
     public static void MapHealthEndpoints(this WebApplication app)
     {
-        var bayatlikSaati = app.Configuration.GetValue<int?>("Health:StaleHours")
-                            ?? VarsayilanBayatlikSaati;
+        var staleHours = app.Configuration.GetValue<int?>("Health:StaleHours")
+                         ?? DefaultStaleHours;
 
-        // GET *ve* HEAD — ikisi birden ZORUNLU.
+        // GET *and* HEAD, both REQUIRED.
         //
-        // UptimeRobot (ve birçok izleme aracı) HTTP monitörlerinde varsayılan
-        // olarak HEAD atıyor. MapGet'e gelen HEAD isteğini ASP.NET Core
-        // karşılamıyor ve 405 dönüyor; izleyici bunu "down" sayıyor, üstelik
-        // gövde olmadığı için yanıt süresi bile ölçülemiyor. Canlıda tam bu
-        // oldu: uç GET ile 200 dönerken monitör sürekli kırmızıydı ve sorun
-        // izleyicide sanıldı. HEAD'de gövde gönderilmiyor ama durum kodu aynı,
-        // yani 200/503 ayrımı korunuyor — izleme için gereken de bu.
+        // UptimeRobot (and many monitoring tools) send HEAD by default for HTTP
+        // monitors. ASP.NET Core doesn't match a HEAD request to MapGet and returns
+        // 405; the monitor counts that as "down", and with no body even the
+        // response time can't be measured. That happened on the Turkish site: the
+        // endpoint returned 200 to GET while the monitor stayed red, and the
+        // monitor was blamed. HEAD sends no body but the same status code, so the
+        // 200/503 distinction, which is all monitoring needs, is kept.
         app.MapMethods("/api/health/sources", ["GET", "HEAD"], async (AppDbContext db, CancellationToken ct) =>
         {
-            var simdi = DateTimeOffset.UtcNow;
-            var bayatlikSiniri = simdi.AddHours(-bayatlikSaati);
-            var emeklilikSiniri = simdi.AddDays(-EmekliGunu);
+            var now = DateTimeOffset.UtcNow;
+            var staleBefore = now.AddHours(-staleHours);
+            var retiredBefore = now.AddDays(-RetiredAfterDays);
 
-            // Kaynak = ürünü kim getiriyor. Bayi ürünlerinde satıcı, markanın
-            // kendi sitesinden gelenlerde markanın kendisi. Satıcıya göre
-            // gruplamak tek başına yetmezdi: bayilerden gelmeyen ~50 markanın
-            // scraper'ı tek tek bozulabilir ve hepsi "markanın kendi sitesi"
-            // adlı tek bir kovaya düşerdi, biri çalıştığı sürece arıza görünmezdi.
-            // IgnoreQueryFilters: gizlenmis urunler de TARANMAYA devam ediyor
-            // (yutma servisi filtreyi atliyor). Bu uc "tarama hala calisiyor
-            // mu" sorusunu cevapladigi icin gerceği yansitmali; aksi halde bir
-            // kaynagin butun urunleri gizlense o kaynak listeden dusup alarm
-            // uretemez hale gelirdi.
-            var kaynaklar = await db.Products
+            // Source = who brings the product in: the seller for retailer
+            // products, the brand itself for products from the brand's own
+            // store. Grouping by seller alone wouldn't do: the scrapers of the
+            // many brands not coming from retailers can break one by one, and
+            // they'd all fall into a single "brand's own store" bucket where a
+            // failure stays invisible as long as one of them works.
+            // IgnoreQueryFilters: hidden products are still SCRAPED (ingestion
+            // bypasses the filter). This endpoint answers "is scraping still
+            // running", so it must reflect reality; otherwise a source whose
+            // products were all hidden would drop off the list and could never
+            // raise the alarm.
+            var sources = await db.Products
                 .IgnoreQueryFilters()
                 .Where(p => p.LatestScrapedAt != null)
                 .GroupBy(p => p.Seller ?? p.Brand!.Name)
                 .Select(g => new
                 {
-                    Kaynak = g.Key,
-                    SonTarama = g.Max(p => p.LatestScrapedAt)!.Value,
-                    UrunSayisi = g.Count(),
+                    Source = g.Key,
+                    LastScraped = g.Max(p => p.LatestScrapedAt)!.Value,
+                    ProductCount = g.Count(),
                 })
                 .ToListAsync(ct);
 
-            var bayat = kaynaklar
-                .Where(k => k.SonTarama < bayatlikSiniri && k.SonTarama >= emeklilikSiniri)
-                .OrderBy(k => k.SonTarama)
-                .Select(k => new
+            var stale = sources
+                .Where(s => s.LastScraped < staleBefore && s.LastScraped >= retiredBefore)
+                .OrderBy(s => s.LastScraped)
+                .Select(s => new
                 {
-                    kaynak = k.Kaynak,
-                    sonTarama = k.SonTarama,
-                    saatOnce = (int)(simdi - k.SonTarama).TotalHours,
-                    urunSayisi = k.UrunSayisi,
+                    source = s.Source,
+                    lastScraped = s.LastScraped,
+                    hoursAgo = (int)(now - s.LastScraped).TotalHours,
+                    productCount = s.ProductCount,
                 })
                 .ToList();
 
-            var emekli = kaynaklar
-                .Where(k => k.SonTarama < emeklilikSiniri)
-                .Select(k => k.Kaynak)
-                .OrderBy(a => a)
+            var retired = sources
+                .Where(s => s.LastScraped < retiredBefore)
+                .Select(s => s.Source)
+                .OrderBy(name => name)
                 .ToList();
 
-            var govde = new
+            var body = new
             {
-                durum = bayat.Count == 0 ? "saglikli" : "bayat-kaynak-var",
-                esikSaat = bayatlikSaati,
-                kaynakSayisi = kaynaklar.Count,
-                bayatKaynaklar = bayat,
-                // Bilgi amaçlı: 503 üretmiyorlar (yukarıdaki açıklamaya bak).
-                emekliKaynaklar = emekli,
+                status = stale.Count == 0 ? "healthy" : "stale-sources",
+                thresholdHours = staleHours,
+                sourceCount = sources.Count,
+                staleSources = stale,
+                // For information: they don't produce a 503 (see above).
+                retiredSources = retired,
             };
 
-            // Sağlık ucu ÖNBELLEKLENMEMELİ — önbelleklenmiş bir "sağlıklı"
-            // yanıtı arızayı gizler. Çıktı önbelleği politikası zaten
-            // uygulanmıyor; bu başlık Cloudflare ve aradaki her katman için.
-            return bayat.Count == 0
-                ? Results.Json(govde, statusCode: StatusCodes.Status200OK)
-                : Results.Json(govde, statusCode: StatusCodes.Status503ServiceUnavailable);
+            // The health endpoint must NOT be cached: a cached "healthy" response
+            // hides a failure. The output cache policy isn't applied anyway; this
+            // header is for Cloudflare and every layer in between.
+            return stale.Count == 0
+                ? Results.Json(body, statusCode: StatusCodes.Status200OK)
+                : Results.Json(body, statusCode: StatusCodes.Status503ServiceUnavailable);
         })
         .AddEndpointFilter(async (context, next) =>
         {

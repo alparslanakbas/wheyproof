@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace IndirimTakip.Api.Endpoints;
 
-// Fiyat geçmişi grafiği ve kart altındaki mini sparkline'lar.
+// Price history chart and the mini sparklines under product cards.
 internal static class PriceHistoryEndpoints
 {
     public static void MapPriceHistoryEndpoints(this WebApplication app, string cachePolicy)
@@ -22,10 +22,10 @@ internal static class PriceHistoryEndpoints
             return result is null ? Results.NotFound() : Results.Ok(result);
         }).CacheOutput(cachePolicy);
 
-        // Ürün kartlarındaki mini sparkline'lar için toplu uç nokta — bir sayfa
-        // (24 kart) için tek istek, N+1 yerine. ids sayısı sayfa boyutuyla sınırlı
-        // tutulmalı, kötüye kullanıma karşı 100'de sabitliyoruz (NormalizePageSize'daki
-        // aynı desen).
+        // Batch endpoint for the mini sparklines on product cards: one request
+        // per page (24 cards) instead of N+1. The id count should stay near the
+        // page size; it is capped at 100 against abuse (same pattern as
+        // NormalizePageSize).
         app.MapGet("/api/products/sparklines", async (int[] ids, int? days, PriceHistoryQueryService service, CancellationToken ct) =>
         {
             var windowDays = days is null or <= 0 ? 30 : days.Value;

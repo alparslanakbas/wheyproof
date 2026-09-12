@@ -9,84 +9,79 @@ public record DealDto(
     string? Size,
     string? Flavor,
     decimal? ServingSizeGrams,
-    // Paketten kaç servis çıktığı — markanın doğrudan beyanı (şimdilik
-    // yalnızca ProteinOcean; o markada paket gramajı hiç gelmediği için
-    // servis başı fiyat ancak buradan hesaplanabiliyor).
+    // Servings per package as directly declared by the brand; where no package
+    // weight is given, price per serving can only be calculated from this.
     int? ServingsPerPackage,
-    // Markanın kendi sitesinden gelen gerçek ürün açıklaması — sadece marka
-    // bunu sağlıyorsa dolu (şimdilik HIQ), yoksa null (uydurma yok).
+    // The real product description from the brand's own site; filled only when
+    // the brand provides it, otherwise null (nothing made up).
     string? Description,
-    // Gerçek besin değeri tablosu, normalize edilmiş JSON — sadece marka bunu
-    // güvenilir şekilde sağlıyorsa dolu (HIQ + haftalık backfill ile SSN/
-    // Hardline; ProteinOcean bilinçli olarak dışarıda, veri yapısı güvenilir
-    // ayrıştırılamıyor). Karşılaştırma sayfasında "İçindekiler" tablosu için.
+    // The real nutrition table as normalized JSON; filled only when the brand
+    // provides it reliably. Used for the nutrition table on the comparison page.
     string? NutritionJson,
     decimal? ProteinPerServingGrams,
     string BrandName,
     decimal CurrentPrice,
     decimal ReferencePrice,
     decimal DiscountPercent,
-    // Markanın kendi beyan ettiği (doğrulanmamış) mağaza indirimi — DiscountPercent'ten
-    // (bizim gerçek fiyat geçmişimize dayanan) ayrı, UI'da ayrı etiketlenir.
+    // The store's own declared (unverified) discount; separate from
+    // DiscountPercent (based on our real price history) and labeled separately
+    // in the UI.
     decimal? StoreOldPrice,
     decimal? StoreDiscountPercent,
     DateTimeOffset ScrapedAt,
-    // Güncel fiyat, aynı 30 günlük referans penceresinin en düşüğüne eşit mi
-    // (ReferencePrice'ın Max karşılığı — burada Min) VE pencerede gerçekten
-    // bir fiyat farkı var mı (ThirtyDayLowPrice < ReferencePrice). İkinci şart
-    // olmadan, hiç fiyatı değişmemiş bir ürün (Min=Max=Latest) trivially
-    // "30 günün dibi" sayılırdı — bkz. DealsQueryService.MapToDealDto.
+    // Whether the current price equals the low of the same 30-day reference
+    // window (the Min counterpart of ReferencePrice's Max) AND the window really
+    // has a price spread (ThirtyDayLowPrice < ReferencePrice). Without the second
+    // condition a product whose price never changed (Min=Max=Latest) would
+    // trivially count as "at its 30-day low"; see DealsQueryService.MapToDealDto.
     bool IsAtThirtyDayLow,
-    // Aşağıdaki iki alanı YALNIZCA GetProductByIdAsync dolduruyor (tekil ürün
-    // sayfası); listelerde donmuş kayıtlar zaten gizlendiği için orada anlamı
-    // yok ve varsayılan değerlerinde kalıyorlar.
+    // The two fields below are filled ONLY by GetProductByIdAsync (single product
+    // page); lists already hide frozen records, so there they mean nothing and
+    // keep their defaults.
     //
-    // Kayıt, markanın taramasında artık dönmüyor (bkz. StaleThreshold). Sayfa
-    // çalışmaya devam ediyor — fiyat geçmişi hâlâ değerli — ama dizine
-    // eklenmemesi gerekiyor.
+    // The record no longer comes back in the store's scrape (see
+    // StaleThreshold). The page keeps working (the price history is still
+    // valuable) but must not be indexed.
     bool IsStale = false,
-    // Aynı marka + aynı isimli güncel kayıt. Marka çoğu zaman ürünü silmiyor,
-    // yalnızca adresini değiştiriyor; bu durumda eski adres yeni kayda
-    // yönlendirilmeli ki iki sayfa birbiriyle çakışmasın.
+    // A current record with the same brand and name. Stores often don't delete a
+    // product, they only change its URL; then the old URL should redirect to the
+    // new record so the two pages don't compete.
     int? ReplacementProductId = null,
-    // Markanın KENDİ sitesindeki yıldız ortalaması ve puanlayan sayısı —
-    // bizim değerlendirmemiz değil. Arayüzde de bu şekilde etiketleniyor.
-    // Yalnızca yorum toplayan markalarda dolu; markalar arası kıyaslanabilir
-    // değil (her biri farklı bir yorum sistemi kullanıyor).
+    // The star average and rating count on the brand's OWN site, not our
+    // assessment, and labeled that way in the UI. Filled only for brands that
+    // collect reviews; not comparable across brands (each uses a different
+    // review system).
     decimal? RatingValue = null,
     int? RatingCount = null,
-    // Son taramada mağazada satın alınabilir miydi?
+    // Could it be bought at the store in the last scrape?
     //
-    // NULL = "bu kaynak stok bilgisi vermiyor", false ile karıştırılmamalı.
-    // Sekiz kaynaktan üçü bu bilgiyi veriyor; diğerlerinde arayüz hiçbir
-    // rozet göstermiyor. Stokta olmayan ürün listelerden ÇIKARILMIYOR:
-    // fiyat geçmişi kesintisiz kalsın diye taranmaya devam ediyor ve
-    // "Tükendi" rozetiyle gösteriliyor.
+    // NULL = "this source doesn't report stock", not to be confused with false.
+    // Where a source doesn't report it, the UI shows no badge. Out-of-stock
+    // products are NOT removed from lists: they keep being scraped so the price
+    // history stays unbroken, and are shown with an "Out of stock" badge.
     bool? InStock = null,
-    // Ürünü satan mağaza; NULL ise markanın kendi sitesi.
+    // The store selling the product; NULL means the brand's own store.
     string? Seller = null,
-    // ORTAKLIK KODU EKLENMİŞ mağaza adresi — "Mağazaya git" bağlantısının
-    // gideceği yer.
+    // Store URL WITH THE AFFILIATE CODE: where the "Go to store" link goes.
     //
-    // Neden DTO'da: bağlantı eskiden kendi sitemizdeki /go/{id} ucuna
-    // gidiyordu, o da 302 ile mağazaya atıyordu. Kurulu PWA'da bu araya
-    // giren yönlendirme geri tuşunu ÖLDÜRÜYORDU: yeni tarama bağlamının
-    // geçmişinde yalnızca yönlendirme zinciri kalıyor, geri basınca bağlam
-    // kapanıyor ve kullanıcı uygulamadan çıkmış oluyordu (kullanıcı bildirdi,
-    // ölçümle doğrulandı). Doğrudan dış adrese giden bağlantıda sorun yok —
-    // aynı PWA'da yönlendirmesiz bir dış bağlantı test edildi, geri çalıştı.
+    // Why in the DTO: the link used to go to our own /go/{id} endpoint, which
+    // redirected to the store with 302. In an installed PWA that intermediate
+    // redirect KILLED the back button: the new browsing context's history held
+    // only the redirect chain, pressing back closed the context and the user
+    // left the app (reported by a user, confirmed by measuring). A link straight
+    // to the external URL has no such problem; tested in the same PWA, back
+    // worked.
     //
-    // /go/{id} KALDIRILMADI: dizine girmiş adresler, e-postalar ve eski
-    // istemciler için çalışmaya devam ediyor.
+    // /go/{id} was NOT removed: it keeps working for indexed URLs, emails and old
+    // clients.
     string? StoreUrl = null,
-    // Bu sayfa BAŞKA bir ürün sayfasının kopyasıysa, asıl sayfanın ürün Id'si.
+    // If this page is a copy of ANOTHER product page, the product id of the main page.
     //
-    // Markaların kendi siteleri aynı ürünü birden çok adreste yayınlıyor
-    // (eski adres, "copy-of-..." taslağı, sonuna "-1" eklenmiş tekrar) ve
-    // her adres bizde ayrı bir ürün satırı oluyor. Sayfalar birbirinin aynısı
-    // olduğu için Google bunları kopya sayıp kendi standart sayfasını
-    // seçiyordu (GSC, 1 Eylül: 21 sayfada doğrulama başarısız).
+    // Stores publish the same product at several URLs (an old URL, a
+    // "copy-of-..." draft, a repeat with "-1" appended), and each URL becomes a
+    // separate product row here. The pages are identical, so Google treated them
+    // as duplicates and picked its own canonical page.
     //
-    // Dolu olduğunda ürün sayfası canonical'ı asıl sayfayı gösteriyor.
-    // NULL = bu sayfa zaten asıl sayfa (ya da hiç kopyası yok).
+    // When set, the product page's canonical points to the main page.
+    // NULL = this page is the main page (or has no copies).
     int? CanonicalProductId = null);

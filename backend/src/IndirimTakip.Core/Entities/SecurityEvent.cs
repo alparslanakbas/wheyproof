@@ -1,19 +1,19 @@
 namespace IndirimTakip.Core.Entities;
 
-// Güvenlik olayı kaydı — kötüye kullanımı görmek ve gerektiğinde suç
-// duyurusuna dayanak oluşturmak için.
+// Security event record: to see abuse and, when needed, back a report with
+// evidence.
 //
-// ÖNCEKİ KARAR BİLEREK TERSİNE ÇEVRİLDİ. 2026-08-15'te hassas uçlara istek
-// logu eklenirken koda "ayrı bir DB tablosu kurmak burada aşırı mühendislik
-// olurdu" diye yazılmıştı ve O GÜN DOĞRUYDU: amaç yalnızca stdout'a bir iz
-// bırakmaktı. Amaç 6 Eylül'de değişti — kaydın SORGULANABİLİR, KALICI ve
-// savunulabilir olması isteniyor. Docker'ın stdout logu üçünü de
-// karşılamıyor: döner, filtrelenemez ve konteyner yenilenince kaybolur.
+// AN EARLIER DECISION WAS REVERSED ON PURPOSE. When request logging was added
+// for sensitive endpoints, the code said "a separate DB table would be
+// over-engineering here", and THAT WAS RIGHT AT THE TIME: the goal was only to
+// leave a trace in stdout. The goal then changed: the record has to be
+// QUERYABLE, DURABLE and defensible. Docker's stdout log meets none of these:
+// it rotates, can't be filtered, and is lost when the container is recreated.
 //
-// HER İSTEK KAYDEDİLMİYOR — yalnızca dikkate değer olanlar. Normal sayfa
-// görüntülemeleri buraya HİÇ girmiyor; girseydi hem hacim yönetilemez olurdu
-// hem de amaca hizmet etmeyen kişisel veri biriktirmiş olurduk. Bir kaydın
-// hukuken savunulabilir olması için amacının dar ve tanımlı olması gerekiyor.
+// NOT EVERY REQUEST IS RECORDED, only noteworthy ones. Normal page views NEVER
+// get in here; otherwise the volume would be unmanageable and we would be
+// collecting personal data that serves no purpose. A record is only legally
+// defensible when its purpose is narrow and defined.
 public class SecurityEvent
 {
     public long Id { get; set; }
@@ -21,16 +21,16 @@ public class SecurityEvent
     public DateTimeOffset OccurredAt { get; set; }
 
     /// <summary>
-    /// Gerçek istemci adresi (Cloudflare'in CF-Connecting-IP başlığı).
-    /// Origin kilidinden sonra TCP seviyesindeki adres HER ZAMAN Cloudflare'e
-    /// ait olduğu için bu başlık tek doğru kaynak.
+    /// The real client address (Cloudflare's CF-Connecting-IP header). With the
+    /// origin locked to Cloudflare, the TCP-level address ALWAYS belongs to
+    /// Cloudflare, so this header is the only correct source.
     /// </summary>
     public required string Ip { get; set; }
 
     /// <summary>
-    /// Olay türü: <c>unauthorized</c> (yetkisiz deneme), <c>rate-limited</c>
-    /// (hız sınırı), <c>probe</c> (bilinen açık taraması),
-    /// <c>server-error</c> (sunucu hatası).
+    /// Event kind: <c>unauthorized</c> (unauthorized attempt), <c>rate-limited</c>
+    /// (rate limit), <c>probe</c> (known exploit scan), <c>server-error</c>
+    /// (server error).
     /// </summary>
     public required string Kind { get; set; }
 
@@ -43,8 +43,8 @@ public class SecurityEvent
     public string? UserAgent { get; set; }
 
     /// <summary>
-    /// Cloudflare'in CF-IPCountry başlığı. Suç duyurusunda yurt içi/yurt dışı
-    /// ayrımı doğrudan hangi mercie başvurulacağını belirlediği için tutuluyor.
+    /// Cloudflare's CF-IPCountry header. Kept because whether an attacker is
+    /// domestic or foreign decides which authority a report goes to.
     /// </summary>
     public string? Country { get; set; }
 }

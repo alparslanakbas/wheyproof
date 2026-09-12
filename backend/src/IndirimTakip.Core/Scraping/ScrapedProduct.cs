@@ -6,55 +6,50 @@ public record ScrapedProduct(
     string? ImageUrl,
     string? Category,
     decimal Price,
-    // Gerçek besin değeri tablosundan gelen porsiyon büyüklüğü (gram). Sadece
-    // marka bunu güvenilir şekilde sağlıyorsa doldurulur (şimdilik HIQ) —
-    // yoksa uydurmak yerine boş bırakılır.
+    // Serving size (grams) from the real nutrition table. Filled only when the
+    // brand provides it reliably; otherwise left empty rather than made up.
     decimal? ServingSizeGrams = null,
-    // Markanın kendi beyan ettiği eski fiyat (Shopify compare_at_price, OpenCart
-    // price-old, vb.) — sadece marka açıkça sunuyorsa doldurulur. Bizim
-    // "Doğrulanmış İndirim" hesabımızdan (referans fiyat geçmişi) tamamen ayrı;
-    // "Mağaza İndirimi" olarak ayrı ve etiketli gösterilir.
+    // Old price the store itself declares (Shopify compare_at_price and the
+    // like); filled only when the store shows it explicitly. Entirely separate
+    // from our "verified discount" (based on price history); shown separately
+    // and labeled as the store's own discount.
     decimal? StoreOldPrice = null,
-    // Markanın kendi sitesinden gelen gerçek ürün açıklaması (düz metin).
-    // Sadece marka bunu güvenilir şekilde sağlıyorsa doldurulur (şimdilik HIQ)
-    // — yoksa uydurmak yerine null bırakılır.
+    // The real product description from the brand's own site (plain text).
+    // Filled only when the brand provides it reliably; otherwise null rather
+    // than made up.
     string? Description = null,
-    // Paketten kaç servis çıktığı — markanın doğrudan beyan ettiği sayı
-    // (şimdilik yalnızca ProteinOcean, variant "Servis" attribute'u).
+    // Servings per package as directly declared by the brand.
     int? ServingsPerPackage = null,
-    // Gerçek besin değeri tablosu, normalize edilmiş JSON (şimdilik yalnızca
-    // HIQ — normal taramada, body_html içinde geliyor). Diğer 3 marka için
-    // ayrı bir arayüzle (IProductDetailFetcher) haftalık backfill'de doldurulur.
+    // The real nutrition table as normalized JSON, when the regular scrape
+    // carries it. Sources that only show it on the product page fill it in the
+    // backfill through a separate interface (IProductDetailFetcher).
     string? NutritionJson = null,
-    // Yukarıdaki tablodan ayrıştırılmış porsiyon başı protein (gram).
+    // Protein per serving (grams) parsed from the table above.
     decimal? ProteinPerServingGrams = null,
-    // Ürünün GERÇEK üretici markası. Tek markalı scraper'lar bunu hiç
-    // doldurmuyor (marka scraper'ın kendisinden geliyor). Çok markalı bir
-    // kaynakta (bir bayi kataloğu) her ürün kendi markasını taşıyor: ürün
-    // "Supplementler" değil "Optimum Nutrition" markası altında görünmeli,
-    // mağaza bağlantısı ise ürünün satıldığı yere gitmeli.
+    // The product's REAL manufacturer brand. Single-brand scrapers never set it
+    // (the brand comes from the scraper itself). In a multi-brand source (a
+    // retailer catalog) every product carries its own brand: the product should
+    // appear under "Optimum Nutrition", not under the retailer, while the store
+    // link goes where it is sold.
     string? BrandName = null,
-    // Ürün şu anda mağazada satın alınabilir mi?
+    // Can the product be bought at the store right now?
     //
-    // NULL = "bilmiyoruz" ve false ile KARIŞTIRILMAMALI. Sekiz kaynaktan
-    // yalnızca üçü (HIQ, ProteinOcean, Yeşilmarka) stok bilgisi veriyor;
-    // diğerlerinde alan boş bırakılır ve kullanıcıya hiçbir rozet
-    // gösterilmez. Bilinmeyeni "stokta var" saymak uydurma veriyle aynı
-    // kapıya çıkardı.
+    // NULL means "we don't know" and must NOT be confused with false. Not every
+    // source reports stock; where it doesn't, the field stays empty and no badge
+    // is shown. Counting the unknown as "in stock" would amount to made-up data.
     //
-    // Stokta olmayan ürün artık taramadan DÜŞMÜYOR. HIQ'da düşüyordu ve
-    // ürünün fiyat geçmişinde günlerce boşluk oluşuyordu; stok geri
-    // geldiğinde seri kopuk kalıyordu. Sitenin iddiası kesintisiz gerçek
-    // fiyat geçmişi olduğu için bu boşluk doğrudan o iddiayı zayıflatıyordu.
+    // Out-of-stock products are NOT dropped from the scrape. Dropping them left
+    // gaps of days in price history and a broken series once stock returned;
+    // the site's claim is an unbroken real price history, and such gaps
+    // undermine exactly that claim.
     bool? InStock = null,
-    // Ürünü SATAN mağaza. Marka (üretici) alanından ayrı.
+    // The store SELLING the product; separate from the brand (manufacturer).
     //
-    // NULL = ürün markanın kendi sitesinden alınıyor (mevcut dokuz kaynağın
-    // hepsi böyle). Bir bayi kataloğunda ise üretici ile satıcı farklı:
-    // ürün "BigJoy" markası altında görünmeli ama satın alma bağlantısı
-    // bayiye gitmeli ve kullanıcı kimden aldığını bilmeli.
+    // NULL = the product is bought from the brand's own store. In a retailer
+    // catalog the manufacturer and the seller differ: the product appears under
+    // its brand, but the buy link goes to the retailer and the shopper should
+    // know who they are buying from.
     //
-    // Aynı ürün iki satıcıda ayrı kayıt olarak duruyor; barkod (GTIN)
-    // olmadığı için satıcılar arası eşleştirme YAPILMIYOR — bkz.
-    // `.claude/notlar/scraper-ve-veri.md`, protein7 değerlendirmesi.
+    // The same product at two sellers is kept as two records; without a barcode
+    // (GTIN) there is NO cross-seller matching.
     string? Seller = null);

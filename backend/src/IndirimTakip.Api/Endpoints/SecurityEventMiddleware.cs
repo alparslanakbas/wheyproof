@@ -6,14 +6,13 @@ namespace IndirimTakip.Api.Endpoints;
 internal static class SecurityEventMiddleware
 {
     /// <summary>
-    /// Dikkate değer istekleri (yetkisiz deneme, hız sınırı, açık taraması,
-    /// sunucu hatası) veritabanına kaydeder.
+    /// Records noteworthy requests (unauthorized attempts, rate limiting, exploit
+    /// scans, server errors) in the database.
     /// </summary>
     /// <remarks>
-    /// Boru hattında ERKEN duruyor ama kayıt <c>await next()</c> SONRASINDA
-    /// yapılıyor: karar durum koduna bakıyor ve durum kodu ancak aşağıdaki
-    /// katmanlar çalıştıktan sonra kesinleşiyor. Erken durması gerekiyor ki
-    /// hız sınırlayıcının ürettiği 429'ları da görebilsin.
+    /// It sits EARLY in the pipeline but records AFTER <c>await next()</c>: the
+    /// decision depends on the status code, which is only final once the inner
+    /// layers have run. It has to be early to also see the rate limiter's 429s.
     /// </remarks>
     public static IApplicationBuilder UseSecurityEventLogging(this IApplicationBuilder app)
     {
@@ -30,34 +29,34 @@ internal static class SecurityEventMiddleware
             if (recorder is null)
                 return;
 
-            var olay = new SecurityEvent
+            var securityEvent = new SecurityEvent
             {
                 OccurredAt = DateTimeOffset.UtcNow,
                 Ip = RequestLoggingExtensions.GetClientIp(context),
                 Kind = kind,
                 Method = context.Request.Method,
-                Path = Kirp(path, 500) ?? "/",
+                Path = Truncate(path, 500) ?? "/",
                 StatusCode = context.Response.StatusCode,
-                UserAgent = Kirp(context.Request.Headers.UserAgent.FirstOrDefault(), 500),
-                Country = Kirp(context.Request.Headers["CF-IPCountry"].FirstOrDefault(), 2),
+                UserAgent = Truncate(context.Request.Headers.UserAgent.FirstOrDefault(), 500),
+                Country = Truncate(context.Request.Headers["CF-IPCountry"].FirstOrDefault(), 2),
             };
 
-            // İPTAL JETONU BİLEREK VERİLMİYOR (CancellationToken.None).
-            // context.RequestAborted kullanılsaydı, bağlantısını kasten yarıda
-            // kesen bir saldırgan kendi kaydının yazılmasını engelleyebilirdi —
-            // yani kaydı atlatmanın yolu, isteği bırakmak olurdu.
-            await recorder.RecordAsync(olay, CancellationToken.None);
+            // NO CANCELLATION TOKEN ON PURPOSE (CancellationToken.None).
+            // With context.RequestAborted, an attacker who deliberately drops the
+            // connection could stop their own record from being written; dropping
+            // the request would become the way around the log.
+            await recorder.RecordAsync(securityEvent, CancellationToken.None);
         });
     }
 
-    // Sorgu dizesi BİLEREK saklanmıyor: adres yolunun kendisi olayı tanımlamaya
-    // yetiyor, sorgu ise kullanıcı e-postası gibi konuyla ilgisiz kişisel veri
-    // taşıyabiliyor. Dar tutmak kaydın meşruiyetinin parçası.
-    private static string? Kirp(string? deger, int enFazla)
+    // The query string is NOT stored on purpose: the path alone identifies the
+    // event, while the query can carry unrelated personal data such as an email
+    // address. Keeping the record narrow is part of what makes it legitimate.
+    private static string? Truncate(string? value, int maxLength)
     {
-        if (string.IsNullOrEmpty(deger))
+        if (string.IsNullOrEmpty(value))
             return null;
 
-        return deger.Length <= enFazla ? deger : deger[..enFazla];
+        return value.Length <= maxLength ? value : value[..maxLength];
     }
 }

@@ -1,36 +1,35 @@
 namespace IndirimTakip.Core.Entities;
 
 /// <summary>
-/// Periyodik bir arka plan işinin EN SON BAŞARIYLA TAMAMLANDIĞI an.
+/// The moment a periodic background job LAST COMPLETED SUCCESSFULLY.
 /// </summary>
 /// <remarks>
-/// <b>NEDEN AYRI BİR KAYIT GEREKTİ.</b> Detay tamamlama işi "sıram geldi mi"
-/// sorusunu <c>MAX(Products.NutritionCheckedAt)</c> ile cevaplıyordu. Mantık
-/// şuydu: o damgayı yalnızca bu iş yazıyor, dolayısıyla en yeni damga son
-/// çalışma zamanıdır. Doğru görünüyor ama BİR DURUMU KAÇIRIYOR — tur yarıda
-/// kesilirse.
+/// <b>WHY A SEPARATE RECORD WAS NEEDED.</b> The detail backfill job answered "is
+/// it my turn" with <c>MAX(Products.NutritionCheckedAt)</c>. The reasoning: only
+/// this job writes that stamp, so the newest stamp is the last run time. It looks
+/// right but MISSES ONE CASE: a run cut off halfway.
 ///
-/// 6 Eylül'de canlıda yaşandı: tur 18:58'de başladı, <b>tek ürün</b> işledi ve
-/// deploy konteyneri yenileyince iptal oldu. O tek damga MAX'ı ilerlettiği
-/// için sıradaki tur tam bir aralık ötelendi. Yoğun deploy yapılan bir günde
-/// iş neredeyse hiç ilerlemeden sürekli ertelenebilirdi.
+/// That happened in production: a run started, processed <b>a single product</b>
+/// and was cancelled when a deploy recreated the container. That one stamp moved
+/// MAX forward, so the next run was pushed back a full interval. On a day with
+/// many deploys the job could keep being postponed while barely progressing.
 ///
-/// <b>Neden sinsi:</b> besin serisi alarmı bunu yakalamıyor. O alarm "5+ ürüne
-/// bakıldı ama besin 0 arttı" diyor; burada bakılan sayısı da artmıyor, yani
-/// alarm açısından hiçbir şey olmamış gibi görünüyor.
+/// <b>Why it's sneaky:</b> the nutrition series alarm doesn't catch it. That alarm
+/// says "5+ products were checked but nutrition rose by 0"; here the checked
+/// count doesn't rise either, so to the alarm nothing happened at all.
 ///
-/// Damga artık turun KENDİ tamamlanmasına bağlı: yarıda kesilen tur bu kaydı
-/// güncellemiyor ve sıra ilerlemiyor.
+/// The stamp is now tied to the run's OWN completion: a run cut off halfway
+/// doesn't update this record, and the schedule doesn't move.
 ///
-/// <b>Neden bellekte değil:</b> periyot günler mertebesinde. Süreç belleğinde
-/// tutulsaydı her deploy sayacı sıfırlar ve periyot hiç dolmazdı — bültende
-/// tam olarak bu yaşandı (bkz. DigestBackgroundService).
+/// <b>Why not in memory:</b> the period is measured in days. Kept in process
+/// memory, every deploy would reset the counter and the period would never elapse;
+/// the digest ran into exactly that (see DigestBackgroundService).
 /// </remarks>
 public class BackgroundJobRun
 {
     public int Id { get; set; }
 
-    /// <summary>İşin sabit adı; benzersiz.</summary>
+    /// <summary>The job's fixed name; unique.</summary>
     public required string JobName { get; set; }
 
     public DateTimeOffset LastCompletedAt { get; set; }
@@ -38,5 +37,5 @@ public class BackgroundJobRun
 
 public static class BackgroundJobNames
 {
-    public const string DetayTamamlama = "detay-tamamlama";
+    public const string DetailBackfill = "detail-backfill";
 }

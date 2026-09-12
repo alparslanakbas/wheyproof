@@ -10,13 +10,13 @@ using Microsoft.Extensions.Options;
 
 namespace IndirimTakip.Api.Endpoints;
 
-// Rehber yazıları.
+// Guide articles.
 internal static class ArticleEndpoints
 {
     public static void MapArticleEndpoints(this WebApplication app, string cachePolicy)
     {
-        // "Rehber" bilgi yazıları — SEO/güven amaçlı, kupon deseniyle aynı: elle
-        // yazılıp elle eklenen içerik, otomatik üretilmiyor.
+        // Guide articles, for SEO and trust. Same pattern as coupons: written and
+        // added by hand, never generated.
         app.MapGet("/api/articles", async (ArticleService articles, CancellationToken ct) =>
         {
             var result = await articles.GetPublishedArticlesAsync(ct);

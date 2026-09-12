@@ -10,15 +10,14 @@ using Microsoft.Extensions.Options;
 
 namespace IndirimTakip.Api.Endpoints;
 
-// Mağazaya yönlendirme (/go). Geriye dönük uyum için duruyor —
-// mağaza bağlantısı artık doğrudan DealDto.StoreUrl'den gidiyor.
+// Store redirect (/go). Kept for backward compatibility; store links now go
+// straight to DealDto.StoreUrl.
 internal static class StoreRedirectEndpoints
 {
     public static void MapStoreRedirectEndpoints(this WebApplication app)
     {
-        // Affiliate altyapısı: ürün linkleri buradan geçiyor ki ileride affiliate
-        // id eklemek kolay olsun (roadmap adım 7). Şimdilik sadece tıklama sayısını
-        // tutuyor, dış siteye 302 ile yönlendiriyor.
+        // Affiliate plumbing: product links pass through here so affiliate ids
+        // are easy to add. It counts the click and redirects to the store with 302.
         app.MapGet("/go/{productId:int}", async (int productId, HttpContext http, AppDbContext db,
             IOptions<AffiliateOptions> affiliateOptions, CancellationToken ct) =>
         {
@@ -31,22 +30,22 @@ internal static class StoreRedirectEndpoints
                 .Select(b => b.Name)
                 .FirstOrDefaultAsync(ct);
 
-            // Yönlendirme her zaman yapılıyor, ama tıklama SAYACI arama motoru
-            // botlarında artmıyor: bu sayaç markalarla paylaşılan tıklama raporunu
-            // besliyor ve bot trafiğiyle şişerse veri doğrudan yanıltıcı olur.
-            // İşareti ön yüzdeki yönlendirme katmanı koyuyor (bkz. server.ts) —
-            // orada user-agent zaten görülüyor.
+            // The redirect always happens, but the click COUNTER doesn't move for
+            // search engine bots: it feeds the click report shared with brands,
+            // and bot traffic would make that data misleading. The frontend's
+            // redirect layer sets the marker (see server.ts), since it already
+            // sees the user agent.
             if (http.Request.Headers["X-Bot-Request"] != "1")
             {
                 product.ClickCount++;
                 await db.SaveChangesAsync(ct);
             }
 
-            // Ortaklık programı olan markalarda adrese takip kodu ekleniyor; marka
-            // bunu okuyup satış bize atfediyor. Kodlar yapılandırmadan geliyor
-            // (repoya girmiyor), tanımsız markada adres olduğu gibi kalıyor.
-            // Bot isteklerinde de eklenmiyor: markanın istatistiğini şişirmemek
-            // için, tıklama sayacıyla aynı gerekçe.
+            // For brands with an affiliate program the tracking code is added to
+            // the URL; the brand reads it and attributes the sale to us. Codes come
+            // from configuration (never the repo); an unconfigured brand keeps the
+            // URL as is. Bot requests don't get it either, for the same reason as
+            // the click counter: not to inflate the brand's statistics.
             var url = product.Url;
             if (http.Request.Headers["X-Bot-Request"] != "1")
             {

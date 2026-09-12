@@ -1,11 +1,10 @@
 namespace IndirimTakip.Core.Entities;
 
-// "Haber Ver" — kullanıcı belirli bir ürünün fiyatı düştüğünde tek
-// seferlik bir bildirim almak istiyor. Tam bir hesap/kalıcı takip listesi
-// sistemi DEĞİL (roadmap'te "tam üyelik" ayrı ve daha büyük bir madde
-// olarak bekliyor) — mevcut Subscriber (double opt-in) altyapısını
-// kullanıyor. Bildirim gönderilince NotifiedAt set edilip "tüketiliyor",
-// tekrar tekrar bildirim gitmiyor.
+// Price alert: the shopper wants a one-time notification when a specific
+// product's price drops. NOT a full account or permanent watchlist system (full
+// membership is a separate, larger item); it reuses the existing Subscriber
+// (double opt-in) infrastructure. Once the notification is sent NotifiedAt is
+// set and the watch is "consumed", so it doesn't fire again and again.
 public class ProductWatch
 {
     public int Id { get; set; }

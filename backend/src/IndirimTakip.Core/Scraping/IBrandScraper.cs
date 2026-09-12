@@ -8,14 +8,14 @@ public interface IBrandScraper
     Task<IReadOnlyList<ScrapedProduct>> ScrapeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Bu kaynak genel tarama turuna (6 saatte bir) DAHİL EDİLMESİN, günde bir
-    /// kez ayrı çalıştırılsın mı?
+    /// Should this source be LEFT OUT of the regular scrape round (every 6 hours)
+    /// and run separately once a day?
     ///
-    /// Varsayılan false — mevcut markaların hepsi tek bir JSON/HTML ucuna tek
-    /// istek atıyor, sık taramanın maliyeti yok. Bazı bayi sitelerinde ise
-    /// ürün listesi tarayıcıda çiziliyor ve ürün başına ayrı istek gerekiyor;
-    /// 900+ ürünü 6 saatte bir çekmek hem yavaş hem karşı sunucuya ağır yük,
-    /// üstelik engellenme riskini artırıyor.
+    /// Defaults to false: most sources answer from a single JSON/HTML endpoint, so
+    /// frequent scraping costs nothing. Some retailer sites render the product
+    /// list in the browser and need one request per product; pulling 900+
+    /// products every 6 hours is slow, heavy on the other server, and raises the
+    /// risk of being blocked.
     /// </summary>
     bool DailyOnly => false;
 }

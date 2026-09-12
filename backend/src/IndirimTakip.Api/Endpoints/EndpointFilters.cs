@@ -52,7 +52,7 @@ internal static class AdminAuthExtensions
         // configured this path is fully closed (see CloudflareAccessValidator).
         var access = http.RequestServices.GetService<CloudflareAccessValidator>();
         return access is not null
-            && await access.GecerliMi(http, http.RequestAborted);
+            && await access.IsValidAsync(http, http.RequestAborted);
     }
 
     /// <summary>
@@ -85,7 +85,7 @@ internal static class AdminAuthExtensions
             // A client dropping the connection isn't a failure; recording it
             // would fill the panel with noise.
             if (ex is not OperationCanceledException || !context.HttpContext.RequestAborted.IsCancellationRequested)
-                await Record(context.HttpContext, StatusCodes.Status500InternalServerError, AdminFailureReason.Istisnadan(ex));
+                await Record(context.HttpContext, StatusCodes.Status500InternalServerError, AdminFailureReason.FromException(ex));
 
             // Behavior DOESN'T CHANGE: the exception propagates as is.
             throw;
@@ -128,8 +128,8 @@ internal static class AdminAuthExtensions
         // type belongs to ASP.NET, while reason extraction lives in
         // Infrastructure, where the test project can see it.
         return value.Value is ProblemDetails problem
-            ? AdminFailureReason.Degerden(problem.Detail ?? problem.Title)
-            : AdminFailureReason.Degerden(value.Value);
+            ? AdminFailureReason.FromValue(problem.Detail ?? problem.Title)
+            : AdminFailureReason.FromValue(value.Value);
     }
 
     private static string TrimPath(string? path)

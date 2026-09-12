@@ -1,9 +1,9 @@
 namespace IndirimTakip.Core.Entities;
 
-// "Rehber" içerikleri (ör. "Kreatin alırken nelere dikkat edilir") — SEO/güven
-// amaçlı bilgi yazıları, ürün verisinden bağımsız. Kupon tablosuyla aynı
-// desende elle yönetiliyor: otomatik üretilmiyor, admin-key korumalı bir
-// endpoint'ten elle ekleniyor.
+// Guide articles (e.g. "Creatine: what to know"): informational pieces for SEO
+// and trust, independent of product data. Managed by hand like coupons: never
+// generated, added by hand (embedded in the repo or through an admin-key
+// protected endpoint).
 public class Article
 {
     public int Id { get; set; }

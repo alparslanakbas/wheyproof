@@ -5,51 +5,49 @@ using Microsoft.Extensions.Logging;
 
 namespace IndirimTakip.Infrastructure.Scraping;
 
-// Açıklaması ve besin değeri normal taramada gelmeyen markalar (SSN/Hardline/
-// ProteinOcean — IProductDetailFetcher implemente ediyorlar) için, ürün başına
-// TEK bir HTTP isteğiyle ikisini birden tamamlar. HIQ'ya hiç dokunmuyor
-// (Shopify body_html'inde ikisi de normal taramada geliyor).
+// For stores whose description and nutrition don't come with the regular scrape
+// (they implement IProductDetailFetcher), fills both with ONE HTTP request per
+// product. Stores whose regular scrape already carries both (e.g. Shopify's
+// body_html) are never touched.
 //
-// Bir kez doldurulan açıklama kalıcıdır. Besin değeri için ise NutritionCheckedAt
-// damgası kullanılıyor: çoğu üründe (aksesuar, bar, atıştırmalık) gerçekten
-// tablo yok, bu damga olmadan aynı ürünler her hafta sonsuza kadar tekrar
-// denenirdi.
+// A description, once filled, is permanent. Nutrition uses the NutritionCheckedAt
+// stamp instead: many products (accessories, bars, snacks) really have no table,
+// and without the stamp the same products would be retried forever.
 public class ProductDetailBackfillService(
     AppDbContext db,
     IEnumerable<IBrandScraper> scrapers,
     ILogger<ProductDetailBackfillService> logger)
 {
-    // Marka sitesini yormamak için ürün istekleri arası nezaket beklemesi.
+    // Courtesy delay between product requests so the store isn't hammered.
     private static readonly TimeSpan DelayBetweenProducts = TimeSpan.FromMilliseconds(750);
 
-    // Tek bir çalışmada en fazla bu kadar ürün denenir — tüm eksikleri tek
-    // seferde çekmek yerine kademeli ilerlemek hem bir çalışmanın süresini
-    // makul tutar hem de bir sorun çıkarsa etkiyi sınırlar.
+    // At most this many products are tried in one run. Progressing gradually
+    // instead of pulling every gap at once keeps a run reasonably short and
+    // limits the impact if something goes wrong.
     //
-    // 60'tan 150'ye çıkarıldı (5 Eylül). Gerekçe ölçüm: katalog 4.918 ürüne
-    // büyümüşken haftada 60 ürünlük hız, o günkü birikmiş eksiği (Hardline
-    // 287 + ProteinOcean 241 + yeni eklenen BigJoy 143 = ~671) ancak 11
-    // haftada kapatırdı. Yük yine küçük: 150 ürün dört markaya bölününce
-    // marka başına ~38 istek, aralarında 750 ms bekleme — kaynak başına
-    // yaklaşık yarım dakikalık trafik.
+    // Raised from 60 to 150 after measuring: with the catalog grown several
+    // times over, 60 products a week would have needed about 11 weeks to close
+    // the accumulated gap. The load stays small: 150 products split across the
+    // fetchers is a few dozen requests each, 750 ms apart, roughly half a minute
+    // of traffic per source.
     private const int MaxProductsPerRun = 150;
 
-    // SIRA KARARI ÜRÜN DAMGASINDAN DEĞİL, TURUN KENDİ TAMAMLANMA KAYDINDAN
-    // VERİLİYOR (6 Eylül'de değiştirildi).
+    // WHETHER IT'S TIME TO RUN IS DECIDED BY THE RUN'S OWN COMPLETION RECORD,
+    // NOT BY PRODUCT STAMPS.
     //
-    // Önceden MAX(Products.NutritionCheckedAt) kullanılıyordu ve gerekçesi
-    // makuldü: o damgayı yalnızca bu servis yazıyor. Ama bir durumu
-    // kaçırıyordu — tur yarıda kesilirse. 6 Eylül'de canlıda yaşandı: tur
-    // başladı, TEK ürün işledi, deploy konteyneri yenileyince iptal oldu ve
-    // o tek damga sırayı tam bir aralık öteledi. Yoğun deploy yapılan bir
-    // günde iş hiç ilerlemeden sürekli ertelenebilirdi.
+    // MAX(Products.NutritionCheckedAt) was used before, and the reasoning was
+    // sound: only this service writes that stamp. But it missed one case: a run
+    // cut off halfway. It happened in production: a run started, processed ONE
+    // product, was cancelled when a deploy recreated the container, and that
+    // single stamp pushed the schedule back a full interval. On a day with many
+    // deploys the job could keep being postponed without progressing.
     //
-    // Zamanlama yine VERİTABANINDA (bellekte değil): periyot günler
-    // mertebesinde ve bellekte tutulsaydı her deploy sayacı sıfırlardı.
+    // Scheduling still lives in the DATABASE (not memory): the period is measured
+    // in days, and in memory every deploy would reset the counter.
     public async Task<bool> IsDueAsync(int intervalDays, CancellationToken cancellationToken = default)
     {
         var lastCompleted = await db.BackgroundJobRuns
-            .Where(j => j.JobName == BackgroundJobNames.DetayTamamlama)
+            .Where(j => j.JobName == BackgroundJobNames.DetailBackfill)
             .Select(j => (DateTimeOffset?)j.LastCompletedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -61,18 +59,16 @@ public class ProductDetailBackfillService(
         var totalUpdated = 0;
         var totalAttempted = 0;
 
-        // KOTA MARKALAR ARASINDA EŞİT BÖLÜŞÜLÜYOR.
+        // THE QUOTA IS SPLIT EQUALLY ACROSS STORES.
         //
-        // Önceden döngü kotayı SIRAYLA tüketiyordu: listedeki ilk markanın
-        // eksiği bitmediği sürece sonrakilere hiç sıra gelmiyordu. Canlıda
-        // ölçüldü (5 Eylül) — bakılan ürün sayısı Hardline 278, SSN 114,
-        // ProteinOcean 47; ProteinOcean 288 ürününün %84'üne haftalarca
-        // sıra gelmemişti. Tur başına 60 ürün ve haftalık periyotla bu,
-        // sıradaki markanın aylarca beklemesi demek.
+        // The loop used to consume the quota IN ORDER: as long as the first
+        // store's gap wasn't closed, the others never got a turn. Measured on the
+        // Turkish site: one store had 84% of its products untouched for weeks.
+        // With a small quota per run, the next store in line would wait months.
         //
-        // Pay tavan bölme ile veriliyor: 3 marka / 60 ürün = 20. Payını
-        // kullanmayan marka (eksiği bitmiş olan) kotayı serbest bırakıyor,
-        // çünkü `remaining` gerçekleşen denemeye göre yeniden hesaplanıyor.
+        // Each store gets the ceiling of quota / stores. A store that doesn't use
+        // its share (its gap is closed) releases it, because `remaining` is
+        // recomputed from the attempts actually made.
         var fetchers = scrapers.OfType<IProductDetailFetcher>().ToList();
         if (fetchers.Count == 0)
             return 0;
@@ -86,32 +82,30 @@ public class ProductDetailBackfillService(
             if (remaining <= 0)
                 break;
 
-            // Açıklaması VEYA besin değeri henüz hiç bakılmamış ürünler.
-            // (Açıklama backfill'i daha önce çalıştığı için bir kısmında
-            // açıklama dolu ama NutritionCheckedAt null — onlar da hedefte.)
-            // Seller == null ŞART: bu, ürünün MARKANIN KENDİ SİTESİNDEN
-            // geldiği anlamına geliyor ve scraper yalnızca o sitenin
-            // yapısını tanıyor.
+            // Products whose description OR nutrition hasn't been checked yet.
+            // (Some already have a description from an earlier backfill but a null
+            // NutritionCheckedAt; they are targets too.)
+            // Seller == null IS REQUIRED: it means the product comes from the
+            // BRAND'S OWN STORE, and the scraper only knows that site's markup.
             //
-            // Bu koşul yokken (5 Eylül'e kadar) seçim sadece marka adına
-            // bakıyordu ve bayilerin listelediği kopyalar da hedefe
-            // giriyordu: canlıda ölçüldü, BigJoy için bakılan 38 üründen
-            // 37'si protein7.com adresiydi ve BigJoy parser'ıyla çekildiği
-            // için hepsi boş döndü. İki ayrı zarar veriyordu — üçüncü
-            // tarafın sitesine boşuna istek gidiyor, ve o satırlar
-            // "bakıldı" damgası yediği için BİR DAHA HİÇ denenmiyordu.
-            // SIRALAMA ŞART, yoksa liste ilerlemiyor.
+            // Without it, selection looked only at the brand name and retailer
+            // copies became targets too: measured, 37 of 38 products checked for
+            // one brand were a retailer's URLs, fetched with the brand's parser and
+            // all empty. It did two kinds of harm: pointless requests to a third
+            // party's site, and those rows got a "checked" stamp and were NEVER
+            // tried again.
+            // ORDERING IS REQUIRED, otherwise the list doesn't advance.
             //
-            // Koşuldaki "Description == null" bazı markalarda HİÇBİR ZAMAN
-            // yanlış olmuyor: Torq'un açıklaması sunucu HTML'inde yok ve
-            // çekici bilerek null dönüyor. Sırasız sorgu her turda aynı ilk
-            // satırları getiriyordu — canlıda ölçüldü, Torq'a 25 istek gitti
-            // ve bakılan ürün sayısı 30'dan hiç artmadı; aynı 25 sayfa
-            // tekrar tekrar indiriliyordu.
+            // "Description == null" is NEVER false for some stores: their
+            // description isn't in the server HTML and the fetcher deliberately
+            // returns null. An unordered query brought back the same first rows
+            // every run; measured, 25 requests went out and the checked count
+            // never moved, because the same 25 pages were downloaded again and
+            // again.
             //
-            // Hiç bakılmamışlar önce, sonra en eski bakılanlar: her tur
-            // ilerliyor ve zamanla eski kayıtlar da tazeleniyor (marka
-            // sonradan besin tablosu eklemiş olabilir).
+            // Never-checked products first, then the ones checked longest ago:
+            // every run advances, and old records get refreshed over time (a
+            // store may have added a nutrition table later).
             var missingProducts = await db.Products
                 .Where(p => p.Brand!.Name == brandScraper.BrandName
                     && p.Seller == null
@@ -126,7 +120,7 @@ public class ProductDetailBackfillService(
                 continue;
 
             logger.LogInformation(
-                "{Brand}: {Count} üründe eksik detay var, tamamlanıyor.", brandScraper.BrandName, missingProducts.Count);
+                "{Brand}: {Count} products are missing details; filling them in.", brandScraper.BrandName, missingProducts.Count);
 
             foreach (var product in missingProducts)
             {
@@ -135,33 +129,32 @@ public class ProductDetailBackfillService(
                 {
                     var details = await scraper.FetchDetailsAsync(product.Url, cancellationToken);
 
-                    // ??= bilinçli: var olan (daha güvenilir) değeri ezmiyor.
+                    // ??= on purpose: it doesn't overwrite an existing (more reliable) value.
                     product.Description ??= details.Description;
                     product.NutritionJson ??= details.NutritionJson;
                     product.ProteinPerServingGrams ??= details.ProteinPerServingGrams;
 
-                    // Kaynağın DOĞRUDAN beyan ettiği porsiyon bilgisi önce
-                    // geliyor; metinden çıkarım yalnızca o yoksa devreye
-                    // giriyor (türetilmiş değer, beyanı ezmemeli).
+                    // Serving information the source DECLARES directly comes first;
+                    // inference from text only applies when it's missing (a derived
+                    // value must not overwrite the declaration).
                     product.ServingSizeGrams ??= details.ServingSizeGrams;
                     product.ServingsPerPackage ??= details.ServingsPerPackage;
 
-                    // Açıklama metninde porsiyon büyüklüğü de geçiyor olabilir
-                    // ("1 ölçek (30 g)" gibi) — scraper yapısal bir değer
-                    // vermediyse buradan çıkarıyoruz.
+                    // The description may mention the serving size too ("1 scoop
+                    // (30 g)"); used only when the scraper gave no structured value.
                     if (details.Description is not null)
                         product.ServingSizeGrams ??= ProductAttributeParser.ExtractServingSizeGrams(details.Description);
 
-                    // Sayfaya başarıyla bakıldı — tablo bulunmuş olsun olmasın
-                    // damgalıyoruz ki bir daha sonsuza kadar denenmesin.
+                    // The page was checked successfully: stamped whether or not a
+                    // table was found, so it isn't retried forever.
                     product.NutritionCheckedAt = DateTimeOffset.UtcNow;
                     totalUpdated++;
                 }
                 catch (Exception ex)
                 {
-                    // Tek bir ürünün hatası (404, geçici ağ sorunu vb.) diğerlerini
-                    // durdurmasın. Damga da atılmıyor — sonraki çalışmada tekrar denenir.
-                    logger.LogWarning(ex, "{Brand} - {Url} detayları çekilemedi.", brandScraper.BrandName, product.Url);
+                    // One product's error (404, transient network issue) must not
+                    // stop the rest. No stamp either, so it is retried next run.
+                    logger.LogWarning(ex, "{Brand} - could not fetch details for {Url}.", brandScraper.BrandName, product.Url);
                 }
 
                 await Task.Delay(DelayBetweenProducts, cancellationToken);
@@ -170,34 +163,34 @@ public class ProductDetailBackfillService(
             await db.SaveChangesAsync(cancellationToken);
         }
 
-        // TAMAMLANMA DAMGASI BURADA, DÖNGÜNÜN SONUNDA ATILIYOR.
+        // THE COMPLETION STAMP IS SET HERE, AT THE END OF THE LOOP.
         //
-        // Buraya yalnızca tur baştan sona bittiyse geliniyor: iptal edilen bir
-        // tur (deploy, konteyner yenileme) ürünler arasındaki `Task.Delay`
-        // noktasında istisna fırlatıp metottan çıkıyor ve bu satıra hiç
-        // ulaşmıyor. Yani yarıda kesilen tur sırayı İLERLETMİYOR, bir sonraki
-        // kontrolde yeniden "sırası geldi" diyor.
-        await TamamlandiIsaretleAsync(cancellationToken);
+        // This line is reached only when the run finished from start to end: a
+        // cancelled run (deploy, container recreation) throws at the `Task.Delay`
+        // between products and leaves the method before getting here. So a run
+        // cut off halfway does NOT move the schedule; the next check says it's
+        // due again.
+        await MarkCompletedAsync(cancellationToken);
 
         return totalUpdated;
     }
 
-    private async Task TamamlandiIsaretleAsync(CancellationToken cancellationToken)
+    private async Task MarkCompletedAsync(CancellationToken cancellationToken)
     {
-        var kayit = await db.BackgroundJobRuns
-            .FirstOrDefaultAsync(j => j.JobName == BackgroundJobNames.DetayTamamlama, cancellationToken);
+        var run = await db.BackgroundJobRuns
+            .FirstOrDefaultAsync(j => j.JobName == BackgroundJobNames.DetailBackfill, cancellationToken);
 
-        if (kayit is null)
+        if (run is null)
         {
             db.BackgroundJobRuns.Add(new BackgroundJobRun
             {
-                JobName = BackgroundJobNames.DetayTamamlama,
+                JobName = BackgroundJobNames.DetailBackfill,
                 LastCompletedAt = DateTimeOffset.UtcNow,
             });
         }
         else
         {
-            kayit.LastCompletedAt = DateTimeOffset.UtcNow;
+            run.LastCompletedAt = DateTimeOffset.UtcNow;
         }
 
         await db.SaveChangesAsync(cancellationToken);

@@ -4,12 +4,11 @@ public record BrandStatsDto(
     int TotalProducts,
     int DiscountCount,
     int ThirtyDayLowCount,
-    // İndirimdeki ürünlerin ortalama indirim yüzdesi — hiç indirim yoksa null
-    // (uydurma bir "%0" değeri yerine, veri yoksa alan boş kalır).
+    // Average discount percentage of discounted products; null when there are no
+    // discounts (the field stays empty rather than showing a made-up "0%").
     double? AverageDiscountPercent,
     DateTimeOffset? LastScanAt,
-    // Kapsamdaki ürünlerin ortalama güncel fiyatı. Marka × kategori
-    // sayfalarında, aynı kategorinin geneliyle karşılaştırıp markanın o
-    // kategoride nerede durduğunu söylemek için — o sayfaların tek özgün
-    // içeriği bu. Ürün yoksa null.
+    // Average current price of the products in scope. On brand x category pages
+    // it is compared with the category as a whole to say where the brand stands;
+    // that is the only original content on those pages. Null without products.
     decimal? AveragePrice = null);

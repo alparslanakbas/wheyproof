@@ -1,9 +1,9 @@
 namespace IndirimTakip.Core.Entities;
 
-// E-posta bülteni aboneleri. Double opt-in zorunlu (İYS/KVKK gereği,
-// bkz. CLAUDE.md) — abone olurken IsConfirmed=false ile oluşturuluyor,
-// Token'a giden onay linkine tıklayınca true'ya çevriliyor. Aynı Token
-// hem onay hem abonelikten çıkma linkinde kullanılıyor.
+// Email newsletter subscribers. Double opt-in is required: a subscriber is
+// created with IsConfirmed=false and switched to true after clicking the
+// confirmation link carrying the Token. The same Token is used in both the
+// confirmation and the unsubscribe links.
 public class Subscriber
 {
     public int Id { get; set; }
@@ -14,15 +14,15 @@ public class Subscriber
     public DateTimeOffset? ConfirmedAt { get; set; }
     public DateTimeOffset? UnsubscribedAt { get; set; }
     public DateTimeOffset? LastConfirmationEmailSentAt { get; set; }
-    // Favori listesi kurtarma maili (bkz. FavoriteService.SendRecoveryEmailAsync)
-    // için ayrı bir cooldown alanı — onay mailiyle aynı amaç ama farklı akış,
-    // ikisinin birbirini sıfırlamaması için ayrı tutuluyor.
+    // Separate cooldown for the watchlist recovery email (see
+    // FavoriteService.SendRecoveryEmailAsync): same purpose as the confirmation
+    // email but a different flow, kept apart so neither resets the other.
     public DateTimeOffset? LastRecoveryEmailSentAt { get; set; }
-    // Bültenin bu aboneye en son ne zaman gittiği. Zamanlamanın TEK kaynağı
-    // bu alan — bellekteki bir sayaç değil, çünkü o her deploy/restart'ta
-    // sıfırlanıyordu ve bülten hiç gönderilemiyordu. Ayrıca "kim bu haftanın
-    // bültenini henüz almadı" sorusunu da cevapladığı için, günlük gönderim
-    // kotası aşıldığında kalan aboneler ertesi gün kaldığı yerden devam
-    // ediyor (bkz. DigestService).
+    // When the digest last went to this subscriber. This field is the ONLY
+    // source of scheduling, not an in-memory counter, which reset on every
+    // deploy/restart so the digest never went out. It also answers "who hasn't
+    // received this week's digest yet", so when the daily sending quota runs
+    // out, the remaining subscribers continue the next day where it stopped
+    // (see DigestService).
     public DateTimeOffset? LastDigestSentAt { get; set; }
 }

@@ -4,27 +4,26 @@ using Microsoft.IdentityModel.Tokens;
 namespace IndirimTakip.Api.Endpoints;
 
 /// <summary>
-/// Cloudflare Access'in isteklere eklediği imzalı kimlik jetonunu doğrular.
+/// Validates the signed identity token Cloudflare Access adds to requests.
 /// </summary>
 /// <remarks>
-/// <b>NEDEN VAR.</b> Panel iki kapının arkasında: Access (kenarda, e-posta
-/// doğrulaması) ve admin anahtarı (uygulamada). İkinci kapı gerçek bir katman
-/// ama zahmetliydi — 44 karakterlik anahtar yalnızca sunucudaki .env
-/// dosyasında duruyor ve oturum her 12 saatte bir yeniden soruluyordu.
-/// Access zaten kimliği doğruluyor ve bunu KRİPTOGRAFİK OLARAK imzalı bir
-/// jetonla bildiriyor; o jetonu doğrulamak, elle girilen bir parolayı kabul
-/// etmekten hem daha kolay hem daha sağlam. Anahtar yolu KALDIRILMADI —
-/// betikler ve `api.` alt alan adı onu kullanmaya devam ediyor.
+/// <b>WHY IT EXISTS.</b> The panel sits behind two doors: Access (at the edge,
+/// email verification) and the admin key (in the application). The second door
+/// is a real layer but it was tedious: the key lives only in the server's .env
+/// file and the session asked for it again every 12 hours. Access already
+/// verifies identity and reports it with a CRYPTOGRAPHICALLY signed token;
+/// validating that token is both easier and sturdier than accepting a password
+/// typed by hand. The key path was NOT removed: scripts and the `api.`
+/// subdomain keep using it.
 ///
-/// <b>YAPILANDIRILMAMIŞSA KAPALI (fail-closed).</b> Ekip alanı ya da izleyici
-/// (audience) etiketi tanımlı değilse bu yol tamamen devre dışı kalıyor.
-/// Alternatifi — eksik ayarda jetonu yine de kabul etmek — yanlış bir
-/// yapılandırmanın kapıyı sessizce açması demekti.
+/// <b>FAIL-CLOSED WHEN NOT CONFIGURED.</b> Without a team domain or audience tag
+/// this path is disabled entirely. The alternative, accepting the token anyway
+/// with missing settings, would let a misconfiguration silently open the door.
 ///
-/// <b>AUDIENCE KONTROLÜ ZORUNLU.</b> Yalnızca imza ve ihraççıyı doğrulamak
-/// yetmez: aynı Cloudflare hesabındaki BAŞKA bir uygulama için üretilmiş
-/// geçerli bir jeton da imzayı geçerdi. `aud` etiketi jetonu BU uygulamaya
-/// bağlıyor.
+/// <b>THE AUDIENCE CHECK IS REQUIRED.</b> Validating only the signature and the
+/// issuer isn't enough: a valid token issued for ANOTHER application on the same
+/// Cloudflare account would pass the signature check too. The `aud` tag binds
+/// the token to THIS application.
 /// </remarks>
 public sealed class CloudflareAccessValidator
 {
@@ -36,11 +35,11 @@ public sealed class CloudflareAccessValidator
     private readonly string? audience;
     private readonly string? certsUrl;
 
-    // JWKS her istekte indirilmez; Cloudflare anahtarları nadiren döndürüyor.
-    // Bilinmeyen bir kid görülürse önbellek süresi beklenmeden tazeleniyor,
-    // yoksa anahtar döndüğü an panel erişilemez olurdu.
+    // The JWKS isn't downloaded on every request; Cloudflare rotates keys rarely.
+    // An unknown kid triggers a refresh without waiting for the cache to expire;
+    // otherwise the panel would be locked out the moment the key rotated.
     private static readonly TimeSpan CacheLifetime = TimeSpan.FromHours(6);
-    private readonly SemaphoreSlim yenilemeKilidi = new(1, 1);
+    private readonly SemaphoreSlim refreshLock = new(1, 1);
     private IReadOnlyCollection<JsonWebKey> keys = [];
     private DateTimeOffset keysFetchedAt = DateTimeOffset.MinValue;
 
@@ -62,13 +61,13 @@ public sealed class CloudflareAccessValidator
         }
     }
 
-    /// <summary>Doğrulama yapılandırılmış mı.</summary>
+    /// <summary>Whether validation is configured.</summary>
     public bool Enabled => certsUrl is not null;
 
     /// <summary>
-    /// İstekteki Access jetonu geçerliyse true.
+    /// True if the request carries a valid Access token.
     /// </summary>
-    public async Task<bool> GecerliMi(HttpContext context, CancellationToken cancellationToken = default)
+    public async Task<bool> IsValidAsync(HttpContext context, CancellationToken cancellationToken = default)
     {
         if (!Enabled)
             return false;
@@ -79,58 +78,57 @@ public sealed class CloudflareAccessValidator
 
         try
         {
-            var sonuc = await DogrulaAsync(token, tazele: false, cancellationToken);
+            var valid = await ValidateAsync(token, refreshed: false, cancellationToken);
 
-            // İmza tutmadıysa anahtar dönmüş olabilir: bir kez tazeleyip yeniden dene.
-            if (!sonuc && await AnahtarlariTazeleAsync(cancellationToken))
-                sonuc = await DogrulaAsync(token, tazele: true, cancellationToken);
+            // A signature mismatch may mean the key rotated: refresh once and retry.
+            if (!valid && await RefreshKeysAsync(cancellationToken))
+                valid = await ValidateAsync(token, refreshed: true, cancellationToken);
 
-            return sonuc;
+            return valid;
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Cloudflare Access jetonu doğrulanamadı.");
+            logger.LogWarning(ex, "Could not validate the Cloudflare Access token.");
             return false;
         }
     }
 
-    private async Task<bool> DogrulaAsync(string token, bool tazele, CancellationToken cancellationToken)
+    private async Task<bool> ValidateAsync(string token, bool refreshed, CancellationToken cancellationToken)
     {
-        if (!tazele && (keys.Count == 0 || DateTimeOffset.UtcNow - keysFetchedAt > CacheLifetime))
+        if (!refreshed && (keys.Count == 0 || DateTimeOffset.UtcNow - keysFetchedAt > CacheLifetime))
         {
-            await AnahtarlariTazeleAsync(cancellationToken);
+            await RefreshKeysAsync(cancellationToken);
         }
 
         if (keys.Count == 0)
             return false;
 
         var handler = new JsonWebTokenHandler();
-        var sonuc = await handler.ValidateTokenAsync(token, new TokenValidationParameters
+        var result = await handler.ValidateTokenAsync(token, new TokenValidationParameters
         {
             ValidIssuer = issuer,
             ValidateIssuer = true,
-            // Jetonu BU uygulamaya bağlayan kontrol; bkz. sınıf açıklaması.
+            // The check that binds the token to THIS application; see the remarks.
             ValidAudience = audience,
             ValidateAudience = true,
             IssuerSigningKeys = keys,
             ValidateIssuerSigningKey = true,
             ValidateLifetime = true,
-            // Cloudflare RS256 kullanıyor. Listeyi sabitlemek "alg" karışıklığı
-            // saldırılarını (ör. jetonun kendi başlığında zayıf bir algoritma
-            // bildirmesi) baştan kapatıyor.
+            // Cloudflare uses RS256. Pinning the list rules out "alg" confusion
+            // attacks (e.g. a token declaring a weak algorithm in its own header).
             ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
             ClockSkew = TimeSpan.FromMinutes(2),
         });
 
-        return sonuc.IsValid;
+        return result.IsValid;
     }
 
-    private async Task<bool> AnahtarlariTazeleAsync(CancellationToken cancellationToken)
+    private async Task<bool> RefreshKeysAsync(CancellationToken cancellationToken)
     {
         if (certsUrl is null)
             return false;
 
-        await yenilemeKilidi.WaitAsync(cancellationToken);
+        await refreshLock.WaitAsync(cancellationToken);
         try
         {
             var client = httpClientFactory.CreateClient();
@@ -147,14 +145,14 @@ public sealed class CloudflareAccessValidator
         }
         catch (Exception ex)
         {
-            // Anahtar indirilemezse ELDEKİ anahtarlar korunuyor: geçici bir ağ
-            // hatası yüzünden paneli kilitlemek gereksiz.
-            logger.LogWarning(ex, "Cloudflare Access anahtarları indirilemedi.");
+            // If the keys can't be downloaded, the keys ALREADY held are kept:
+            // locking the panel over a transient network error is pointless.
+            logger.LogWarning(ex, "Could not download the Cloudflare Access keys.");
             return false;
         }
         finally
         {
-            yenilemeKilidi.Release();
+            refreshLock.Release();
         }
     }
 }

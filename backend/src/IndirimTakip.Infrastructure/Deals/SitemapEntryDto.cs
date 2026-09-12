@@ -1,8 +1,8 @@
 namespace IndirimTakip.Infrastructure.Deals;
 
-// HasReviewContent — ürün incelemesi sayfasının (/urun-inceleme/{id}/{slug})
-// sitemap'e girmesi için en az bir gerçek içerik kaynağı (marka açıklaması
-// veya besin değeri tablosu) olması gerekiyor; aksi halde "ince içerik"
-// sayfaları Google'a taranmaya sunulmuş olurdu. Sayfa kendisi yine de
-// (linklenirse) her ürün için açık kalıyor, sadece sitemap'e girmiyor.
+// HasReviewContent: a product review page enters the sitemap only when it has
+// at least one real content source (the brand's description or a nutrition
+// table); otherwise thin pages would be offered to Google for crawling. The page
+// itself stays available for every product (if linked); it just isn't in the
+// sitemap.
 public record SitemapEntryDto(int Id, string Name, DateTimeOffset LastModifiedAt, bool HasReviewContent);

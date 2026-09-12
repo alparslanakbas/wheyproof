@@ -1,32 +1,32 @@
 namespace IndirimTakip.Infrastructure.Deals;
 
 /// <summary>
-/// Markaların ortaklık programı ayarları. Kodlar yapılandırmadan (VM'deki
-/// .env) geliyor, repoya girmiyor: hesaba bağlı bilgiler.
-/// Örnek: Affiliate__TrackingCodes__Hardline=765c5a13e1
+/// Brands' affiliate program settings. Codes come from configuration (the
+/// server's .env) and never enter the repo: they are account-bound.
+/// Example: Affiliate__TrackingCodes__SomeBrand=765c5a13e1
 /// </summary>
 public sealed class AffiliateOptions
 {
-    /// <summary>Marka adı -> takip kodu. Marka adı büyük/küçük harfe duyarsız eşleşir.</summary>
+    /// <summary>Brand name -> tracking code. Brand names match case-insensitively.</summary>
     public Dictionary<string, string> TrackingCodes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Takip parametresinin adı. SSN ve Hardline'ın ikisi de OpenCart'ın
-    /// ortaklık modülünü kullanıyor ve parametre orada "tracking".
-    /// Farklı bir altyapı kullanan bir marka eklenirse ayrıştırılabilir.
+    /// Name of the tracking parameter. OpenCart's affiliate module uses
+    /// "tracking"; it can be split per brand if a store on another platform is
+    /// added.
     /// </summary>
     public string ParameterName { get; set; } = "tracking";
 }
 
 /// <summary>
-/// Ürün adresine markanın ortaklık takip kodunu ekler.
+/// Adds the brand's affiliate tracking code to a product URL.
 /// </summary>
 public static class AffiliateLinkBuilder
 {
     /// <summary>
-    /// Kod tanımlıysa adrese takip parametresini ekler, değilse adresi
-    /// olduğu gibi döndürür. Adres bozuksa da dokunmaz — yönlendirmenin
-    /// çalışması, takip edilmesinden önce gelir.
+    /// Adds the tracking parameter when a code is configured; otherwise returns
+    /// the URL unchanged. A malformed URL is left alone too: the redirect working
+    /// comes before it being tracked.
     /// </summary>
     public static string Apply(string url, string? brandName, AffiliateOptions options)
     {
@@ -42,8 +42,8 @@ public static class AffiliateLinkBuilder
 
         var parameter = string.IsNullOrWhiteSpace(options.ParameterName) ? "tracking" : options.ParameterName;
 
-        // Adreste zaten aynı parametre varsa ikinci kez eklemiyoruz; marka
-        // tarafında hangisinin okunacağı belirsiz olurdu.
+        // If the URL already has the same parameter it isn't added twice; which
+        // one the store reads would be ambiguous.
         if (url.Contains($"?{parameter}=", StringComparison.OrdinalIgnoreCase) ||
             url.Contains($"&{parameter}=", StringComparison.OrdinalIgnoreCase))
         {
@@ -52,9 +52,10 @@ public static class AffiliateLinkBuilder
 
         var pair = $"{Uri.EscapeDataString(parameter)}={Uri.EscapeDataString(code)}";
 
-        // Adreste sorgu dizesi varsa & ile, yoksa ? ile eklenmeli; yanlış
-        // ayraç linki tamamen bozar. Bağlantı çapası (#) varsa parametre
-        // ondan ÖNCE gelmeli, yoksa sunucu parametreyi hiç görmez.
+        // With an existing query string it must be appended with &, otherwise
+        // with ?; the wrong separator breaks the link entirely. If there is a
+        // fragment (#), the parameter must come BEFORE it, or the server never
+        // sees it.
         var fragmentIndex = url.IndexOf('#');
         var basePart = fragmentIndex >= 0 ? url[..fragmentIndex] : url;
         var fragment = fragmentIndex >= 0 ? url[fragmentIndex..] : string.Empty;

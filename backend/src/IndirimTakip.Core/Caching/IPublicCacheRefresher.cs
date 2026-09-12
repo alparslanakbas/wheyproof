@@ -1,24 +1,24 @@
 namespace IndirimTakip.Core.Caching;
 
 /// <summary>
-/// Tarama bittiğinde genel veri önbelleğini tazeler.
+/// Refreshes the public data cache when a scrape finishes.
 ///
-/// <b>NEDEN BURADA BİR ARAYÜZ VAR.</b> Gerçek iş ASP.NET'in çıktı
-/// önbelleğiyle yapılıyor (<c>IOutputCacheStore</c>), ama tetikleyen taraf
-/// altyapıdaki tarama servisleri. Somut tipe bağlansaydı Infrastructure
-/// projesine tüm web framework'ünü (<c>Microsoft.AspNetCore.App</c>)
-/// referans vermek gerekirdi — scraper'ların HTTP sunucusundan haberi olması
-/// için hiçbir sebep yok. Arayüz burada, uygulaması Api projesinde.
+/// <b>WHY THERE IS AN INTERFACE HERE.</b> The actual work is done with ASP.NET's
+/// output cache (<c>IOutputCacheStore</c>), but the trigger is the scraping
+/// services in Infrastructure. Depending on the concrete type would mean
+/// referencing the whole web framework (<c>Microsoft.AspNetCore.App</c>) from
+/// Infrastructure, and scrapers have no reason to know about the HTTP server. The
+/// interface lives here, the implementation in the Api project.
 ///
-/// Uygulama kayıtlı değilse <see cref="NullPublicCacheRefresher"/> devreye
-/// giriyor; tarama hiçbir koşulda önbellek yüzünden düşmüyor.
+/// Without a registered implementation <see cref="NullPublicCacheRefresher"/>
+/// steps in; a scrape never fails because of the cache.
 /// </summary>
 public interface IPublicCacheRefresher
 {
     Task RefreshAsync(CancellationToken cancellationToken = default);
 }
 
-/// <summary>Önbellek katmanı yokken (testler, konsol araçları) kullanılan boş uygulama.</summary>
+/// <summary>No-op implementation used where there is no cache layer (tests, console tools).</summary>
 public sealed class NullPublicCacheRefresher : IPublicCacheRefresher
 {
     public Task RefreshAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

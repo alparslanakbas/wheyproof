@@ -1,35 +1,33 @@
 namespace IndirimTakip.Core.Entities;
 
 /// <summary>
-/// Yönetim ucuna (<c>/api/dev/*</c>) gelen bir isteğin BAŞARISIZLIK SEBEBİ.
+/// The FAILURE REASON of a request to an admin endpoint (<c>/api/dev/*</c>).
 /// </summary>
 /// <remarks>
-/// <b>NEDEN GEREKTİ.</b> 8 Eylül'de panelden kupon eklenemedi ve ekranda tek
-/// gördüğümüz "Kupon eklenmedi." oldu. Gerçek sebep — katalogdaki ad
-/// "Dr Supplement", yazılan ad "DrSupplement" — yalnızca elle <c>curl</c>
-/// atınca ortaya çıktı. Aynı hafta ikinci bir örnek daha yaşandı: Türkiye
-/// saat dilimiyle gönderilen kupon tarihi Npgsql'de 500 üretiyordu ve o
-/// mesaj da yalnızca konteynerin stdout'unda duruyordu.
+/// <b>WHY IT WAS NEEDED.</b> A coupon couldn't be added from the panel and all
+/// the screen said was "Coupon not added." The real cause (the catalog name was
+/// "Dr Supplement", the typed name "DrSupplement") only surfaced with a manual
+/// <c>curl</c>. A second case came the same week: a coupon date sent with a
+/// non-UTC offset produced a 500 in Npgsql, and that message too lived only in
+/// the container's stdout.
 ///
-/// <b>NEDEN SecurityEvents'E YAZILMIYOR.</b> O tablonun amacı dar ve
-/// tanımlı: kötüye kullanım kanıtı, gerektiğinde suç duyurusuna dayanak.
-/// Buraya yazılan kayıtlar ise YÖNETİCİNİN KENDİ işlemleri. Üç somut zarar
-/// doğardı:
+/// <b>WHY IT ISN'T WRITTEN TO SecurityEvents.</b> That table's purpose is narrow
+/// and defined: evidence of abuse, grounds for a report when needed. The
+/// records here are the ADMIN'S OWN operations. It would do three concrete kinds
+/// of harm:
 /// <list type="bullet">
-///   <item>Panelin "en çok olay üreten 10 adres" listesi — bir suç
-///   duyurusunda ilk bakılan yer — yöneticinin kendi adresiyle dolardı.</item>
-///   <item>Oradaki kota (adres başına 5 dakikada 30 olay) düşmanca trafiğe
-///   göre ayarlı; peş peşe denenen birkaç yönetim işleminde tam da ihtiyaç
-///   duyulan kayıt sessizce düşebilirdi.</item>
-///   <item>SecurityEvents BİLEREK mesaj/sorgu saklamıyor; oraya serbest
-///   metin bir alan eklemek, kaydın "dar tutuluyor" gerekçesini zayıflatırdı.
-///   Burada mesajı saklamak güvenli, çünkü kaydı üreten kimlik doğrulanmış
-///   yöneticinin kendisi.</item>
+///   <item>The panel's "top 10 addresses by events" list, the first place to look
+///   for an abuse report, would fill up with the admin's own address.</item>
+///   <item>Its quota (30 events per address per 5 minutes) is tuned for hostile
+///   traffic; a few admin operations tried in a row could silently drop exactly
+///   the record needed.</item>
+///   <item>SecurityEvents stores NO message or query ON PURPOSE; adding a free text
+///   field there would weaken the "kept narrow" rationale. Storing the message
+///   here is safe, because the record is produced by the authenticated admin.</item>
 /// </list>
 ///
-/// <b>YALNIZCA BAŞARISIZLIK.</b> Başarılı işlemler kaydedilmiyor: sorulan
-/// soru "neden olmadı", ve başarılı işlemin sonucu zaten verinin kendisinde
-/// görünüyor.
+/// <b>FAILURES ONLY.</b> Successful operations aren't recorded: the question asked
+/// is "why didn't it work", and a successful operation shows in the data itself.
 /// </remarks>
 public class AdminOperationFailure
 {
@@ -44,15 +42,15 @@ public class AdminOperationFailure
     public int StatusCode { get; set; }
 
     /// <summary>
-    /// Ucun kendi cevabı (ör. "'DrSupplement' adında marka bulunamadı.") ya da
-    /// işlem istisnayla düştüyse istisnanın türü ve mesajı. Uç gövdesiz bir
-    /// hata döndüyse null.
+    /// The endpoint's own response (e.g. "No brand named 'DrSupplement' was
+    /// found.") or, if the operation threw, the exception's type and message.
+    /// Null when the endpoint returned an error without a body.
     /// </summary>
     public string? Reason { get; set; }
 
     /// <summary>
-    /// İsteği yapan adres. Yönetici tek kişi ama betiklerin ve panelin
-    /// ürettiği hatayı ayırt etmeye yarıyor.
+    /// The requesting address. There is one admin, but it tells errors produced
+    /// by scripts apart from those produced by the panel.
     /// </summary>
     public string? Ip { get; set; }
 }
