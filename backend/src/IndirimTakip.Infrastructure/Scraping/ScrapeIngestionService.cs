@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using IndirimTakip.Core.Entities;
 using IndirimTakip.Core.Scraping;
 using IndirimTakip.Infrastructure.Subscribers;
@@ -14,13 +14,13 @@ public class ScrapeIngestionService(
     IConfiguration configuration)
 {
     /// <summary>
-    /// Kaynak başına eşzamanlılık kilidi. Aynı kaynağın iki taraması aynı anda
-    /// çalışmamalı: protein7'de gerçekten yaşandı — 15 dakika süren elle
-    /// başlatılmış bir tarama sürerken günlük servis de devreye girdi, karşı
-    /// sunucuya iki kat istek gitti ve İKİSİ BİRDEN hız sınırına takıldı.
+    /// Per-source concurrency lock. Two scrapes of the same source must not run at
+    /// once: on the Turkish site a manually started 15-minute scrape was still
+    /// running when the daily service kicked in, the other server got twice the
+    /// requests and BOTH hit its rate limit.
     ///
-    /// Kilit süreç içi: tek konteyner çalıştığı için yeterli. Birden fazla
-    /// örnek çalıştırılacak olursa veritabanı tabanlı bir kilit gerekir.
+    /// The lock is in-process: enough while a single container runs. Running several
+    /// instances would need a database-backed lock.
     /// </summary>
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> ScrapeLocks = new();
 
@@ -28,11 +28,11 @@ public class ScrapeIngestionService(
     {
         var gate = ScrapeLocks.GetOrAdd(scraper.BrandName, _ => new SemaphoreSlim(1, 1));
 
-        // Beklemiyoruz, doğrudan reddediyoruz: sıraya girmek ikinci taramanın
-        // birincisi bittikten hemen sonra baştan başlaması demek olurdu ve
-        // zaten taze olan veriyi tekrar çekerdi.
+        // Rejected outright rather than awaited: queueing would mean the second
+        // scrape starting over right after the first finishes, pulling data that is
+        // already fresh.
         if (!await gate.WaitAsync(0, cancellationToken))
-            throw new InvalidOperationException($"{scraper.BrandName} taraması zaten çalışıyor, bu tetikleme atlandı.");
+            throw new InvalidOperationException($"A scrape of {scraper.BrandName} is already running; this trigger was skipped.");
 
         try
         {
@@ -46,18 +46,18 @@ public class ScrapeIngestionService(
     }
 
     /// <summary>
-    /// Ürünleri BAŞKA BİR YERDE toplanmış olarak alır ve aynı yutma yolundan
-    /// geçirir.
+    /// Takes products collected SOMEWHERE ELSE and runs them through the same
+    /// ingestion path.
     ///
-    /// NEDEN VAR: Supplementler.com sunucumuzun bulunduğu datacenter'dan
-    /// Cloudflare managed challenge'ı ile karşılanıyor (403 gövdesi "Just a
-    /// moment..." sayfası), ev bağlantısından ise normal 200 dönüyor. Tarama
-    /// bu yüzden geliştirme makinesinde çalışıp sonucu buraya gönderiyor.
-    /// Toplama yeri değişiyor, yutma mantığı DEĞİŞMİYOR — marka çözümlemesi,
-    /// kategori çıkarımı, fiyat geçmişi ve bayatlama hep aynı kod.
+    /// WHY IT EXISTS: some sources block the server's datacenter address (e.g. with
+    /// a Cloudflare managed challenge) while a residential connection gets a normal
+    /// 200. Such a source can be scraped elsewhere and the result sent here. Where
+    /// the data is collected changes; the ingestion logic does NOT: brand
+    /// resolution, category inference, price history and staleness are all the same
+    /// code.
     ///
-    /// Kilit paylaşılıyor: aynı kaynak için sunucu içi bir tarama sürerken
-    /// dışarıdan gelen gönderim de reddediliyor.
+    /// The lock is shared: while an in-server scrape of the same source runs, an
+    /// external submission is rejected too.
     /// </summary>
     public async Task<int> IngestAsync(
         IBrandScraper scraper,
@@ -66,7 +66,7 @@ public class ScrapeIngestionService(
     {
         var gate = ScrapeLocks.GetOrAdd(scraper.BrandName, _ => new SemaphoreSlim(1, 1));
         if (!await gate.WaitAsync(0, cancellationToken))
-            throw new InvalidOperationException($"{scraper.BrandName} taraması zaten çalışıyor, bu gönderim atlandı.");
+            throw new InvalidOperationException($"A scrape of {scraper.BrandName} is already running; this submission was skipped.");
 
         try
         {
@@ -85,29 +85,29 @@ public class ScrapeIngestionService(
     {
         var scrapedAt = DateTimeOffset.UtcNow;
 
-        // Markalar ada göre önbelleğe alınıyor: çok markalı bir kaynakta
-        // (bayi kataloğu) ürün başına marka çözmek gerekiyor ve her ürün için
-        // ayrı sorgu atmak yüzlerce gidiş-geliş demek olurdu.
-        // Aynı ada sahip birden fazla marka kaydı olabiliyor (iki tarama aynı
-        // anda çalışıp ikisi de "marka yok, oluştur" dediğinde oluşuyor), bu
-        // yüzden doğrudan sözlüğe çevrilmiyor: aynı ad ikinci kez gelirse
-        // ArgumentException fırlatır ve tüm tarama düşerdi. İlk kayıt esas
-        // alınıyor; yinelenen kayıtlar zaten listelerde tekilleştiriliyor.
+        // Brands are cached by name: a multi-brand source (a retailer catalog) needs
+        // a brand resolved per product, and a query per product would mean hundreds
+        // of round trips.
+        // Several brand rows can share a name (created when two scrapes run at once
+        // and both decide "brand missing, create it"), so it isn't converted with
+        // ToDictionary: a repeated name would throw ArgumentException and take the
+        // whole scrape down. The first row wins; duplicates are already deduplicated
+        // in the lists.
         var brandsByName = new Dictionary<string, Brand>();
-        // İkinci indeks: Türkçe harfleri katlanmış, büyük/küçük harf duyarsız
-        // ad. Sebebi ölçülmüş bir hata: bayiler aynı üreticiyi farklı yazıyor
-        // ve yukarıdaki sözlük ORDINAL, yani "TREC" ile "Trec" ayrı kabul
-        // edilip İKİNCİ bir marka kaydı oluşuyordu. .NET'in kültürden bağımsız
-        // karşılaştırması ayrıca Türkçe noktalı İ'yi hiç katlamıyor, yani
-        // "PRİME NUTRİTİON" da "Prime Nutrition" ile eşleşmiyordu.
+        // Second index: the name with Turkish letters folded, case-insensitive. It
+        // exists because of a measured bug: retailers spell the same manufacturer
+        // differently and the dictionary above is ORDINAL, so "TREC" and "Trec" were
+        // treated as different and a SECOND brand row was created. .NET's
+        // culture-independent comparison also doesn't fold the dotted İ at all, so
+        // "PRİME NUTRİTİON" didn't match "Prime Nutrition" either.
         //
-        // Bu, BrandNameNormalizer'ın yerini almıyor — orası "Proteinocean →
-        // ProteinOcean" gibi GERÇEKTEN farklı yazımlar için. Buradaki indeks
-        // yalnızca harf/aksan farkını kapatıyor ve takma ad listesinin her
-        // yeni bayide onlarca satır büyümesini engelliyor.
+        // This doesn't replace BrandNameNormalizer, which is for REALLY different
+        // spellings ("Proteinocean → ProteinOcean"). This index only closes letter
+        // and accent differences and keeps the alias list from growing by dozens of
+        // lines per retailer.
         //
-        // Mevcut 96 markada tek bir katlama çakışması bile yok (ölçüldü,
-        // 4 Eylül), yani bu indeks var olan hiçbir markayı birleştirmiyor.
+        // Measured on the Turkish catalog (96 brands): not a single folding collision,
+        // so this index merges no existing brands.
         var brandsByFoldedName = new Dictionary<string, Brand>();
         foreach (var existingBrand in await db.Brands.ToListAsync(cancellationToken))
         {
@@ -117,14 +117,13 @@ public class ScrapeIngestionService(
 
         Brand ResolveBrand(string rawName)
         {
-            // Takma ad sözlüğü BURADA uygulanıyor, scraper'larda değil.
-            // Scraper'ların tek tek çağırması gerekiyordu ve bu sessizce
-            // atlanabiliyor: Supplementler scraper'ı BrandNameNormalizer'dan
-            // ÖNCE yazılmıştı, hiç çağırmıyordu ve o kaynakta takma adların
-            // HİÇBİRİ çalışmıyordu ("Kingsize Nutrition" 65 ürünle ikinci bir
-            // marka kaydı oluşturdu). Merkezî çağrı bunu her kaynak için
-            // garanti ediyor; scraper'ların kendi çağrıları zararsız, çünkü
-            // normalizasyon idempotent.
+            // The alias dictionary is applied HERE, not in the scrapers. Scrapers
+            // had to call it one by one and that could be skipped silently: one
+            // scraper was written BEFORE BrandNameNormalizer, never called it, and
+            // NONE of the aliases worked for that source (one alias created a second
+            // brand row with 65 products). A central call guarantees it for every
+            // source; the scrapers' own calls are harmless because normalization is
+            // idempotent.
             var name = BrandNameNormalizer.Normalize(rawName);
 
             if (brandsByName.TryGetValue(name, out var existing))
@@ -133,8 +132,8 @@ public class ScrapeIngestionService(
             var folded = FoldBrandName(name);
             if (brandsByFoldedName.TryGetValue(folded, out var sameBrandDifferentCase))
             {
-                // Adı DEĞİŞTİRMİYORUZ, yalnızca mevcut kayda bağlanıyoruz:
-                // marka adı değişimi slug'ı ve /marka/... adresini kırar.
+                // The name is NOT changed; the product is only linked to the existing
+                // row: renaming a brand breaks its slug and brand page URL.
                 brandsByName[name] = sameBrandDifferentCase;
                 return sameBrandDifferentCase;
             }
@@ -146,24 +145,23 @@ public class ScrapeIngestionService(
             return created;
         }
 
-        // Mevcut ürünler MARKAYA değil ADRESE göre yükleniyor: çok markalı bir
-        // taramada marka filtresi ürünlerin çoğunu kaçırırdı. Döngü zaten
-        // yalnızca taranan adreslere bakıyor, tek markalı scraper'larda
-        // davranış değişmiyor.
+        // Existing products are loaded by URL, not by BRAND: a brand filter would miss
+        // most products in a multi-brand scrape. The loop only looks at scraped URLs
+        // anyway, so single-brand scrapers behave the same.
         var scrapedUrls = scrapedProducts.Select(sp => sp.Url).Distinct().ToList();
-        // Bu taramada hangi adresin birden fazla ürüne (varyanta) karşılık
-        // geldiği — aşağıda eşleştirme stratejisini seçmek için gerekiyor.
+        // Which URLs map to more than one product (variant) in this scrape; needed
+        // below to choose the matching strategy.
         var scrapedCountByUrl = scrapedProducts
             .GroupBy(sp => sp.Url)
             .ToDictionary(g => g.Key, g => g.Count());
 
-        // Son kaydedilen fiyat — <lastmod> için "içerik gerçekten değişti mi"
-        // kararında kullanılıyor. Korelasyonlu alt sorgu + FirstOrDefault
-        // kalıbı bu projede EF Core'un sorunsuz çevirdiği, kanıtlanmış yol
-        // (bkz. DealsQueryService'teki DealRow notu).
-        // IgnoreQueryFilters ZORUNLU: gizlenmis bir urun burada gorunmezse
-        // asagida "yeni urun" sanilip KOPYASI olusturulur. Kopya kayit bu
-        // depoda tekrar tekrar sorun cikarmis bir arizadir.
+        // The last recorded price, used to decide "did the content really change"
+        // for <lastmod>. The correlated subquery + FirstOrDefault pattern is the
+        // proven path EF Core translates reliably in this codebase (see the DealRow
+        // note in DealsQueryService).
+        // IgnoreQueryFilters is REQUIRED: if a hidden product isn't visible here, it
+        // is taken for "new" below and a DUPLICATE is created. Duplicate rows are a
+        // failure this codebase has hit again and again.
         var lastPrices = await db.Products
             .IgnoreQueryFilters()
             .Where(p => scrapedUrls.Contains(p.Url))
@@ -176,22 +174,19 @@ public class ScrapeIngestionService(
                     .FirstOrDefault(),
             })
             .ToDictionaryAsync(x => x.Id, x => x.LastPrice, cancellationToken);
-        // Adres BENZERSİZ DEĞİL: Yeşilmarka'nın mağaza API'sinde her aroma ayrı
-        // bir ürün kaydı (kendi stoğu ve fiyatı var) ama hepsi aynı sayfa
-        // slug'ını paylaşıyor — "Whey Protein Tozu - Ananas" ile "- Elma" aynı
-        // /whey-protein adresine çıkıyor. Burada doğrudan ToDictionary(p => p.Url)
-        // kullanılıyordu ve ikinci taramadan itibaren "An item with the same key
-        // has already been added" ile markanın TÜM taraması iptal oluyordu
-        // (Yeşilmarka 28 Ağustos'tan 30 Ağustos'a kadar hiç veri üretmedi).
+        // The URL is NOT UNIQUE: on one Turkish store's API every flavor was a
+        // separate product record (with its own stock and price) sharing the same page
+        // slug. ToDictionary(p => p.Url) was used here, and from the second scrape on
+        // "An item with the same key has already been added" cancelled the brand's
+        // WHOLE scrape (it produced no data for two days).
         //
-        // Sözlük yerine adres başına liste tutuluyor. Tek kayıtlı adreslerde
-        // davranış AYNEN eskisi gibi (isim değişikliği yerinde güncelleniyor);
-        // yalnızca aynı adreste birden fazla kayıt varsa isimle ayrıştırılıyor.
-        // Bu ayrım önemli: her zaman isimle eşleştirmek, markanın bir ürünü
-        // yeniden adlandırdığı durumda eski satırı öksüz bırakıp yenisini
-        // oluştururdu.
+        // A list per URL is kept instead of a dictionary. URLs with a single record
+        // behave EXACTLY as before (a rename is updated in place); only when a URL has
+        // several records are they told apart by name. The distinction matters:
+        // always matching by name would orphan the old row and create a new one
+        // whenever a store renamed a product.
         var existingByUrl = (await db.Products
-                // Ayni sebep: gizli urun burada gorunmezse kopyasi olusur.
+                // Same reason: a hidden product not visible here gets duplicated.
                 .IgnoreQueryFilters()
                 .Where(p => scrapedUrls.Contains(p.Url))
                 .ToListAsync(cancellationToken))
@@ -199,19 +194,18 @@ public class ScrapeIngestionService(
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var touchedProducts = new List<Product>();
-        // Yalnızca bu taramada İLK KEZ görülen ürünler — IndexNow'a yeni
-        // adresleri bildirmek için. Protokol, değişmeyen adresleri tekrar
-        // tekrar göndermemeyi şart koşuyor; fiyat değişimi adresi
-        // değiştirmediği için burada yalnızca yeni ürünler toplanıyor.
+        // Only products seen for the FIRST TIME in this scrape, to report new URLs to
+        // IndexNow. The protocol requires not resubmitting unchanged URLs; a price
+        // change doesn't change the URL, so only new products are collected here.
         var newProducts = new List<Product>();
 
         foreach (var scraped in scrapedProducts)
         {
-            // Marka kendi kategorisini vermiyorsa (HIQ/Hardline/ProteinOcean) isimden tahmin et
-            // — arama kutusunun markadan bağımsız çalışması buna dayanıyor.
-            // Marka adı kategori çıkarımından ÇIKARILIYOR: bayi kaynakları
-            // ürün adına markayı da yazıyor ve "Proteinocean" içindeki
-            // "protein" tüm ürünleri protein tozu sanmaya yol açıyordu.
+            // If the store gives no category, infer it from the name; search working
+            // independently of the brand depends on this.
+            // The brand name is REMOVED before category inference: retailer sources
+            // write the brand into the product name, and a brand name containing
+            // "protein" made every product look like protein powder.
             var brandForCategory = scraped.BrandName ?? scraper.BrandName;
             var category = scraped.Category ?? ProductAttributeParser.InferCategory(scraped.Name, brandForCategory);
             var size = ProductAttributeParser.ExtractSize(scraped.Name);
@@ -220,19 +214,19 @@ public class ScrapeIngestionService(
             Product? product = null;
             if (existingByUrl.TryGetValue(scraped.Url, out var sameUrlProducts))
             {
-                // Adres bu markada gerçekten tekil mi? Hem veritabanında hem bu
-                // taramada tek karşılığı varsa eski davranış korunuyor: adresle
-                // eşleştir, böylece marka ürünü yeniden adlandırdığında satır
-                // öksüz kalmadan yerinde güncellenir.
+                // Is the URL really unique for this brand? If it has a single match
+                // both in the database and in this scrape, the old behavior is kept:
+                // match by URL, so a renamed product is updated in place without
+                // orphaning the row.
                 //
-                // İki taraftan biri bile çoğulsa isimle eşleştirmek ZORUNLU.
-                // Yalnızca veritabanı tarafına bakmak yetmezdi: adres ilk kez
-                // çoğullaştığında (DB'de 1 satır, taramada 2 varyant) her iki
-                // varyant da aynı satıra yazar, biri diğerini sessizce ezerdi.
-                var tekil = sameUrlProducts.Count == 1
+                // If EITHER side is plural, matching by name is REQUIRED. Looking only
+                // at the database side wouldn't do: when a URL first becomes plural (1
+                // row in the DB, 2 variants in the scrape), both variants would write
+                // to the same row and one would silently overwrite the other.
+                var isUnique = sameUrlProducts.Count == 1
                     && scrapedCountByUrl.GetValueOrDefault(scraped.Url) == 1;
 
-                product = tekil
+                product = isUnique
                     ? sameUrlProducts[0]
                     : sameUrlProducts.Find(p => p.Name == scraped.Name);
             }
@@ -250,9 +244,9 @@ public class ScrapeIngestionService(
                     Flavor = flavor,
                     InStock = scraped.InStock,
                     Seller = scraped.Seller,
-                    // Porsiyon: önce scraper'ın yapısal olarak verdiği değer
-                    // (HIQ'nun besin tablosu — en güvenilir kaynak), o yoksa
-                    // markanın açıklama metninden çıkarım.
+                    // Serving size: the scraper's structured value first (a real
+                    // nutrition table, the most reliable source), otherwise inferred
+                    // from the store's description text.
                     ServingSizeGrams = scraped.ServingSizeGrams
                         ?? ProductAttributeParser.ExtractServingSizeGrams(scraped.Description),
                     ServingsPerPackage = scraped.ServingsPerPackage,
@@ -264,10 +258,10 @@ public class ScrapeIngestionService(
                 db.Products.Add(product);
                 newProducts.Add(product);
 
-                // Yeni kayıt aramaya da giriyor: aynı tarama içinde aynı
-                // (adres, isim) ikinci kez gelirse ikinci bir satır açılmasın.
-                // Mevcut çift kayıtlar tam olarak böyle oluşmuştu — ilk turda
-                // hiçbiri veritabanında yoktu, hepsi "yeni" sayıldı.
+                // The new record joins the lookup too, so a second (URL, name) in the
+                // same scrape doesn't open a second row. Earlier duplicate rows were
+                // created exactly like this: none existed in the database on the
+                // first run, so all counted as "new".
                 if (existingByUrl.TryGetValue(scraped.Url, out var bucket))
                     bucket.Add(product);
                 else
@@ -275,11 +269,10 @@ public class ScrapeIngestionService(
             }
             else
             {
-                // İçerik gerçekten değişti mi? Fiyatın aynı değerde yeniden
-                // ölçülmesi değişiklik SAYILMAZ — sitemap'teki <lastmod>
-                // buna bağlı ve her taramada tüm katalogu "değişti" diye
-                // işaretlemek Google'ın sinyali tamamen yok saymasına yol
-                // açıyordu.
+                // Did the content really change? Measuring the same price again does
+                // NOT count: the sitemap's <lastmod> depends on it, and marking the
+                // whole catalog "changed" on every scrape made Google ignore the
+                // signal entirely.
                 lastPrices.TryGetValue(product.Id, out var previousPrice);
                 var meaningfulChange =
                     previousPrice != scraped.Price
@@ -288,11 +281,11 @@ public class ScrapeIngestionService(
                     || product.Size != size
                     || (scraped.Description is not null && product.Description != scraped.Description)
                     || (scraped.NutritionJson is not null && product.NutritionJson != scraped.NutritionJson)
-                    // Stok durumu değişimi de gerçek bir içerik değişimi:
-                    // sayfada "Tükendi" rozeti belirip kayboluyor. Bu, her
-                    // taramada tüm katalogu "değişti" işaretleyen eski
-                    // davranıştan farklı — ürün başına nadir gerçekleşiyor,
-                    // dolayısıyla lastmod sinyalini bozmuyor.
+                    // A stock change is a real content change too: an "Out of stock"
+                    // badge appears or disappears on the page. Unlike the old
+                    // behavior of marking the whole catalog changed every scrape, it
+                    // happens rarely per product, so it doesn't spoil the lastmod
+                    // signal.
                     || product.InStock != scraped.InStock
                     || product.Seller != scraped.Seller;
 
@@ -300,20 +293,20 @@ public class ScrapeIngestionService(
                     product.ContentUpdatedAt = DateTimeOffset.UtcNow;
 
                 product.Name = scraped.Name;
-                // Marka da güncelleniyor. Eskiden yalnızca ürün İLK kaydedilirken
-                // atanıyordu, yani kaynaktaki yazım düzelse bile eski kayıt eski
-                // markada kalıyordu: protein7 "Proteinocean" yazdığı için 67 ürün
-                // ayrı bir markaya düşmüş ve marka ikiye bölünmüştü. Artık
-                // normalizasyon (bkz. BrandNameNormalizer) mevcut ürünlere de
-                // işliyor, elle DB müdahalesi gerekmiyor.
+                // The brand is updated too. It used to be set only when the product
+                // was FIRST saved, so a fixed spelling at the source left the old
+                // record under the old brand: on the Turkish site 67 products fell
+                // into a separate brand and the brand was split in two. Normalization
+                // (see BrandNameNormalizer) now reaches existing products too, with no
+                // manual DB work.
                 //
-                // Tek markalı kaynaklarda davranış DEĞİŞMİYOR: onlar
-                // scraped.BrandName göndermiyor, değer scraper'ın kendi adına
-                // düşüyor ve zaten aynı markayı veriyor.
+                // Single-brand sources behave the SAME: they send no
+                // scraped.BrandName, the value falls back to the scraper's own name
+                // and yields the same brand.
                 product.Brand = ResolveBrand(scraped.BrandName ?? scraper.BrandName);
-                // KAYNAK ADRES DEĞİŞTİYSE YEREL KOPYA GEÇERSİZ. Bu satır
-                // olmasaydı marka görseli değiştirdiğinde sitede sonsuza
-                // kadar eski resim kalırdı — hiçbir yerde hata vermeden.
+                // IF THE SOURCE URL CHANGED, THE LOCAL COPY IS INVALID. Without this
+                // line, when a store changed an image the site would keep the old one
+                // forever, without an error anywhere.
                 if (!string.Equals(product.ImageUrl, scraped.ImageUrl, StringComparison.Ordinal))
                     product.LocalImagePath = null;
 
@@ -323,26 +316,26 @@ public class ScrapeIngestionService(
                 product.Flavor = flavor;
                 product.InStock = scraped.InStock;
                 product.Seller = scraped.Seller;
-                // Açıklamayı henüz çekmeyen scraper'lar (SSN/Hardline) scraped.Description
-                // hiç göndermiyor — bu durumda var olan değeri SIFIRLAMIYORUZ. Açıklama
-                // çeken markalarda (HIQ) ise her taramada güncel tutuluyor.
+                // Scrapers that don't fetch descriptions send no scraped.Description;
+                // the existing value is then NOT reset. Stores whose scrape carries
+                // descriptions keep it current on every scrape.
                 if (scraped.Description is not null)
                     product.Description = scraped.Description;
 
-                // Porsiyon, Description atamasından SONRA hesaplanıyor — güncel
-                // açıklamayı kullanabilmek için. Scraper yapısal bir değer
-                // veriyorsa (HIQ) o kazanır, yoksa açıklamadan çıkarılır.
+                // The serving size is computed AFTER the Description assignment, to use
+                // the current description. A structured value from the scraper wins,
+                // otherwise it's inferred from the description.
                 product.ServingSizeGrams = scraped.ServingSizeGrams
                     ?? ProductAttributeParser.ExtractServingSizeGrams(product.Description);
 
-                // Sadece marka bu bilgiyi veriyorsa güncelle — vermeyen
-                // markalarda (SSN/Hardline/HIQ) mevcut değer sıfırlanmasın.
+                // Updated only when the store provides it, so stores that don't keep
+                // their existing value.
                 if (scraped.ServingsPerPackage is not null)
                     product.ServingsPerPackage = scraped.ServingsPerPackage;
 
-                // Besin değeri normal taramada sadece HIQ'dan geliyor; diğer
-                // 3 marka için ayrı bir backfill servisi var (Description ile
-                // aynı desen — göndermeyen markada mevcut değer korunuyor).
+                // Nutrition from the regular scrape only where the store's scrape
+                // carries it; the backfill service fills the rest (same pattern as
+                // Description: a store that doesn't send it keeps the existing value).
                 if (scraped.NutritionJson is not null)
                 {
                     product.NutritionJson = scraped.NutritionJson;
@@ -361,17 +354,17 @@ public class ScrapeIngestionService(
 
         await db.SaveChangesAsync(cancellationToken);
 
-        // "Haber Ver" bildirimleri — yeni ürünlerin Id'si de ancak
-        // SaveChangesAsync sonrası kesinleşiyor, bu yüzden burada.
+        // Price alerts: new products' ids are only final after SaveChangesAsync, so
+        // this runs here.
         await watchNotifier.CheckAndNotifyAsync(touchedProducts.Select(p => p.Id).ToList(), cancellationToken);
 
-        // Yeni ürün adreslerini arama motorlarına bildir. Ürün kimliği de
-        // ancak kayıt sonrası kesinleştiği için burada.
+        // Report new product URLs to search engines. The product id is only final
+        // after saving, so this runs here.
         if (newProducts.Count > 0 && indexNow.IsEnabled)
         {
-            var frontendBaseUrl = (configuration["FrontendBaseUrl"] ?? "https://www.proteinavcisi.com.tr").TrimEnd('/');
+            var frontendBaseUrl = configuration["FrontendBaseUrl"] ?? "https://www.wheyproof.com";
             var urls = newProducts
-                .Select(p => $"{frontendBaseUrl}/urun/{p.Id}/{Slugifier.Slugify(p.Name)}")
+                .Select(p => ProductPageUrl(frontendBaseUrl, p.Id, p.Name))
                 .ToList();
             await indexNow.SubmitAsync(urls, cancellationToken);
         }
@@ -380,19 +373,29 @@ public class ScrapeIngestionService(
     }
 
     /// <summary>
-    /// Marka adını yalnızca EŞLEŞTİRME için sadeleştirir; saklanan ada
-    /// dokunulmaz.
+    /// The canonical product page URL reported to IndexNow.
+    /// </summary>
+    /// <remarks>
+    /// MUST match the frontend route <c>product/:id/:slug</c> (app.routes.ts). This
+    /// used to build the Turkish site's <c>/urun/</c> path, so every new product
+    /// would have been reported to search engines at a URL that returns 404 here.
+    /// </remarks>
+    internal static string ProductPageUrl(string frontendBaseUrl, int productId, string productName) =>
+        $"{frontendBaseUrl.TrimEnd('/')}/product/{productId}/{Slugifier.Slugify(productName)}";
+
+    /// <summary>
+    /// Simplifies a brand name for MATCHING only; the stored name isn't touched.
     ///
-    /// Türkçe harfler ELLE eşleniyor, kültüre bırakılmıyor. İki taraf da
-    /// tuzaklı: <c>ToLowerInvariant</c> Türkçe noktalı İ'yi hiç küçültmüyor
-    /// ("VİTAMİN" → "vİtamİn"), tr-TR kültürü ise İngilizce kelimeleri
-    /// bozuyor ("CREATINE" → "creatıne"). Elle eşleme ikisinden de kaçınıyor.
+    /// Turkish letters are mapped BY HAND, not left to a culture. Both sides are
+    /// traps: <c>ToLowerInvariant</c> doesn't lowercase the dotted İ at all
+    /// ("VİTAMİN" → "vİtamİn"), while the tr-TR culture breaks English words
+    /// ("CREATINE" → "creatıne"). Mapping by hand avoids both.
     ///
-    /// Boşluk ve nokta da atılıyor: "Dr. Pan" ile "Dr Pan", "Big Joy" ile
-    /// "BigJoy" aynı üretici ve ikisi de canlıda kopya marka üretmişti.
-    /// TİRE ATILMIYOR — "Z-Konzept" gibi adlarda tire markanın kendi
-    /// yazımının parçası ve atmak farklı üreticileri birleştirme riskini
-    /// gereksiz yere artırırdı.
+    /// Spaces and dots are dropped too: "Dr. Pan" and "Dr Pan", "Big Joy" and
+    /// "BigJoy" are the same manufacturer and both had created duplicate brands.
+    /// HYPHENS ARE KEPT: in names such as "Z-Konzept" the hyphen is part of the
+    /// brand's own spelling, and dropping it would needlessly raise the risk of
+    /// merging different manufacturers.
     /// </summary>
     internal static string FoldBrandName(string name)
     {

@@ -1,33 +1,36 @@
-﻿namespace IndirimTakip.Infrastructure.Scraping;
+namespace IndirimTakip.Infrastructure.Scraping;
 
 /// <summary>
-/// Üretici adlarını tek bir kanonik yazıma çeker.
+/// Maps manufacturer names to one canonical spelling.
 ///
-/// NEDEN GEREKLİ: bayiler aynı üreticiyi farklı yazıyor. protein7 "Proteinocean"
-/// derken markanın kendi sitesi "ProteinOcean" diyor. İkisi ayrı `Brand` kaydı
-/// olunca marka ikiye bölünüyordu ve bu sadece kozmetik bir sorun değildi:
+/// WHY: retailers spell the same manufacturer differently. With two spellings as
+/// two `Brand` rows the brand was split in two, and that wasn't only cosmetic:
 ///
-///   • İkisi de aynı adrese çözülüyor (`brandSlug` küçük harfe indiriyor), yani
-///     sitemap'e TEKRAR EDEN adresler giriyordu — canlıda 13 tane ölçüldü.
-///   • `resolveBrandFromSlug` ilk eşleşeni döndürdüğü için iki markadan biri
-///     hiçbir zaman açılamıyordu; ürünleri markadan taranamıyordu.
-///   • GSC'de zaten açık olan "Kopya, farklı standart sayfa" maddesini
-///     besliyordu.
+///   • Both resolve to the same URL (the brand slug is lowercased), so the sitemap
+///     got DUPLICATE URLs (13 measured on the Turkish site).
+///   • Slug resolution returns the first match, so one of the two brands could
+///     never be opened and its products couldn't be reached from the brand.
+///   • It fed Search Console's "Duplicate, Google chose different canonical" issue.
 ///
-/// Bu yüzden normalizasyon TEK BİR YERDE duruyor ve bütün çok markalı
-/// kaynaklar buradan geçiyor. Daha önce harita yalnızca Provitamin'in içindeydi;
-/// protein7 aynı korumadan yararlanamıyordu.
+/// So normalization lives in ONE PLACE and every multi-brand source goes through it
+/// (see ScrapeIngestionService.IngestCoreAsync, which applies it centrally).
 ///
-/// KURAL: buraya yalnızca AYNI üreticinin farklı yazımları girer. Benzer isimli
-/// FARKLI üreticileri birleştirmek uydurma veri olur.
+/// RULE: only different spellings of the SAME manufacturer go here. Merging
+/// DIFFERENT manufacturers with similar names would be made-up data.
+///
+/// The entries below come from the Turkish site's retailers. A name without an
+/// entry is returned unchanged, so they are harmless for US stores; add US aliases
+/// the same way when a retailer needs them. Differences in letter case, spaces and
+/// dots alone don't need an entry: ScrapeIngestionService.FoldBrandName matches
+/// those.
 /// </summary>
 public static class BrandNameNormalizer
 {
     private static readonly Dictionary<string, string> Aliases =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            // Markanın kendi sitesinden gelen yazım kanonik kabul ediliyor:
-            // o sayfalar zaten dizine girmiş durumda.
+            // The spelling from the brand's own site is canonical: those pages are
+            // already indexed.
             ["Protein Ocean"] = "ProteinOcean",
             ["Proteinocean"] = "ProteinOcean",
             ["Big Joy"] = "BigJoy",
@@ -37,37 +40,36 @@ public static class BrandNameNormalizer
             ["Universal Nutrition"] = "Universal",
             ["Zero Shot"] = "ZeroShot",
             ["Zeroshot"] = "ZeroShot",
-            // Kanonik yazım veritabanında DURAN yazım: "Dr Pan". Tersine
-            // eşlersek mevcut kaydı düzeltmek yerine ikinci bir marka
-            // yaratırdık (slug ikisinde de "dr-pan", yani adres çakışırdı).
+            // The canonical spelling is the one STORED in the database: "Dr Pan".
+            // Mapping the other way would create a second brand instead of fixing
+            // the existing row (both slugs are "dr-pan", so the URLs would collide).
             ["Dr. Pan"] = "Dr Pan",
             ["Drpan"] = "Dr Pan",
             ["Bite More"] = "Bite & More",
-            // Provitamin kataloğundan geldi (1 Eylül): aynı üretici hem
-            // "JUST"/"Just", hem "FA"/"Fa Nutrition" yazımıyla geçiyordu ve
-            // ikisi de ayrı marka kaydı yaratmıştı. Kanonik taraf her zaman
-            // veritabanında ürünü çok olan yazım.
-            // Provitamin aynı ürünü ("Synergy Instant BCAA 650 Gr") İKİ ayrı
-            // sayfada listeliyor ve birinde marka "Synergy Nutrition",
-            // diğerinde "Synergy" yazıyor. Kullanıcı markanın yabancı bir
-            // üretici olduğunu ve ürünün ona ait olduğunu doğruladı.
+            // One retailer listed the same manufacturer both as "JUST"/"Just" and
+            // "FA"/"Fa Nutrition", and each created a separate brand row. The
+            // canonical side is always the spelling with more products in the
+            // database.
+            // The same retailer listed one product on TWO pages, once under
+            // "Synergy Nutrition" and once under "Synergy". The manufacturer and the
+            // product's ownership were confirmed.
             ["Synergy"] = "Synergy Nutrition",
             ["JUST"] = "Just",
             ["FA Nutrition"] = "Fa Nutrition",
             ["Hiq"] = "HIQ",
             ["Ssn"] = "SSN",
 
-            // Fit Çarşı (2 Eylül) — bayi kendi marka etiketlerini Title Case
-            // yapıyor ve kısaltmaları bozuyor. Kanonik taraf her zaman
-            // VERİTABANINDA duran yazım; doğru karşılıklar bayinin ÜRÜN
-            // ADLARINDAN doğrulandı, isme bakıp tahmin edilmedi:
-            //   "Konzept" -> ürünleri "Z-Konzept Isolate Whey ..." diyor
-            //   "Optimum" -> ürünleri "Optimum Gold Standard Whey ..." diyor
+            // A retailer title-cased its brand labels and broke abbreviations. The
+            // canonical side is always the spelling in the DATABASE; the right
+            // matches were confirmed from the retailer's PRODUCT NAMES, not guessed
+            // from the label:
+            //   "Konzept" -> its products read "Z-Konzept Isolate Whey ..."
+            //   "Optimum" -> its products read "Optimum Gold Standard Whey ..."
             ["Konzept"] = "Z-Konzept",
             ["Optimum"] = "Optimum Nutrition",
-            // Türkçe tuzağı: site "SIS"i tr-TR ile küçültünce "Sıs" oluyor
-            // (noktasız ı). Markanın kendi yazımı SiS (Science in Sport),
-            // ürün adlarında da öyle geçiyor.
+            // Culture trap: lowercasing "SIS" with tr-TR gives "Sıs" (dotless ı).
+            // The brand's own spelling is SiS (Science in Sport), as in its product
+            // names.
             ["Sıs"] = "SiS",
             ["Sis"] = "SiS",
             ["Tnt"] = "TNT",
@@ -75,11 +77,10 @@ public static class BrandNameNormalizer
             ["Qnt"] = "QNT",
             ["Biotechusa"] = "BioTech USA",
 
-        // MLA Protein (3 Eylül) — mağaza çok markalı ve schema.org marka
-        // adlarını KÜÇÜK HARFLE yazıyor ("mla protein", "detoksfit"). Üçü
-        // katalogda ZATEN var (Dr Pan, FitNut, Seedn Grains bayilerden
-        // geliyor); birebir aynı yazıma çevrilmezse kopya Brand kaydı
-        // oluşurdu — 1 Eylül'de tam bu şekilde kopya markalar oluşmuştu.
+        // A multi-brand store writes schema.org brand names in LOWERCASE ("mla
+        // protein", "detoksfit"). Three of them were ALREADY in the catalog from
+        // retailers; without mapping to the exact same spelling a duplicate Brand
+        // row would be created, which is exactly how duplicates had appeared before.
         ["mla protein"] = "MLA Protein",
         ["Mla Protein"] = "MLA Protein",
         ["Fitnut"] = "FitNut",
@@ -87,42 +88,39 @@ public static class BrandNameNormalizer
         ["Seed’n Grains"] = "Seedn Grains",
         ["detoksfit"] = "Detoksfit",
 
-        // protein34 (3 Eylül) — DÖRDÜNCÜ BAYİ. Taşıdığı 14 markanın hepsi
-        // katalogda ZATEN var; adları birebir aynı yazıma çevrilmezse kopya
-        // Brand kaydı oluşurdu.
+        // Another retailer: all 14 brands it carried were ALREADY in the catalog;
+        // without the exact spelling duplicate Brand rows would be created.
         ["Bigjoy Sports"] = "BigJoy",
         ["Nuclear"] = "Nuclear Nutrition",
-        // Sözlük OrdinalIgnoreCase — Türkçe NOKTALI İ'yi tanımaz, yani
-        // "KEVİN LEVRONE" büyük yazımı "Kevin Levrone" anahtarıyla EŞLEŞMEZ.
-        // Bu yüzden kaynağın yazdığı hâl birebir anahtar olarak konuluyor.
+        // The dictionary is OrdinalIgnoreCase, which doesn't know the dotted İ, so
+        // "KEVİN LEVRONE" does NOT match a "Kevin Levrone" key. The spelling the
+        // source uses is therefore added verbatim as the key.
         ["KEVİN LEVRONE"] = "Kevin Levrone",
 
-        // proteinim (4 Eylül) — BEŞİNCİ BAYİ. Altı markasının beşi katalogda
-        // zaten var; yalnızca Z-Konzept'i tire olmadan yazıyor.
+        // Another retailer: five of its six brands were already in the catalog; it
+        // only writes Z-Konzept without the hyphen.
         ["Z Konzept"] = "Z-Konzept",
 
-        // proteinpazari (4 Eylül) — ALTINCI BAYİ, 54 marka etiketi taşıyor ve
-        // hepsini BÜYÜK HARFLE yazıyor. Etiketler canlı `Brands` tablosuyla
-        // karşılaştırıldı: 35'i katalogda ZATEN VARDI.
+        // Another retailer carried 54 brand labels, all in UPPERCASE. Compared with
+        // the live `Brands` table, 35 were ALREADY in the catalog.
         //
-        // Bunların ÇOĞU BURAYA GİRMEDİ. "PRİME NUTRİTİON", "SİS", "TREC",
-        // "MEAL JOY" gibi yalnızca harf/boşluk farkı olan adlar artık
-        // `ScrapeIngestionService.FoldBrandName` ile eşleşiyor; buraya
-        // yazılsalardı liste her yeni bayide onlarca satır büyürdü.
+        // MOST OF THEM ARE NOT HERE. Names differing only in letters or spaces
+        // ("PRİME NUTRİTİON", "SİS", "TREC", "MEAL JOY") now match through
+        // `ScrapeIngestionService.FoldBrandName`; listing them would grow this list
+        // by dozens of lines per retailer.
         //
-        // Aşağıdakiler katlamayla ÇÖZÜLMEYENLER: adın kendisi farklı
-        // (kaynak markanın adına "NUTRITION"/"SPORTS" ekliyor ya da tireyi
-        // atıyor). Eşlenmeseydi kopya marka oluşurdu.
+        // The ones below are those folding CAN'T resolve: the name itself differs
+        // (the source adds "NUTRITION"/"SPORTS" or drops the hyphen). Unmapped, they
+        // would create duplicate brands.
         ["BİG JOY SPORTS"] = "BigJoy",
         ["Z-KONZEPT NUTRİTİON"] = "Z-Konzept",
         ["UNİVERSAL NUTRİTİON"] = "Universal",
         ["Vitargo Nutrition"] = "Vitargo",
 
-        // Aynı kaynağın GERÇEKTEN yeni getirdiği markalar. Katlama bunları
-        // eşleyemez, çünkü katalogda karşılıkları yok — ilk kez oluşacaklar
-        // ve kaynağın yazdığı hâlle, yani BÜYÜK HARFLE oluşurlardı. Marka
-        // dizini bir markayı "MONSTER ENERGY" diye göstermesin diye kanonik
-        // yazımları burada veriliyor.
+        // Brands the same source REALLY introduced. Folding can't map them because
+        // they have no counterpart in the catalog: they'd be created for the first
+        // time in the source's spelling, i.e. in UPPERCASE. Their canonical spelling
+        // is given here so the brand directory doesn't show "MONSTER ENERGY".
         ["ANIMAL JOY"] = "Animal Joy",
         ["PRIME HYDRATION"] = "Prime Hydration",
         ["BİOXLAB"] = "Bioxlab",
@@ -132,17 +130,17 @@ public static class BrandNameNormalizer
         ["RULE ONE"] = "Rule One",
         ["DEX SUPPORTS"] = "Dex Supports",
 
-        // Supplementler (4 Eylül) — markayı tam adıyla yazıyor, katalogda ise
-        // kısası duruyor. Aynı üretici olduğu ÜRÜN ADLARINDAN doğrulandı:
-        // mevcut "Kingsize" kaydının ürünleri zaten "KİNGSİZE NUTRİTİON
-        // ALL IN ONE ..." diye geçiyor. Kanonik taraf veritabanındaki yazım
-        // (kısası), çünkü marka adını değiştirmek /marka/... adresini kırar.
+        // One source writes the brand's full name while the catalog holds the short
+        // one. That it's the same manufacturer was confirmed from PRODUCT NAMES: the
+        // existing "Kingsize" row's products already read "KİNGSİZE NUTRİTİON ALL IN
+        // ONE ...". The canonical side is the database spelling (the short one),
+        // because renaming a brand breaks its brand page URL.
         ["Kingsize Nutrition"] = "Kingsize",
         };
 
     /// <summary>
-    /// Kanonik marka adı. Bilinmeyen bir ad olduğu gibi (kırpılmış) döner —
-    /// tahmin üretilmez.
+    /// The canonical brand name. An unknown name is returned as is (trimmed);
+    /// nothing is guessed.
     /// </summary>
     public static string Normalize(string brandName)
     {
