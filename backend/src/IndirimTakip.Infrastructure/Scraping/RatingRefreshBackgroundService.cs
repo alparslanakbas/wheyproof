@@ -5,15 +5,14 @@ using Microsoft.Extensions.Logging;
 
 namespace IndirimTakip.Infrastructure.Scraping;
 
-// Markaların sitelerindeki yıldız ortalamasını düzenli olarak tazeler.
+// Regularly refreshes the star averages on the stores' sites.
 //
-// Açıklama tamamlamadan farkı: orada "sırası geldi mi" diye bir aralık
-// kontrolü var çünkü iş bir kez bitince tekrarlanmasına gerek yok. Puan ise
-// sürekli değişen bir veri; burada her turda en eski kontrol edilen ürünler
-// tazeleniyor, yani iş hiç "bitmiyor". Sıra RatingCheckedAt damgasından
-// geldiği için zamanlama süreç belleğinde DEĞİL veritabanında — deploy'lar
-// sırayı sıfırlamıyor (bültende tam olarak bu hata yaşanmıştı, bkz.
-// DigestBackgroundService).
+// Unlike the description backfill: there an interval check ("is it my turn")
+// exists because the work, once done, needn't be repeated. Ratings keep changing;
+// here every run refreshes the products checked longest ago, so the work never
+// "finishes". The order comes from the RatingCheckedAt stamp, so scheduling lives
+// in the DATABASE, not process memory, and deploys don't reset it (the digest ran
+// into exactly that bug, see DigestBackgroundService).
 public class RatingRefreshBackgroundService(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
@@ -23,7 +22,7 @@ public class RatingRefreshBackgroundService(
     {
         if (!configuration.GetValue("RatingRefresh:Enabled", true))
         {
-            logger.LogInformation("Puan tazeleme devre dışı (RatingRefresh:Enabled=false).");
+            logger.LogInformation("Rating refresh is disabled (RatingRefresh:Enabled=false).");
             return;
         }
 
@@ -41,7 +40,7 @@ public class RatingRefreshBackgroundService(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Puan tazeleme sırasında hata oluştu.");
+                logger.LogError(ex, "Error during rating refresh.");
             }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));

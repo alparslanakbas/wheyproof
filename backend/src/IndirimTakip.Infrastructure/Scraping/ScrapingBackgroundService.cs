@@ -13,14 +13,14 @@ public class ScrapingBackgroundService(
     IConfiguration configuration,
     ILogger<ScrapingBackgroundService> logger) : BackgroundService
 {
-    // İstekler arası nezaket bekleme: markanın sitesini yormamak, IP engellenme riskini azaltmak için.
+    // Courtesy delay between stores: not to hammer their sites and to lower the risk of an IP block.
     private static readonly TimeSpan DelayBetweenBrands = TimeSpan.FromSeconds(5);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!configuration.GetValue("Scraping:Enabled", true))
         {
-            logger.LogInformation("Zamanlanmış tarama devre dışı (Scraping:Enabled=false).");
+            logger.LogInformation("Scheduled scraping is disabled (Scraping:Enabled=false).");
             return;
         }
 
@@ -37,42 +37,42 @@ public class ScrapingBackgroundService(
     private async Task RunScrapeCycleAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
-        // DailyOnly işaretliler bu turun DIŞINDA: onları
-        // DailyScrapingBackgroundService günde bir kez çalıştırıyor.
+        // Sources marked DailyOnly are OUTSIDE this round:
+        // DailyScrapingBackgroundService runs them once a day.
         var scrapers = scope.ServiceProvider.GetServices<IBrandScraper>()
             .Where(s => !s.DailyOnly)
             .ToList();
         var ingestion = scope.ServiceProvider.GetRequiredService<ScrapeIngestionService>();
 
-        logger.LogInformation("Tarama döngüsü başladı ({Count} marka).", scrapers.Count);
+        logger.LogInformation("Scrape cycle started ({Count} stores).", scrapers.Count);
 
         foreach (var scraper in scrapers)
         {
             try
             {
                 var count = await ingestion.IngestAsync(scraper, cancellationToken);
-                logger.LogInformation("{Brand}: {Count} ürün tarandı.", scraper.BrandName, count);
+                logger.LogInformation("{Brand}: {Count} products scraped.", scraper.BrandName, count);
             }
             catch (Exception ex)
             {
-                // Bir markanın taraması başarısız olsa bile diğerleri devam etmeli.
-                logger.LogError(ex, "{Brand} taranırken hata oluştu.", scraper.BrandName);
+                // One store failing must not stop the others.
+                logger.LogError(ex, "Error while scraping {Brand}.", scraper.BrandName);
             }
 
             await Task.Delay(DelayBetweenBrands, cancellationToken);
         }
 
-        // Veri değişti: önbelleği düşür ve sıcak uçları yeniden doldur.
-        // Yoksa bir sonraki ziyaretçi soğuk önbelleğe düşüyor (ölçüm: ana
-        // sayfa soğukta 6,0 sn, sıcakta 0,26 sn).
-        // Fiyat özeti ÖNCE: önbellek ısıtması bu alanları okuyor, ters
-        // sırada ısıtma eski özeti önbelleğe alırdı.
+        // The data changed: drop the cache and warm the hot endpoints again.
+        // Otherwise the next visitor hits a cold cache (measured on the Turkish
+        // site: home page 6.0 s cold, 0.26 s warm).
+        // The price summary goes FIRST: cache warming reads those fields, and the
+        // reverse order would cache the old summary.
         await scope.ServiceProvider.GetRequiredService<PriceSummaryRefresher>()
             .RefreshAsync(cancellationToken);
 
         await scope.ServiceProvider.GetRequiredService<IPublicCacheRefresher>()
             .RefreshAsync(cancellationToken);
 
-        logger.LogInformation("Tarama döngüsü bitti.");
+        logger.LogInformation("Scrape cycle finished.");
     }
 }

@@ -5,44 +5,41 @@ using Microsoft.Extensions.Logging;
 namespace IndirimTakip.Infrastructure.Scraping;
 
 /// <summary>
-/// Markaların kendi sitelerinde gösterdiği yıldız ortalamasını ve puanlayan
-/// sayısını ürün sayfasından tazeler.
+/// Refreshes the star average and rating count stores show on their own sites,
+/// read from the product page.
 ///
-/// Neden marka başına ayrı bir uygulama yok: puan verisi olan markaların
-/// hepsi (HIQ/Shopify, Torq/OpenCart, Yeşilmarka/İkas, Hardline/OniksSoft)
-/// bu bilgiyi ürün sayfasının schema.org işaretlemesinde aynı alanlarla
-/// veriyor. Tek bir indirme + tek bir ayrıştırıcı hepsini çözüyor.
+/// Why no per-store implementation: stores with rating data publish it in the
+/// product page's schema.org markup with the same fields, whatever the platform.
+/// One download + one parser covers them all.
 ///
-/// Neden <c>ProductDetailBackfillService</c>'e eklenmedi: o servis "bir kez
-/// doldur, bir daha dokunma" mantığıyla çalışıyor (açıklama ve besin değeri
-/// değişmez). Puan ise sürekli değişiyor, düzenli tazelenmesi gerekiyor —
-/// farklı bir yaşam döngüsü, bu yüzden ayrı bir damga (RatingCheckedAt) ve
-/// ayrı bir servis.
+/// Why it wasn't added to <c>ProductDetailBackfillService</c>: that service works
+/// on "fill once, never touch again" (descriptions and nutrition don't change).
+/// Ratings keep changing and need regular refreshing: a different lifecycle, so a
+/// separate stamp (RatingCheckedAt) and a separate service.
 /// </summary>
 public class ProductRatingRefreshService(
     AppDbContext db,
     IHttpClientFactory httpClientFactory,
     ILogger<ProductRatingRefreshService> logger)
 {
-    // Marka sitelerini yormamak için istekler arası nezaket beklemesi —
-    // ProductDetailBackfillService ile aynı değer.
+    // Courtesy delay between requests so store sites aren't hammered; the same
+    // value as ProductDetailBackfillService.
     private static readonly TimeSpan DelayBetweenProducts = TimeSpan.FromMilliseconds(750);
 
-    // Her çalışmada en eski kontrol edilenlerden bu kadarı tazeleniyor.
-    // Katalog ~1000 ürün olduğu için tam bir tur birkaç güne yayılıyor;
-    // puan günden güne kayda değer değişmediği için bu yeterli.
+    // Each run refreshes this many of the products checked longest ago. A full
+    // pass over the catalog spreads across days; ratings don't change noticeably
+    // from day to day, so that's enough.
     private const int MaxProductsPerRun = 80;
 
-    // Tarayıcı User-Agent'ı taşıyan paylaşılan istemci — markaların çoğu
-    // (Cloudflare arkasındakiler dahil) UA'sız istekleri reddediyor.
+    // Shared client carrying a browser User-Agent: many stores (including those
+    // behind Cloudflare) reject requests without one.
     public const string RatingHttpClientName = "product-rating";
 
     /// <summary>
-    /// Puanı hiç kontrol edilmemiş ya da en uzun süredir kontrol edilmemiş
-    /// ürünleri tazeler. Yalnızca puan verisi olan markalarla sınırlamıyoruz:
-    /// bugün yorum toplamayan bir marka yarın toplamaya başlarsa kendiliğinden
-    /// yakalanır. Damga her denemede yazıldığı için veri bulunmayan ürünler
-    /// sırayı tıkamıyor.
+    /// Refreshes products whose rating was never checked or was checked longest
+    /// ago. Not limited to stores that have rating data: a store that starts
+    /// collecting reviews tomorrow is picked up automatically. The stamp is written
+    /// on every attempt, so products without data don't clog the queue.
     /// </summary>
     public async Task<int> RefreshAsync(int? maxProducts = null, CancellationToken cancellationToken = default)
     {
@@ -66,13 +63,12 @@ public class ProductRatingRefreshService(
                 var html = await httpClient.GetStringAsync(product.Url, cancellationToken);
                 var (value, count) = AggregateRatingParser.Parse(html);
 
-                // Tek-iki yorumdan gelen "5.0" bir ortalama değil; bu eşiğin
-                // altındakini kaydetmiyoruz ki sıralamada gerçek ortalamaların
-                // önüne geçmesin.
+                // A "5.0" from one or two reviews isn't an average; values below
+                // this threshold aren't stored, so they don't outrank real averages.
                 if (value is not null && count >= AggregateRatingParser.MinimumMeaningfulRatingCount)
                 {
-                    // Puan gerçekten değiştiyse sayfanın içeriği değişmiş
-                    // demektir; sitemap'teki <lastmod> bunu da yansıtmalı.
+                    // If the rating really changed, the page content changed; the
+                    // sitemap's <lastmod> should reflect that too.
                     if (product.RatingValue != value || product.RatingCount != count)
                         product.ContentUpdatedAt = DateTimeOffset.UtcNow;
 
@@ -82,20 +78,20 @@ public class ProductRatingRefreshService(
                 }
                 else
                 {
-                    // Marka puanı kaldırmış ya da hiç yorum yoksa eski değeri
-                    // taşımaya devam etmek yanıltıcı olurdu.
+                    // If the store removed ratings or there are no reviews, keeping
+                    // the old value would be misleading.
                     product.RatingValue = null;
                     product.RatingCount = null;
                 }
             }
             catch (Exception ex)
             {
-                // Tek bir ürünün sayfası açılmazsa tur devam etmeli.
-                logger.LogWarning(ex, "Puan tazelenemedi: {Url}", product.Url);
+                // One product page failing to load must not stop the run.
+                logger.LogWarning(ex, "Could not refresh rating: {Url}", product.Url);
             }
 
-            // Damga başarısız denemede de yazılıyor: aksi halde erişilemeyen
-            // aynı ürün her turda tekrar denenip sırayı sonsuza dek tıkardı.
+            // The stamp is written on a failed attempt too: otherwise the same
+            // unreachable product would be retried every run and clog the queue forever.
             product.RatingCheckedAt = DateTimeOffset.UtcNow;
 
             await Task.Delay(DelayBetweenProducts, cancellationToken);
@@ -103,7 +99,7 @@ public class ProductRatingRefreshService(
 
         await db.SaveChangesAsync(cancellationToken);
         logger.LogInformation(
-            "Puan tazeleme: {Checked} ürün kontrol edildi, {Updated} üründe puan bulundu.",
+            "Rating refresh: {Checked} products checked, ratings found for {Updated}.",
             products.Count, updated);
 
         return updated;

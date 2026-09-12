@@ -14,26 +14,26 @@ public class DescriptionBackfillBackgroundService(
     {
         if (!configuration.GetValue("DescriptionBackfill:Enabled", true))
         {
-            logger.LogInformation("Açıklama tamamlama devre dışı (DescriptionBackfill:Enabled=false).");
+            logger.LogInformation("Description backfill is disabled (DescriptionBackfill:Enabled=false).");
             return;
         }
 
-        // Varsayılan 7 günden 2 güne indirildi (5 Eylül): tur başına ürün
-        // sayısıyla birlikte, birikmiş eksiği 11 hafta yerine ~9 günde
-        // kapatıyor. Ayarla değiştirilebilir olması bilinçli — bir kaynak
-        // şikâyet ederse deploy beklemeden yavaşlatılabilir.
+        // The default went from 7 days to 2: together with the per-run product
+        // count, it closes an accumulated gap in about 9 days instead of 11 weeks.
+        // Being configurable is deliberate: if a source complains it can be slowed
+        // down without waiting for a deploy.
         var intervalDays = configuration.GetValue("DescriptionBackfill:IntervalDays", 2);
 
-        // Timer artık periyodun kendisini DEĞİL, yalnızca kontrol sıklığını
-        // belirliyor; "sırası geldi mi" kararı DB'deki son çalışma damgasından
-        // veriliyor (ProductDetailBackfillService.IsDueAsync).
+        // The timer no longer holds the period itself, only how often to check;
+        // "is it time" is decided from the last completion stamp in the database
+        // (ProductDetailBackfillService.IsDueAsync).
         //
-        // Öncesinde periyodu timer'ın kendisi tutuyordu ve bu, işin hiç
-        // çalışmamasına yol açıyordu: her deploy/restart süreci sıfırdan
-        // başlattığı için 7 günlük periyot bir kez bile dolmuyordu (bültende
-        // aynı hata gerçekleşti, bkz. DigestBackgroundService). Durum DB'de
-        // olduğundan başlangıçta hemen kontrol etmek de güvenli — aralık
-        // dolmadıysa marka sitelerine hiç istek gitmiyor.
+        // The timer used to hold the period, and that meant the job never ran: every
+        // deploy/restart started the process from scratch, so the 7-day period never
+        // elapsed even once (the digest hit the same bug, see
+        // DigestBackgroundService). With the state in the database, checking right
+        // at startup is safe too: if the interval hasn't passed, no request goes out
+        // to the stores.
         var checkIntervalHours = configuration.GetValue("DescriptionBackfill:CheckIntervalHours", 6);
         using var timer = new PeriodicTimer(TimeSpan.FromHours(checkIntervalHours));
 
@@ -48,11 +48,11 @@ public class DescriptionBackfillBackgroundService(
                     continue;
 
                 var updated = await backfill.BackfillAsync(stoppingToken);
-                logger.LogInformation("Açıklama tamamlama çalıştı: {Count} ürün güncellendi.", updated);
+                logger.LogInformation("Description backfill ran: {Count} products updated.", updated);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Açıklama tamamlama sırasında hata oluştu.");
+                logger.LogError(ex, "Error during description backfill.");
             }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
