@@ -24,8 +24,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Test projesinin internal sınıflara (ör. TurkishPriceParser) erişebilmesi için. -->
+    <!-- Lets the test project reach internal classes. -->
     <InternalsVisibleTo Include="IndirimTakip.Infrastructure.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Guide articles ship inside the assembly (see Articles/ArticleSeeder.cs).
+         LogicalName is explicit: the default manifest name is derived from the
+         folder path, and ArticleSeeder reads resources by this prefix. -->
+    <EmbeddedResource Include="Articles\Content\*.html" LogicalName="articles/%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

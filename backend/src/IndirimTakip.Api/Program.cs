@@ -166,6 +166,12 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<IndirimTakip.Infrastructure.AppDbContext>();
     db.Database.Migrate();
+
+    // Guide articles ship with the code; only slugs missing from the database
+    // are added, so an article edited through the admin API is never overwritten.
+    var seededArticles = IndirimTakip.Infrastructure.Articles.ArticleSeeder.SeedMissing(db);
+    if (seededArticles > 0)
+        app.Logger.LogInformation("Added {Count} guide articles from the repository.", seededArticles);
 }
 
 // Configure the HTTP request pipeline.
