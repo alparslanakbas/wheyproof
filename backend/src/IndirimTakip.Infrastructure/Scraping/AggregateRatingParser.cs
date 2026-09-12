@@ -5,27 +5,25 @@ using System.Text.RegularExpressions;
 namespace IndirimTakip.Infrastructure.Scraping;
 
 /// <summary>
-/// Ürün sayfasındaki schema.org <c>aggregateRating</c> bloğundan markanın
-/// kendi sitesinde gösterdiği yıldız ortalamasını ve yorum sayısını okur.
+/// Reads the star average and review count a store shows on its own site from the
+/// product page's schema.org <c>aggregateRating</c> block.
 ///
-/// Neden tek bir ayrıştırıcı yetiyor: puan verisi olan markaların (HIQ,
-/// Torq, Yeşilmarka, Hardline) HEPSİ bu bilgiyi ürün sayfasının JSON-LD
-/// işaretlemesinde aynı standart alanlarla veriyor — altyapıları farklı
-/// olsa da (Shopify / OpenCart / İkas / OniksSoft) çıktı aynı. Marka başına
-/// ayrı bir ayrıştırıcı yazmaya gerek yok.
+/// Why one parser is enough: stores with rating data ALL publish it in the product
+/// page's JSON-LD markup with the same standard fields; the platforms differ, the
+/// output doesn't. No per-store parser is needed.
 ///
-/// Değer bulunamazsa null döner; tahmin üretilmez.
+/// Returns null when no value is found; nothing is guessed.
 /// </summary>
 internal static partial class AggregateRatingParser
 {
-    // Puan 0-5 aralığının dışındaysa ya farklı bir ölçek kullanılıyordur ya
-    // da yanlış bir alan yakalanmıştır — ikisinde de kaydetmemek doğru.
+    // A rating outside 0-5 means either a different scale or the wrong field was
+    // captured; not storing it is right in both cases.
     private const decimal MinRating = 0m;
     private const decimal MaxRating = 5m;
 
-    // Tek bir yorumdan gelen "5 üzerinden 5" bilgisi ortalama değildir.
-    // Bu eşiğin altındaki ürünler puansız sayılıyor: sıralamada "2 yorumdan
-    // 5.0" ile "278 yorumdan 4.88"i yan yana koymak yanıltıcı olurdu.
+    // "5 out of 5" from a single review isn't an average. Products below this
+    // threshold count as unrated: putting "5.0 from 2 reviews" next to "4.88 from
+    // 278 reviews" in a ranking would be misleading.
     public const int MinimumMeaningfulRatingCount = 3;
 
     public static (decimal? Value, int? Count) Parse(string? html)
@@ -50,11 +48,11 @@ internal static partial class AggregateRatingParser
         if (!valueMatch.Success || !countMatch.Success)
             return (null, null);
 
-        // Değer bazı sitelerde sayı ("ratingValue": 4.88), bazılarında
-        // tırnak içinde metin ("ratingValue": "4.88") geliyor; regex ikisini
-        // de aynı gruba düşürüyor. Ayraç her zaman nokta (JSON), bu yüzden
-        // InvariantCulture — makinenin yerel ayarına bırakılırsa Türkçe
-        // kültürde "4.88" 488 olarak okunurdu.
+        // Some sites send the value as a number ("ratingValue": 4.88), others as a
+        // quoted string ("ratingValue": "4.88"); the pattern puts both in the same
+        // group. The separator is always a dot (JSON), hence InvariantCulture: left
+        // to the machine's locale, a culture with a comma decimal separator would
+        // read "4.88" as 488.
         if (!decimal.TryParse(valueMatch.Groups["value"].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var value))
             return (null, null);
         if (!int.TryParse(countMatch.Groups["count"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count))
@@ -66,17 +64,16 @@ internal static partial class AggregateRatingParser
         return (Math.Round(value, 2), count);
     }
 
-    // Bloğu sınırlamak önemli: aynı sayfada tek tek yorumların kendi
-    // "reviewRating" blokları da var ve orada da ratingValue geçiyor.
-    // Sadece aggregateRating'in içine bakıyoruz.
+    // Bounding the block matters: individual reviews on the same page have their own
+    // "reviewRating" blocks with a ratingValue too. Only aggregateRating is read.
     [GeneratedRegex(@"""aggregateRating""\s*:\s*\{[^{}]*\}", RegexOptions.IgnoreCase)]
     private static partial Regex AggregateRatingBlockRegex();
 
     [GeneratedRegex(@"""ratingValue""\s*:\s*""?(?<value>\d+(?:\.\d+)?)""?", RegexOptions.IgnoreCase)]
     private static partial Regex RatingValueRegex();
 
-    // Siteler ya reviewCount ya ratingCount kullanıyor; ikisi de aynı şeyi
-    // ifade ediyor (kaç kişi puanladı).
+    // Sites use either reviewCount or ratingCount; both mean the same thing (how
+    // many people rated).
     [GeneratedRegex(@"""(?:reviewCount|ratingCount)""\s*:\s*""?(?<count>\d+)""?", RegexOptions.IgnoreCase)]
     private static partial Regex RatingCountRegex();
 }

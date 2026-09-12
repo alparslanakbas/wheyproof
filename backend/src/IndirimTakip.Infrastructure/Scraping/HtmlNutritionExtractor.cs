@@ -2,17 +2,16 @@ using HtmlAgilityPack;
 
 namespace IndirimTakip.Infrastructure.Scraping;
 
-// SSN, HIQ ve ProteinOcean besin değerlerini klasik bir <table> içinde
-// veriyor (Hardline'ınki div tabanlı, o kendi scraper'ında ayrıca ele
-// alınıyor). Satırları ham (etiket, değer) çiftlerine çeviren ortak yer —
-// normalize etme/filtreleme işi NutritionParser'da.
+// Many stores give nutrition in a classic <table>. This is the shared place that
+// turns rows into raw (label, value) pairs; normalizing and filtering happen in
+// NutritionParser.
 internal static class HtmlNutritionExtractor
 {
     public static IEnumerable<(string Label, string Value)> FromTables(HtmlNode container)
     {
-        // "self::table" da dahil — çağıran bir kapsayıcı değil, doğrudan
-        // <table> node'unun kendisini verirse de (HIQ'nun scope'lanmış
-        // nutrition-table'ı gibi) çalışsın diye.
+        // "self::table" is included so it also works when the caller passes the
+        // <table> node itself rather than a container (e.g. a scoped
+        // nutrition-table element).
         var tables = container.SelectNodes(".//table | self::table");
         if (tables is null)
             yield break;
@@ -25,15 +24,15 @@ internal static class HtmlNutritionExtractor
                 if (cells is null || cells.Count < 2)
                     continue;
 
-                // Başlık satırı ("Bileşen | 100 g | 4 g" gibi) veri değil,
-                // sütunları etiketliyor — hepsi <th> olduğu için tanınıyor.
+                // A header row ("Nutrient | per 100 g | per 4 g") isn't data, it labels
+                // the columns; it's recognized because its cells are <th>.
                 if (cells[0].Name == "th")
                     continue;
 
                 var label = HtmlEntity.DeEntitize(cells[0].InnerText).Trim();
-                // HIQ gibi markalarda tablo "Bileşen | 100 g | porsiyon"
-                // şeklinde 3 sütunlu — ortadaki 100g bazlı değer, SON sütun
-                // gerçek porsiyon başına değer. 2 sütunluysa zaten tek değer.
+                // Some stores use a 3-column table ("Nutrient | per 100 g | per
+                // serving"): the middle value is per 100 g, the LAST column is the
+                // real per-serving value. With 2 columns there is one value anyway.
                 var value = HtmlEntity.DeEntitize(cells[^1].InnerText).Trim();
 
                 if (label.Length > 0 && value.Length > 0)
@@ -43,22 +42,21 @@ internal static class HtmlNutritionExtractor
     }
 
     /// <summary>
-    /// Besin değerini <c>&lt;table&gt;</c> yerine div satırlarıyla veren
-    /// kaynaklar için: her satırda İLK çocuk öğe etiketi, SONUNCUSU değeri
-    /// taşıyor.
+    /// For sources that give nutrition in div rows instead of a
+    /// <c>&lt;table&gt;</c>: in each row the FIRST child element carries the label
+    /// and the LAST one the value.
     /// </summary>
     /// <remarks>
-    /// <b>Neden gerekti.</b> 5 Eylül'de ölçüldü: katalogda besin değeri olan
-    /// ürün 4.918'de 328 (%6,7) ve eksiklerin bir kısmı "kaynakta veri yok"
-    /// değil, "kaynak tablo kullanmıyor" yüzündendi. BigJoy'un ürün sayfası
-    /// besin değerlerini eksiksiz yayınlıyor (Enerji, Yağ, Karbonhidrat,
-    /// Protein…) ama sayfada tek bir <c>&lt;table&gt;</c> yok — hepsi
-    /// <c>div.bdegersatir</c> içinde etiket/değer çifti. <see cref="FromTables"/>
-    /// bunu göremiyordu.
+    /// <b>Why it was needed.</b> Measured on the Turkish site: only 6.7% of products
+    /// had nutrition, and part of the gap wasn't "the source has no data" but "the
+    /// source doesn't use a table". One store's product page published complete
+    /// nutrition (energy, fat, carbohydrate, protein...) without a single
+    /// <c>&lt;table&gt;</c>, all as label/value pairs in div rows.
+    /// <see cref="FromTables"/> couldn't see it.
     ///
-    /// Satır seçici ÇAĞIRANDAN geliyor, burada tahmin edilmiyor: "iki çocuğu
-    /// olan her div" gibi genel bir kural sayfadaki her yerleşim satırını
-    /// besin satırı sanardı.
+    /// The row selector comes FROM THE CALLER and isn't guessed here: a generic rule
+    /// such as "every div with two children" would treat every layout row on the page
+    /// as a nutrition row.
     /// </remarks>
     public static IEnumerable<(string Label, string Value)> FromRowElements(HtmlNode container, string rowXPath)
     {
@@ -77,33 +75,31 @@ internal static class HtmlNutritionExtractor
     }
 
     /// <summary>
-    /// Çok sütunlu besin tabloları: hem "%RDA" sütunlarını eleyip doğru
-    /// sütunu seçer, hem de tek hücreye <c>&lt;br&gt;</c> ile sıkıştırılmış
-    /// birden çok besini ayırır.
+    /// Multi-column nutrition tables: picks the right column while skipping "%DV"
+    /// columns, and splits several nutrients squeezed into one cell with
+    /// <c>&lt;br&gt;</c>.
     /// </summary>
     /// <remarks>
-    /// <b>NEDEN <see cref="FromTables"/> YETMİYOR.</b> O metot SON sütunu
-    /// alıyor ve bu HIQ için doğru karar (orada son sütun porsiyon başına
-    /// değer). Muscle Pump'ta ise sütunlar şöyle:
-    /// <c>BESİN | 100gr İÇİN | 100gr İÇİN RA* % | 30gr İÇİN | 30gr İÇİN RA* %</c>
-    /// — son sütun YÜZDE. Son sütunu almak "Protein: 6" gibi sessizce yanlış
-    /// bir değer yazardı; sayı olduğu için hiçbir süzgeç de yakalamazdı.
-    /// Kural: başlığında "%" GEÇMEYEN en sağdaki sütun (yani en dar
-    /// porsiyon), hepsinde geçiyorsa son sütun.
+    /// <b>WHY <see cref="FromTables"/> ISN'T ENOUGH.</b> That method takes the LAST
+    /// column, which is right when the last column is the per-serving value. One
+    /// store's columns were:
+    /// <c>NUTRIENT | PER 100g | PER 100g %RI | PER 30g | PER 30g %RI</c>
+    /// so the last column is a PERCENTAGE. Taking it would silently write a wrong
+    /// value such as "Protein: 6"; being a number, no filter would catch it.
+    /// Rule: the rightmost column whose header has NO "%" (the narrowest serving);
+    /// if every header has one, the last column.
     ///
-    /// <b>İKİNCİ TUZAK — br ile paketlenmiş satırlar.</b> Kaynak iki besini
-    /// tek satıra koyabiliyor: etiket <c>YAĞ&lt;br&gt;DOYMUŞ YAĞ</c>, değer
-    /// <c>1,32gr&lt;br&gt;0,81gr</c>. Düz metin okumak "YAĞ DOYMUŞ YAĞ =
-    /// 1,32gr 0,81gr" üretirdi — değerde sayı olduğu için bu da süzgeçten
-    /// geçer ve tabloya saçma bir satır olarak girerdi. Parça sayıları
-    /// eşleşiyorsa satır bölünüyor; eşleşmiyorsa BÖLÜNMÜYOR (yanlış
-    /// eşleştirmektense birleşik bırak).
+    /// <b>SECOND TRAP: rows packed with br.</b> A source can put two nutrients in one
+    /// row: label <c>FAT&lt;br&gt;SATURATED FAT</c>, value <c>1.32g&lt;br&gt;0.81g</c>.
+    /// Reading plain text would produce "FAT SATURATED FAT = 1.32g 0.81g", which also
+    /// passes the filter (the value has a number) and enters the table as a nonsense
+    /// row. If the part counts match the row is split; if not it is NOT split (better
+    /// joined than mismatched).
     ///
-    /// <b>BAŞLIK SATIRI SABİT DEĞİL.</b> <c>&lt;th&gt;</c> olmayabilir
-    /// (Muscle Pump'ta <c>&lt;td&gt;&lt;strong&gt;</c>) ve İLK SATIR DA
-    /// olmayabilir (Swiss'in tablosu tek hücreli bir ürün başlığıyla
-    /// başlıyor). Başlık, en az iki hücresi olan ilk satır kabul ediliyor;
-    /// öncesindeki satırlar atlanıyor.
+    /// <b>THE HEADER ROW ISN'T FIXED.</b> It may not be <c>&lt;th&gt;</c> (one store
+    /// uses <c>&lt;td&gt;&lt;strong&gt;</c>) and it may not be the FIRST ROW (another
+    /// store's table starts with a single-cell product title). The header is the first
+    /// row with at least two cells; rows before it are skipped.
     /// </remarks>
     public static IEnumerable<(string Label, string Value)> FromMultiColumnTable(HtmlNode container)
     {
@@ -117,11 +113,10 @@ internal static class HtmlNutritionExtractor
             if (rows is null || rows.Count < 2)
                 continue;
 
-            // Başlık HER ZAMAN ilk satır değil: Swiss'in tablosu tek hücreli
-            // bir ürün başlığıyla başlıyor ("Yüksek Karbonhidratlı Sporcu
-            // Gıdası"). İlk satıra bakıp tabloyu atlamak, o tabloyu tamamen
-            // kaybetmek demekti — canlıda ölçüldü, makro tablosu düşüyor ve
-            // geriye yalnızca değerleri "**" olan enzim tablosu kalıyordu.
+            // The header is NOT ALWAYS the first row: one store's table starts with a
+            // single-cell product title. Looking only at the first row and skipping
+            // the table meant losing that table entirely; measured, the macro table
+            // dropped out and only an enzyme table with "**" values remained.
             var headerIndex = rows
                 .Select((row, index) => (row, index))
                 .FirstOrDefault(x => (x.row.SelectNodes("./td|./th")?.Count ?? 0) >= 2)
@@ -131,7 +126,7 @@ internal static class HtmlNutritionExtractor
             if (headerCells is null || headerCells.Count < 2)
                 continue;
 
-            var targetIndex = SecilecekSutun(headerCells);
+            var targetIndex = PickValueColumn(headerCells);
 
             foreach (var row in rows.Skip(headerIndex + 1))
             {
@@ -139,11 +134,11 @@ internal static class HtmlNutritionExtractor
                 if (cells is null || cells.Count <= targetIndex)
                     continue;
 
-                var labels = SatirlaraBol(cells[0]);
-                var values = SatirlaraBol(cells[targetIndex]);
+                var labels = SplitOnLineBreaks(cells[0]);
+                var values = SplitOnLineBreaks(cells[targetIndex]);
 
-                // Parça sayıları tutuyorsa besin başına ayrı satır; tutmuyorsa
-                // birleşik hâliyle tek satır (yanlış eşleştirme yapma).
+                // If the part counts match, one row per nutrient; otherwise one
+                // joined row (don't pair them up wrongly).
                 if (labels.Count == values.Count && labels.Count > 1)
                 {
                     for (var i = 0; i < labels.Count; i++)
@@ -163,86 +158,85 @@ internal static class HtmlNutritionExtractor
     }
 
     /// <summary>
-    /// <see cref="FromMultiColumnTable"/>'ın SEÇTİĞİ sütunun başlığı.
+    /// Header of the column <see cref="FromMultiColumnTable"/> PICKS.
     /// </summary>
     /// <remarks>
-    /// Porsiyon büyüklüğü bazı kaynaklarda ayrı bir alanda değil, tam da bu
-    /// başlıkta yazılı ("30gr İÇİN"). Sütun seçme kuralını scraper'a ikinci
-    /// kez yazmamak için buradan veriliyor — iki kopya zamanla ayrışır ve
-    /// porsiyon yanlış sütundan okunmaya başlardı.
+    /// Some sources write the serving size not in a separate field but in exactly
+    /// this header ("PER 30g"). It's exposed here so the column rule isn't written a
+    /// second time in a scraper; two copies would drift apart and the serving would
+    /// start being read from the wrong column.
     /// </remarks>
     public static string? MultiColumnPortionHeader(HtmlNode container)
     {
         foreach (var table in container.SelectNodes(".//table | self::table") ?? Enumerable.Empty<HtmlNode>())
         {
-            // Başlık satırı ilk satır olmayabilir (bkz. FromMultiColumnTable).
+            // The header row may not be the first row (see FromMultiColumnTable).
             var headerCells = table.SelectNodes(".//tr")
                 ?.Select(row => row.SelectNodes("./td|./th"))
                 .FirstOrDefault(cells => (cells?.Count ?? 0) >= 2);
             if (headerCells is null || headerCells.Count < 2)
                 continue;
 
-            return HtmlEntity.DeEntitize(headerCells[SecilecekSutun(headerCells)].InnerText)?.Trim();
+            return HtmlEntity.DeEntitize(headerCells[PickValueColumn(headerCells)].InnerText)?.Trim();
         }
 
         return null;
     }
 
-    /// <summary>Başlığında "%" geçmeyen en sağdaki sütun; yoksa son sütun.</summary>
-    private static int SecilecekSutun(HtmlNodeCollection headerCells)
+    /// <summary>The rightmost column whose header has no "%"; otherwise the last column.</summary>
+    private static int PickValueColumn(HtmlNodeCollection headerCells)
     {
         for (var i = headerCells.Count - 1; i >= 1; i--)
         {
-            var baslik = HtmlEntity.DeEntitize(headerCells[i].InnerText) ?? string.Empty;
-            if (!baslik.Contains('%'))
+            var header = HtmlEntity.DeEntitize(headerCells[i].InnerText) ?? string.Empty;
+            if (!header.Contains('%'))
                 return i;
         }
 
         return headerCells.Count - 1;
     }
 
-    /// <summary>Hücreyi &lt;br&gt; sınırlarından parçalara ayırır.</summary>
-    private static List<string> SatirlaraBol(HtmlNode cell)
+    /// <summary>Splits a cell into parts at &lt;br&gt; boundaries.</summary>
+    private static List<string> SplitOnLineBreaks(HtmlNode cell)
     {
-        var parcalar = new List<string>();
-        var tampon = new System.Text.StringBuilder();
+        var parts = new List<string>();
+        var buffer = new System.Text.StringBuilder();
 
-        void Bitir()
+        void Flush()
         {
-            var metin = HtmlEntity.DeEntitize(tampon.ToString()).Trim();
-            if (metin.Length > 0)
-                parcalar.Add(metin);
-            tampon.Clear();
+            var text = HtmlEntity.DeEntitize(buffer.ToString()).Trim();
+            if (text.Length > 0)
+                parts.Add(text);
+            buffer.Clear();
         }
 
         foreach (var node in cell.DescendantsAndSelf())
         {
             if (node.Name == "br")
-                Bitir();
+                Flush();
             else if (node.NodeType == HtmlNodeType.Text)
-                tampon.Append(node.InnerText);
+                buffer.Append(node.InnerText);
         }
 
-        Bitir();
-        return parcalar;
+        Flush();
+        return parts;
     }
 
-    // SSN besin değerini HTML <table> olarak değil, tek bir açıklama
-    // paragrafının içinde "<strong>Etiket</strong> — değer<br>" satırları
-    // olarak veriyor (gerçek bir ürün sayfasında doğrulandı). "—" öncesi
-    // <strong> metni etiket, sonrası bir sonraki <strong>/<br>'a kadarki
-    // metin değer.
+    // Some sources give nutrition not as an HTML <table> but inside one description
+    // paragraph as "<strong>Label</strong> — value<br>" lines (confirmed on a real
+    // product page). The <strong> text before "—" is the label; the text after it, up
+    // to the next <strong>/<br>, is the value.
     public static IEnumerable<(string Label, string Value)> FromLabelDashValuePattern(HtmlNode container)
     {
         foreach (var strong in container.SelectNodes(".//strong") ?? Enumerable.Empty<HtmlNode>())
         {
-            // "— Şekerler" gibi alt kalem etiketlerindeki öndeki tireyi de temizliyoruz.
+            // Also trims the leading dash of sub-item labels such as "— Sugars".
             var label = HtmlEntity.DeEntitize(strong.InnerText).TrimStart(' ', '—', '-').Trim();
             if (label.Length == 0)
                 continue;
 
-            // <strong> etiketinden sonraki, aynı satırdaki metni (bir sonraki
-            // <br>/<strong>'a kadar) topluyor.
+            // Collects the text after the <strong> tag on the same line (up to the
+            // next <br>/<strong>).
             var value = new System.Text.StringBuilder();
             for (var sibling = strong.NextSibling; sibling is not null; sibling = sibling.NextSibling)
             {

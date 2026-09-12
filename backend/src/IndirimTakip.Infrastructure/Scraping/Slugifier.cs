@@ -2,18 +2,18 @@ using System.Text;
 
 namespace IndirimTakip.Infrastructure.Scraping;
 
-// Ürün adından URL parçası üretir. **Frontend'deki `core/slugify.ts` ile
-// birebir aynı sonucu vermek ZORUNDA** — ürettiği adres kanonik adresle
-// eşleşmezse arama motoruna bildirdiğimiz bağlantı yönlendirmeye düşer ve
-// bildirimin değeri kaybolur.
+// Builds a URL segment from a product name. **It MUST give exactly the same result
+// as the frontend's `core/slugify.ts`**: if the URL it builds doesn't match the
+// canonical URL, the link we report to search engines lands on a redirect and the
+// notification loses its value.
 //
-// Türkçe harfler elle eşleniyor; kültüre bağlı bir küçültmeye güvenilmiyor.
-// Bu projede aynı tuzağa üç kez düşüldü: tr-TR ile büyük "I" noktasız "ı"
-// oluyor, ToLowerInvariant ile büyük "İ" hiç küçülmüyor, JavaScript'te
-// büyük "İ" küçük "i" ile eşleşmiyor.
+// Turkish letters are mapped by hand; culture-dependent lowercasing isn't trusted.
+// The Turkish site hit this trap three times: with tr-TR an uppercase "I" becomes a
+// dotless "ı", with ToLowerInvariant an uppercase "İ" isn't lowercased at all, and
+// in JavaScript an uppercase "İ" doesn't match a lowercase "i".
 public static class Slugifier
 {
-    // Uzun kombinasyon ürünlerinde adres parçası şişmesin diye.
+    // So the URL segment doesn't balloon for long combination products.
     private const int MaxSlugLength = 80;
 
     public static string Slugify(string text)
@@ -35,12 +35,12 @@ public static class Slugifier
             });
         }
 
-        // Buradan sonrası yalnızca düz ASCII harflerle ilgileniyor, bu yüzden
-        // kültürden bağımsız küçültme güvenli.
+        // From here on only plain ASCII letters matter, so culture-independent
+        // lowercasing is safe.
         var lowered = mapped.ToString().ToLowerInvariant();
 
         var slug = new StringBuilder(lowered.Length);
-        var lastWasHyphen = true; // baştaki tireleri de engelliyor
+        var lastWasHyphen = true; // also prevents leading hyphens
         foreach (var ch in lowered)
         {
             if (ch is >= 'a' and <= 'z' || ch is >= '0' and <= '9')

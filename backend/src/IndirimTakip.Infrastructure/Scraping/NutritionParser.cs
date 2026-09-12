@@ -4,37 +4,35 @@ using System.Text.RegularExpressions;
 
 namespace IndirimTakip.Infrastructure.Scraping;
 
-// Besin değeri tabloları 4 markada da farklı HTML yapılarında geliyor
-// (Hardline'da div satırları, HIQ'da <table>, SSN'de açıklama içindeki tablo,
-// ProteinOcean'da __NEXT_DATA__ içinde HTML). Her scraper kendi yapısından
-// ham (etiket, değer) çiftlerini çıkarıyor; normalize etme, JSON'a çevirme ve
-// protein değerini ayrıştırma işi burada — tek yerde — yapılıyor.
+// Nutrition tables come in different HTML structures per store (div rows,
+// <table>, a table inside the description, HTML inside embedded JSON). Each
+// scraper extracts raw (label, value) pairs from its own structure; normalizing,
+// converting to JSON and parsing the protein value happen here, in one place.
 internal static class NutritionParser
 {
-    // Bir besin tablosu satırında makul kabul edilen en fazla etiket uzunluğu.
-    // Bundan uzun "etiketler" genellikle tablo değil, araya karışmış bir
-    // açıklama paragrafıdır — tabloya alınmıyor.
+    // The longest label accepted for a nutrition table row. Longer "labels" are
+    // usually a description paragraph mixed in, not a table row; they're skipped.
     private const int MaxLabelLength = 60;
     private const int MaxValueLength = 40;
 
-    // Hardline "Protein / Protein" gibi Türkçe/İngilizce ikili etiket
-    // kullanıyor — ilk parça yeterli, ikinci parça tekrar.
+    // Some stores use bilingual labels such as "Protein / Protein"; the first part
+    // is enough, the second repeats it.
     private static readonly Regex DuplicateLabelPattern = new(@"^(.+?)\s*/\s*(.+)$", RegexOptions.Compiled);
 
     private static readonly Regex WhitespacePattern = new(@"\s+", RegexOptions.Compiled);
 
-    // "24 g", "24,5g", "1.049 mg", "120 kcal" gibi değerlerden sayıyı çeker.
+    // Pulls the number from values like "24 g", "24,5g", "1.049 mg", "120 kcal".
     private static readonly Regex NumberPattern = new(@"(\d+(?:[.,]\d+)?)", RegexOptions.Compiled);
 
-    // Protein satırının etiketi marka/dile göre değişiyor: "Protein",
-    // "Protein / Protein", "Protein (g)", "Toplam Protein"... Hepsi "protein"
-    // kelimesini içeriyor ama "Protein Tozu" gibi ürün adı satırlarını
-    // dışarıda tutmak için ek kelimeleri eliyoruz.
+    // The protein row's label varies by store and language: "Protein",
+    // "Protein / Protein", "Protein (g)", "Total Protein"... All contain "protein",
+    // but extra words are excluded to keep out product name rows such as "Protein
+    // Powder" ("tozu" and "kaynak" are the Turkish words for powder and source).
     private static readonly string[] ProteinExclusions = ["tozu", "kaynak", "source", "blend", "matrix"];
 
-    // Ham (etiket, değer) çiftlerinden normalize edilmiş bir besin tablosu
-    // kurar. Anlamlı hiç satır yoksa null döner — boş bir tablo saklamak
-    // yerine "veri yok" demeyi tercih ediyoruz.
+    // Builds a normalized nutrition table from raw (label, value) pairs. Returns null
+    // when there is no meaningful row: "no data" is preferred over storing an empty
+    // table.
     public static string? BuildNutritionJson(IEnumerable<(string Label, string Value)> rows)
     {
         var table = new Dictionary<string, string>();
@@ -48,21 +46,21 @@ internal static class NutritionParser
                 continue;
             if (label.Length > MaxLabelLength || value.Length > MaxValueLength)
                 continue;
-            // Değer içinde en az bir sayı olmalı — "Ürün Açıklaması: ..." gibi
-            // tabloya karışan metin satırlarını eliyor.
+            // The value must contain at least one number; this drops text rows
+            // mixed into the table, such as "Product description: ...".
             if (!NumberPattern.IsMatch(value))
                 continue;
 
-            // Aynı etiket iki kez geçerse ilki korunuyor (tablolarda ikinci
-            // sütun genelde "%RDA" gibi ikincil bir değer oluyor).
+            // If the same label appears twice the first is kept (in tables the
+            // second column is usually a secondary value such as "%DV").
             table.TryAdd(label, value);
         }
 
         return table.Count > 0 ? JsonSerializer.Serialize(table) : null;
     }
 
-    // Normalize edilmiş tablodan porsiyon başı protein (gram) çeker.
-    // Bulunamazsa null — tahmin üretilmiyor.
+    // Pulls protein per serving (grams) from the normalized table.
+    // Null if not found; nothing is guessed.
     public static decimal? ExtractProteinGrams(string? nutritionJson)
     {
         if (string.IsNullOrEmpty(nutritionJson))
@@ -89,8 +87,8 @@ internal static class NutritionParser
             if (ProteinExclusions.Any(lowered.Contains))
                 continue;
 
-            // Değer gram cinsinden olmalı — "mg" ya da "kcal" ise bu satır
-            // protein miktarı değil (ör. "Proteinden gelen kalori").
+            // The value must be in grams; "mg" or "kcal" means this row isn't the
+            // protein amount (e.g. "Calories from protein").
             var loweredValue = value.ToLowerInvariant();
             if (loweredValue.Contains("kcal") || loweredValue.Contains("kj") || loweredValue.Contains("mg"))
                 continue;
@@ -104,8 +102,8 @@ internal static class NutritionParser
                     NumberStyles.Number,
                     CultureInfo.InvariantCulture,
                     out var grams)
-                // Porsiyon başı protein için makul aralık — bunun dışındaki
-                // eşleşmeler yanlış satır yakalandığına işaret eder.
+                // A reasonable range for protein per serving; matches outside it
+                // point to the wrong row being captured.
                 && grams > 0 && grams <= 100)
             {
                 return grams;
@@ -119,7 +117,7 @@ internal static class NutritionParser
     {
         var label = Normalize(rawLabel).TrimEnd(':', '.');
 
-        // "Protein / Protein" → "Protein" (aynı kelimenin tekrarıysa).
+        // "Protein / Protein" → "Protein" (when it's the same word repeated).
         var duplicate = DuplicateLabelPattern.Match(label);
         if (duplicate.Success)
         {
@@ -133,5 +131,5 @@ internal static class NutritionParser
     }
 
     private static string Normalize(string raw) =>
-        WhitespacePattern.Replace(raw.Replace("&nbsp;", " ").Replace(' ', ' '), " ").Trim();
+        WhitespacePattern.Replace(raw.Replace("&nbsp;", " ").Replace(' ', ' '), " ").Trim();
 }

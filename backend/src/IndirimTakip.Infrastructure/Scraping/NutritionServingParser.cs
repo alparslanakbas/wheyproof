@@ -4,31 +4,29 @@ using System.Text.RegularExpressions;
 namespace IndirimTakip.Infrastructure.Scraping;
 
 /// <summary>
-/// "Porsiyon Büyüklüğü: 32g" / "Porsiyon Sayısı: 30 Servis" gibi satırlardan
-/// sayıyı çeker.
+/// Pulls the number from rows such as "Serving Size: 32g" / "Servings: 30".
 /// </summary>
 /// <remarks>
-/// <b>Neden ortak.</b> BigJoy ve Torq aynı bilgiyi neredeyse aynı biçimde
-/// veriyor ("32g" ile "30 Gram", "68" ile "30 Servis"). Ayrıştırmayı her
-/// scraper'a kopyalamak, aşağıdaki makul-aralık kontrollerinin zamanla
-/// birbirinden ayrılması demekti — bu depoda marka takma adları tam olarak
-/// böyle bozulmuştu (bkz. d41fc81).
+/// <b>Why shared.</b> Several stores give the same information in nearly the same
+/// shape ("32g" vs "30 Gram", "68" vs "30 Servings"). Copying the parsing into
+/// every scraper would let the reasonable-range checks below drift apart over time;
+/// brand aliases in this codebase broke in exactly that way.
 ///
-/// Aralık kontrolleri BİLİNÇLİ: aralık dışı bir eşleşme, satırın yanlış
-/// yakalandığına işaret eder ve uydurma bir porsiyon değeri servis başı
-/// fiyat hesabını sessizce kat kat şişirir. Şüpheli değer yerine null.
+/// The range checks are DELIBERATE: a match outside the range points to the wrong
+/// row being captured, and a made-up serving size would silently inflate the price
+/// per serving many times over. Null instead of a suspicious value.
 /// </remarks>
 internal static class NutritionServingParser
 {
-    // Gram: "32g", "30 Gram", "1,5 gr" — sayıdan sonra "g" ile başlayan bir
-    // birim gelmeli. Birim şartı önemli: şartsız olsaydı aynı div'deki
-    // "Son Kullanma Tarihi: 01/04/2029" satırından 1 çıkardı.
+    // Grams: "32g", "30 Gram", "1,5 gr": a unit starting with "g" must follow the
+    // number. The unit requirement matters: without it, an "Expiry date: 01/04/2029"
+    // line in the same div would yield 1.
     private static readonly Regex GramPattern =
         new(@"(\d+(?:[.,]\d+)?)\s*g", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex CountPattern = new(@"(\d+)", RegexOptions.Compiled);
 
-    /// <summary>Porsiyon büyüklüğü (gram). Makul aralık dışındaysa null.</summary>
+    /// <summary>Serving size (grams). Null if outside a reasonable range.</summary>
     public static decimal? Grams(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -48,7 +46,7 @@ internal static class NutritionServingParser
             : null;
     }
 
-    /// <summary>Paketteki servis sayısı. Makul aralık dışındaysa null.</summary>
+    /// <summary>Servings per package. Null if outside a reasonable range.</summary>
     public static int? Count(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
