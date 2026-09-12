@@ -5,8 +5,8 @@ namespace IndirimTakip.Infrastructure.Subscribers;
 
 public record WatchProductRequest(string Email);
 
-// "Haber Ver" isteğini kaydediyor — asıl fiyat düşünce bildirim gönderme
-// işi ProductWatchNotifier'da (tarama döngüsünün bir parçası).
+// Records a price alert request; sending the notification when the price drops
+// happens in ProductWatchNotifier (part of the scrape cycle).
 public class ProductWatchService(AppDbContext db, SubscriberService subscribers)
 {
     public async Task<bool> WatchAsync(int productId, WatchProductRequest request, string confirmBaseUrl, CancellationToken cancellationToken = default)
@@ -33,23 +33,21 @@ public class ProductWatchService(AppDbContext db, SubscriberService subscribers)
         }
         else if (existingWatch.NotifiedAt is not null)
         {
-            // (SubscriberId, ProductId) üzerinde unique index var — daha önce
-            // bildirim gönderilmiş bir kaydı görmezden gelip ikinci bir satır
-            // eklemeye çalışmak index çakışmasıyla 500'e yol açıyordu. Kullanıcı
-            // tekrar izlemek isterse aynı satırı "sıfırlayıp" yeniden aktif
-            // ediyoruz.
+            // There's a unique index on (SubscriberId, ProductId): ignoring an
+            // already-notified record and inserting a second row hit the index
+            // and returned 500. To watch again, the same row is reset.
             existingWatch.NotifiedAt = null;
             existingWatch.CreatedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
         }
-        // else: existingWatch zaten aktif (NotifiedAt == null), hiçbir şey yapma.
+        // else: the watch is already active (NotifiedAt == null); nothing to do.
 
-        // Genel bülten onayı aynı zamanda "Haber Ver" bildirimleri için de
-        // izin niteliğinde — ayrı bir onay akışı kurmak bu hafif özellik
-        // için gereksiz olurdu. Zaten onaylıysa yeni bir mail gitmiyor.
-        // İzleme kaydı yukarıda zaten oluşturuldu (asıl işlev) — onay maili
-        // gönderilemese bile (SendConfirmationEmailAsync kendi içinde loglar)
-        // bu isteği başarısız saymıyoruz, favoriler ile aynı desen.
+        // Confirming the newsletter also serves as consent for price alerts; a
+        // separate confirmation flow would be overkill for this light feature.
+        // Already confirmed means no new mail. The watch itself was created above
+        // (the real job), so a failed confirmation email (logged inside
+        // SendConfirmationEmailAsync) doesn't fail the request, the same pattern
+        // as the watchlist.
         if (!subscriber.IsConfirmed)
             _ = await subscribers.SendConfirmationEmailAsync(subscriber, confirmBaseUrl, cancellationToken);
 

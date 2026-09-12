@@ -10,51 +10,51 @@ using Microsoft.Extensions.Options;
 
 namespace IndirimTakip.Api.Endpoints;
 
-// Bülten aboneliği: kayıt, e-posta onayı ve çıkış.
+// Newsletter subscription: sign-up, email confirmation and unsubscribe.
 internal static class SubscriptionEndpoints
 {
     public static void MapSubscriptionEndpoints(this WebApplication app, string frontendBaseUrl)
     {
-        // E-posta bülteni: double opt-in zorunlu (İYS/KVKK gereği) — bu endpoint
-        // hiçbir aboneyi doğrudan aktifleştirmiyor, sadece onay maili tetikliyor.
+        // Newsletter: double opt-in is required. This endpoint never activates a
+        // subscriber directly; it only triggers the confirmation email.
         app.MapPost("/api/subscribe", async (SubscribeRequest request, SubscriberService subscribers,
             EmailAddressValidator emailValidator, HttpContext http, CancellationToken ct) =>
         {
-            // Bal küpü dolu geldiyse istek bir bot tarafından yapılmış demektir.
-            // Hata döndürmüyoruz: bot hangi ölçütte elendiğini öğrenmemeli, ayrıca
-            // gerçek bir kullanıcı bu dalı hiç görmüyor.
+            // A filled honeypot means a bot made the request. No error is returned:
+            // the bot shouldn't learn which check caught it, and a real person
+            // never reaches this branch.
             if (!string.IsNullOrWhiteSpace(request.Website))
             {
-                app.Logger.LogInformation("Bal küpü doldurulmuş abonelik isteği yok sayıldı: {Ip}",
+                app.Logger.LogInformation("Ignored a subscription request with a filled honeypot: {Ip}",
                     RequestLoggingExtensions.GetClientIp(http));
-                return Results.Ok(new { message = "E-postanı kontrol et, onay bağlantısı gönderdik." });
+                return Results.Ok(new { message = "Check your inbox; we sent you a confirmation link." });
             }
 
             if (!EndpointHelpers.IsValidEmail(request.Email))
-                return Results.BadRequest(new { message = "Geçerli bir e-posta adresi girin." });
+                return Results.BadRequest(new { message = "Enter a valid email address." });
 
-            // Alan adı gerçekten var mı: uydurma adreslere onay postası göndermek hem
-            // kotadan yiyor hem geri dönen postalar gönderen itibarını düşürüyor.
+            // Does the domain really exist? Sending confirmations to made-up
+            // addresses eats the quota, and bounces hurt the sender's reputation.
             if (!await emailValidator.IsDeliverableAsync(request.Email, ct))
-                return Results.BadRequest(new { message = "Bu e-posta adresine ulaşılamıyor, kontrol eder misin?" });
+                return Results.BadRequest(new { message = "We can't reach that email address. Could you check it?" });
 
             var confirmBaseUrl = $"{http.Request.Scheme}://{http.Request.Host}";
             var sent = await subscribers.SubscribeAsync(request, confirmBaseUrl, ct);
             if (!sent)
-                return Results.Json(new { message = "Onay e-postası şu anda gönderilemiyor, lütfen birazdan tekrar dene." }, statusCode: StatusCodes.Status502BadGateway);
-            return Results.Ok(new { message = "E-postanı kontrol et, onay bağlantısı gönderdik." });
+                return Results.Json(new { message = "We can't send the confirmation email right now. Please try again in a moment." }, statusCode: StatusCodes.Status502BadGateway);
+            return Results.Ok(new { message = "Check your inbox; we sent you a confirmation link." });
         }).RequireRateLimiting("EmailSensitive").LogSensitiveRequest(app.Logger);
 
-        // Onay/abonelikten çıkma linkleri e-postadan doğrudan tıklanıyor, bu yüzden
-        // JSON değil basit bir HTML sayfası dönüyor — ayrı bir frontend route'u
-        // kurmak bu iki statik mesaj için gereksiz olurdu. charset=utf-8 elle
-        // belirtilmezse tarayıcı Türkçe karakterleri bozuk gösterebiliyor.
+        // Confirm/unsubscribe links are clicked straight from email, so they return
+        // a simple HTML page, not JSON; a separate frontend route for these static
+        // messages would be overkill. charset=utf-8 is set explicitly so the
+        // browser never guesses the encoding.
         app.MapGet("/api/subscribe/confirm/{token}", async (string token, SubscriberService subscribers, CancellationToken ct) =>
         {
             var success = await subscribers.ConfirmAsync(token, ct);
             var html = success
                 ? EndpointHelpers.BuildSubscriptionConfirmedPage(frontendBaseUrl)
-                : EndpointHelpers.BuildInfoPage("Bu bağlantı geçersiz.", "Onay linki süresi geçmiş ya da daha önce kullanılmış olabilir.", frontendBaseUrl);
+                : EndpointHelpers.BuildInfoPage("This link isn't valid.", "The confirmation link may have expired or already been used.", frontendBaseUrl);
             return Results.Content(html, "text/html; charset=utf-8");
         });
 
@@ -62,8 +62,8 @@ internal static class SubscriptionEndpoints
         {
             var success = await subscribers.UnsubscribeAsync(token, ct);
             var html = success
-                ? EndpointHelpers.BuildInfoPage("Bültenden çıkarıldın.", "Fikrini değiştirirsen tekrar abone olabilirsin.", frontendBaseUrl)
-                : EndpointHelpers.BuildInfoPage("Bu bağlantı geçersiz.", "Bağlantı süresi geçmiş ya da daha önce kullanılmış olabilir.", frontendBaseUrl);
+                ? EndpointHelpers.BuildInfoPage("You're unsubscribed.", "If you change your mind, you can subscribe again anytime.", frontendBaseUrl)
+                : EndpointHelpers.BuildInfoPage("This link isn't valid.", "The link may have expired or already been used.", frontendBaseUrl);
             return Results.Content(html, "text/html; charset=utf-8");
         });
     }

@@ -2,15 +2,15 @@ using System.Net.Mail;
 
 namespace IndirimTakip.Api.Endpoints;
 
-// Uç tanımlarının paylaştığı yardımcılar. Program.cs'te üst seviye yerel
-// fonksiyonlardı; uçlar ayrı dosyalara çıkınca oradan erişilemez oldukları
-// için ortak bir sınıfa alındılar. Davranışları değişmedi.
+// Helpers shared by the endpoint definitions. They were top-level local
+// functions in Program.cs; once endpoints moved into separate files they
+// became unreachable there, so they live in one shared class. Behavior unchanged.
 internal static class EndpointHelpers
 {
-    // Başarılı onay durumu, kullanıcı e-postada gördüğü Hybrid Nocturne görsel
-    // dilinden kopmadan doğrudan güncel indirimlere dönebilsin diye ayrı ve daha
-    // güçlü bir başarı yüzeyi kullanıyor. Geçersiz link ve bültenden çıkış gibi
-    // nötr durumlar aşağıdaki kompakt bilgi sayfasını kullanmaya devam ediyor.
+    // A successful confirmation gets its own, stronger success surface, in the
+    // same visual language as the email, so the visitor can go straight to the
+    // current deals. Neutral states (invalid link, unsubscribed) keep using the
+    // compact info page below.
     internal static string BuildSubscriptionConfirmedPage(string frontendBaseUrl)
     {
         var baseUrl = frontendBaseUrl.TrimEnd('/');
@@ -21,12 +21,12 @@ internal static class EndpointHelpers
 
         return $$"""
             <!doctype html>
-            <html lang="tr">
+            <html lang="en">
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">
               <meta name="color-scheme" content="light only">
-              <title>Aboneliğin onaylandı! — Protein Avcısı</title>
+              <title>You're subscribed! | WheyProof</title>
               <style>
                 * { box-sizing:border-box; }
                 html, body { min-height:100%; }
@@ -168,22 +168,22 @@ internal static class EndpointHelpers
             </head>
             <body>
               <main class="confirmation-page">
-                <a class="brand-link" href="{{baseUrl}}" aria-label="Protein Avcısı ana sayfası">
+                <a class="brand-link" href="{{baseUrl}}" aria-label="WheyProof home page">
                   <img src="{{logoUrl}}" width="54" height="54" alt="">
-                  <span class="brand-name">PROTEİN<span>AVCISI</span></span>
+                  <span class="brand-name">WHEY<span>PROOF</span></span>
                 </a>
                 <section class="confirmation-card" aria-labelledby="confirmation-heading">
                   <div class="confirmation-hero">
                     <div class="confirmation-content">
-                      <div class="eyebrow"><img src="{{mailIconUrl}}" width="24" height="24" alt="">ABONELİK AKTİF</div>
-                      <h1 id="confirmation-heading">Aboneliğin<br>onaylandı!</h1>
-                      <p class="confirmation-copy">Artık gerçek fiyat düşüşleri ve haftanın öne çıkan fırsatları e&#8209;postana gelecek.</p>
-                      <a class="primary-action" href="{{baseUrl}}">İndirimleri Gör</a>
+                      <div class="eyebrow"><img src="{{mailIconUrl}}" width="24" height="24" alt="">SUBSCRIPTION ACTIVE</div>
+                      <h1 id="confirmation-heading">You're<br>subscribed!</h1>
+                      <p class="confirmation-copy">Real price drops and the week's top deals will now arrive in your inbox.</p>
+                      <a class="primary-action" href="{{baseUrl}}">See the deals</a>
                     </div>
                   </div>
                   <div class="trust-strip">
                     <img src="{{shieldImageUrl}}" width="52" height="52" alt="">
-                    <span>E-posta tercihini dilediğin zaman değiştirebilirsin.</span>
+                    <span>You can change your email preferences at any time.</span>
                   </div>
                 </section>
               </main>
@@ -192,36 +192,34 @@ internal static class EndpointHelpers
             """;
     }
 
-    // frontendBaseUrl config'ten geliyor — bu proje domainini bu oturumda 2 kez
-    // değiştirdi, hardcoded bir adresin unutulup eskide kalması gerçek bir risk.
+    // frontendBaseUrl comes from configuration: a hard-coded address left behind
+    // after a domain change is a real risk.
     internal static string BuildInfoPage(string heading, string message, string frontendBaseUrl) => $"""
         <!doctype html>
-        <html lang="tr">
+        <html lang="en">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Protein Avcısı</title>
+          <title>WheyProof</title>
         </head>
         <body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;background:#fafaf9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
           <div style="max-width:420px;width:100%;background:#ffffff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.08);padding:40px 32px;text-align:center;">
             <div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:28px;">
-              <div style="width:36px;height:36px;border-radius:8px;background:#059669;color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;">PA</div>
-              <span style="font-size:18px;font-weight:700;color:#1c1917;">Protein<span style="color:#059669;">Avcısı</span></span>
+              <div style="width:36px;height:36px;border-radius:8px;background:#6556e8;color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;">WP</div>
+              <span style="font-size:18px;font-weight:700;color:#1c1917;">Whey<span style="color:#6556e8;">Proof</span></span>
             </div>
             <h1 style="font-size:20px;font-weight:800;color:#1c1917;margin:0 0 8px;">{heading}</h1>
             <p style="font-size:14px;color:#78716c;margin:0 0 28px;line-height:1.5;">{message}</p>
-            <a href="{frontendBaseUrl}" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 28px;border-radius:9999px;">Siteye Dön</a>
+            <a href="{frontendBaseUrl}" style="display:inline-block;background:#6556e8;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 28px;border-radius:9999px;">Back to the site</a>
           </div>
         </body>
         </html>
         """;
 
-    // 2026-08-15: sadece "@" içeriyor mu kontrolü, "a;b@x.com" / "a\"b@x.com" gibi
-    // RFC 5322'ye göre bile geçersiz string'lerin Subscribers tablosuna girmesine
-    // izin veriyordu (bir güvenlik açığı arayan biri bunları test etmişti — bkz.
-    // CLAUDE.md). SQL injection zaten EF Core'un parametreli sorguları sayesinde
-    // mümkün değildi, bu sadece veri hijyeni için — MailAddress'in kendi format
-    // doğrulamasına güveniyoruz, ayrı bir regex bakımı gerekmiyor.
+    // Checking only for "@" let strings that are invalid even by RFC 5322
+    // ("a;b@x.com", "a\"b@x.com") into the Subscribers table. SQL injection was
+    // never possible (EF Core parameterizes queries); this is data hygiene, and
+    // MailAddress's own format check means no regex to maintain.
     internal static bool IsValidEmail(string? email)
     {
         if (string.IsNullOrWhiteSpace(email))
@@ -237,10 +235,7 @@ internal static class EndpointHelpers
         }
     }
 
-    // 2026-08-15 güvenlik denetimi: pageSize'a hiç üst sınır yoktu (ör.
-    // ?pageSize=5000000 gibi bir istek büyük bir sıralı sorguya yol açabilirdi).
-
-    // 2026-08-15 güvenlik denetimi: pageSize'a hiç üst sınır yoktu (ör.
-    // ?pageSize=5000000 gibi bir istek büyük bir sıralı sorguya yol açabilirdi).
+    // pageSize has an upper bound: an unbounded ?pageSize=5000000 would mean a
+    // huge sorted query.
     internal static int NormalizePageSize(int? pageSize) => pageSize is null or <= 0 ? 24 : Math.Min(pageSize.Value, 100);
 }

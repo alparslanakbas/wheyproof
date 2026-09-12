@@ -5,38 +5,34 @@ namespace IndirimTakip.Infrastructure.Subscribers;
 
 public record FavoriteRequest(string? Token, string? Email);
 
-// ResolveSubscriberAsync'in aboneyi HANGİ yoldan bulduğunu ayırt etmek için —
-// AddAsync sadece "yeni mi değil mi" bilmek yetmiyor: e-posta zaten var olan
-// bir aboneye ait çıktığında (ByExistingEmail), bu cihazda token hiç yoktur,
-// favorinin eklendiği "görünmez" kalır (bkz. 2026-08-18'de gerçek bir
-// kullanıcı raporuyla bulunan bug: favori sunucuda ekleniyordu ama bu
-// cihaz hiç token almadığı için /favorilerim boş görünüyordu).
+// Tells apart HOW ResolveSubscriberAsync found the subscriber. Knowing "new
+// or not" isn't enough for AddAsync: when the email belongs to an existing
+// subscriber (ByExistingEmail), this device has no token and the added item
+// stays "invisible" (a real report: the item was added on the server, but the
+// device never got a token, so the watchlist looked empty).
 internal enum SubscriberResolution { ByToken, ByExistingEmail, NewlyCreated }
 
-// Hesap/login gerektirmeyen "favorilerim" listesi — Subscriber'ın e-posta+
-// token altyapısını (Haber Ver ile aynı) yeniden kullanıyor ama hiç
-// e-posta göndermiyor, bu yüzden onay akışına (IsConfirmed) hiç girmiyor.
-// Token ilk favori eklemede dönüyor, frontend bunu localStorage'da tutup
-// sonraki ekleme/kaldırma/listeleme isteklerinde kullanıyor.
+// The account-free watchlist. It reuses the Subscriber email + token
+// infrastructure (like price alerts) but sends no email itself, so it never
+// enters the confirmation flow (IsConfirmed). The token is returned on the
+// first add; the frontend keeps it in localStorage for later add/remove/list
+// requests.
 public class FavoriteService(AppDbContext db, SubscriberService subscribers, IEmailSender emailSender)
 {
-    // Onay mailiyle aynı gerekçe (bkz. SubscriberService.ConfirmationEmailCooldown) —
-    // aynı e-postaya kısa sürede art arda kurtarma maili gitmesin diye.
+    // Same reason as the confirmation email (see
+    // SubscriberService.ConfirmationEmailCooldown): no rapid repeat recovery mails.
     private static readonly TimeSpan RecoveryEmailCooldown = TimeSpan.FromMinutes(5);
 
-    // 2026-08-15 güvenlik denetimi: bu metot önceden var olan bir abonenin
-    // Token'ını sadece e-postasını bilerek isteyen herkese döndürüyordu —
-    // Token hem onay hem abonelikten çıkma hem favoriler için kullanıldığı
-    // için, bu bir kişinin e-postasını bilen başkasının onun bülten aboneliğini
-    // (double opt-in atlatarak) onaylamasına/iptal etmesine, favorilerini
-    // okuyup değiştirmesine izin veriyordu. Artık Token SADECE bu çağrıda
-    // gerçekten YENİ oluşturulan bir abone için dönüyor.
-    // 2026-08-18: e-posta zaten var olan bir aboneye aitse (ByExistingEmail)
-    // favori yine ekleniyor ama bu cihazda hiç token yok — kullanıcı
-    // gerçek bir testte bunu "favori eklendi ama listede hiç görünmüyor"
-    // olarak yaşadı. Artık bu durumda otomatik olarak aynı kurtarma
-    // maili gönderiliyor (RecoverySent=true) ki kullanıcı bu cihazı da
-    // aynı e-postayla kurtarabilsin.
+    // SECURITY: an earlier version returned an existing subscriber's Token to
+    // anyone who merely knew the email. The Token drives confirmation,
+    // unsubscribe and the watchlist, so knowing someone's email let a stranger
+    // confirm (bypassing double opt-in) or cancel their subscription and read or
+    // change their watchlist. The Token is now returned ONLY for a subscriber
+    // actually CREATED in this call.
+    // When the email already belongs to a subscriber (ByExistingEmail) the item
+    // is still added but this device has no token; a recovery email is sent
+    // automatically (RecoverySent=true) so the person can connect this device
+    // with the same email.
     public async Task<(bool Success, string? Token, bool RecoverySent)> AddAsync(
         int productId, string? token, string? email, string frontendBaseUrl, CancellationToken cancellationToken = default)
     {
@@ -67,17 +63,16 @@ public class FavoriteService(AppDbContext db, SubscriberService subscribers, IEm
         {
             try
             {
-                // Cooldown SendRecoveryEmailAsync içinde zaten kontrol ediliyor
-                // (kısa süre önce gerçek bir kurtarma maili gittiyse burada
-                // sessizce hiçbir şey göndermez) — favori her durumda eklenmiş
-                // sayılır, e-posta gönderiminin başarısız olması bunu bozmasın
-                // diye hatayı yutuyoruz.
+                // The cooldown is checked inside SendRecoveryEmailAsync (if a real
+                // recovery mail went out recently, this quietly sends nothing).
+                // The item counts as added either way; a failed send mustn't
+                // undo that, so the error is swallowed.
                 await SendRecoveryEmailAsync(subscriber.Email, frontendBaseUrl, cancellationToken);
                 recoverySent = true;
             }
             catch
             {
-                // yutuluyor — bkz. yukarıdaki açıklama.
+                // Swallowed; see the comment above.
             }
         }
 
@@ -112,13 +107,11 @@ public class FavoriteService(AppDbContext db, SubscriberService subscribers, IEm
             .ToListAsync(cancellationToken);
     }
 
-    // Favorilerini kaydettiği cihaz/tarayıcıdaki token'ı kaybeden kullanıcı için
-    // (localStorage temizlenmesi, farklı bir tarayıcı vb. — gerçek bir kullanıcı
-    // raporuyla fark edildi) e-postasına token'ı içeren bir link gönderiyoruz.
-    // Email enumeration'ı önlemek üzere (2026-08-15'teki token ifşası düzeltmesiyle
-    // aynı gerekçe) bu metot subscriber bulunamazsa SESSİZCE hiçbir şey yapmıyor —
-    // çağıran taraf (Program.cs) e-postanın kayıtlı olup olmadığından bağımsız
-    // hep aynı genel mesajı dönüyor.
+    // For someone who lost the token on the device or browser where they saved
+    // their watchlist (cleared localStorage, a different browser), a link with the
+    // token goes to their email. To prevent email enumeration this method does
+    // NOTHING, silently, when no subscriber is found; the caller always returns
+    // the same generic message.
     public async Task SendRecoveryEmailAsync(string email, string frontendBaseUrl, CancellationToken cancellationToken = default)
     {
         var normalized = email.Trim().ToLowerInvariant();
@@ -129,7 +122,8 @@ public class FavoriteService(AppDbContext db, SubscriberService subscribers, IEm
         if (subscriber.LastRecoveryEmailSentAt is { } lastSent && DateTimeOffset.UtcNow - lastSent < RecoveryEmailCooldown)
             return;
 
-        var recoverUrl = $"{frontendBaseUrl.TrimEnd('/')}/favorilerim?recover={subscriber.Token}";
+        // Must match the frontend route (/watchlist, which reads ?recover=).
+        var recoverUrl = $"{frontendBaseUrl.TrimEnd('/')}/watchlist?recover={subscriber.Token}";
         var shieldIconUrl = EmailTemplate.AssetUrl(frontendBaseUrl, "trust-shield.png");
         var confirmIconUrl = EmailTemplate.AssetUrl(frontendBaseUrl, "step-confirm.png");
         var content = $"""
@@ -137,9 +131,9 @@ public class FavoriteService(AppDbContext db, SubscriberService subscribers, IEm
               {EmailTemplate.BrandHeader(frontendBaseUrl)}
               <tr>
                 <td class="email-hero" bgcolor="#0e1122" style="padding:42px 38px;font-family:Arial,Helvetica,sans-serif;">
-                  <div style="display:inline-block;border:1px solid #796cbf;background:#2b2741;color:#f5f6fb;font-size:11px;font-weight:800;line-height:16px;letter-spacing:.8px;padding:7px 12px;border-radius:999px;">FAVORİ LİSTESİ</div>
-                  <h1 class="email-title" style="margin:20px 0 12px;color:#ffffff;font-size:34px;font-weight:800;line-height:1.1;letter-spacing:-1px;">Favori listeni geri getir</h1>
-                  <p style="max-width:440px;margin:0;color:#c7cbe0;font-size:15px;line-height:23px;">Bu cihazda favori ürünlerini göremiyorsan listen tek tıkla yeniden bağlanacak.</p>
+                  <div style="display:inline-block;border:1px solid #796cbf;background:#2b2741;color:#f5f6fb;font-size:11px;font-weight:800;line-height:16px;letter-spacing:.8px;padding:7px 12px;border-radius:999px;">WATCHLIST</div>
+                  <h1 class="email-title" style="margin:20px 0 12px;color:#ffffff;font-size:34px;font-weight:800;line-height:1.1;letter-spacing:-1px;">Get your watchlist back</h1>
+                  <p style="max-width:440px;margin:0;color:#c7cbe0;font-size:15px;line-height:23px;">If you can't see your saved products on this device, one click reconnects your list.</p>
                 </td>
               </tr>
               <tr>
@@ -148,17 +142,17 @@ public class FavoriteService(AppDbContext db, SubscriberService subscribers, IEm
                     <tr>
                       <td width="64" valign="top"><img src="{EmailTemplate.Encode(confirmIconUrl)}" width="56" height="56" alt="" style="display:block;width:56px;height:56px;"></td>
                       <td valign="top" style="padding-left:12px;font-family:Arial,Helvetica,sans-serif;">
-                        <div style="color:#171a2e;font-size:16px;font-weight:800;line-height:22px;">Bu tarayıcıyı listenle eşleştir</div>
-                        <div style="margin-top:6px;color:#60667a;font-size:13px;line-height:20px;">Bağlantıya tıklayınca favorilerin bu cihazda otomatik olarak görünecek.</div>
+                        <div style="color:#171a2e;font-size:16px;font-weight:800;line-height:22px;">Connect this browser to your list</div>
+                        <div style="margin-top:6px;color:#60667a;font-size:13px;line-height:20px;">After you click the link, your watchlist shows up on this device automatically.</div>
                       </td>
                     </tr>
                   </table>
-                  <div style="margin-top:24px;text-align:center;">{EmailTemplate.PrimaryButton(recoverUrl, "Favorilerimi Göster")}</div>
-                  <p style="margin:24px 0 0;padding-top:20px;border-top:1px solid #e4e6ef;color:#60667a;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:17px;">Birden fazla tarayıcı kullanıyorsan bu bağlantıya her birinden ayrı ayrı tıklaman gerekir; her tarayıcı kendi listesini ayrı hatırlar.</p>
+                  <div style="margin-top:24px;text-align:center;">{EmailTemplate.PrimaryButton(recoverUrl, "Show my watchlist")}</div>
+                  <p style="margin:24px 0 0;padding-top:20px;border-top:1px solid #e4e6ef;color:#60667a;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:17px;">If you use more than one browser, open this link in each of them; every browser remembers its own list.</p>
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;">
                     <tr>
                       <td width="38" valign="middle"><img src="{EmailTemplate.Encode(shieldIconUrl)}" width="30" height="30" alt="" style="display:block;width:30px;height:30px;"></td>
-                      <td valign="middle" style="padding-left:8px;color:#60667a;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:16px;">Bu isteği sen yapmadıysan e-postayı yok sayabilirsin.</td>
+                      <td valign="middle" style="padding-left:8px;color:#60667a;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:16px;">If you didn't ask for this, you can ignore this email.</td>
                     </tr>
                   </table>
                 </td>
@@ -166,10 +160,10 @@ public class FavoriteService(AppDbContext db, SubscriberService subscribers, IEm
             </table>
             """;
         var html = EmailTemplate.Document(
-            "Favori ürünlerini bu tarayıcıda yeniden görmek için listeni geri getir.",
+            "Get your watchlist back to see your saved products in this browser again.",
             content);
 
-        await emailSender.SendAsync(subscriber.Email, "Favori listeni geri getir", html, cancellationToken);
+        await emailSender.SendAsync(subscriber.Email, "Get your watchlist back", html, cancellationToken);
 
         subscriber.LastRecoveryEmailSentAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);

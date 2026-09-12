@@ -10,32 +10,31 @@ using Microsoft.Extensions.Options;
 
 namespace IndirimTakip.Api.Endpoints;
 
-// Ziyaretçi etkileşimi: takip listesi, favoriler, tıklama sayacı ve
-// "faydalı mı" oyları. Hepsi hız sınırına tabi.
+// Visitor engagement: price alerts, watchlist, click counter and "was this
+// helpful" votes. All rate limited.
 internal static class EngagementEndpoints
 {
     public static void MapEngagementEndpoints(this WebApplication app, string frontendBaseUrl)
     {
-        // "Haber Ver" — bir sonraki taramada bu ürünün fiyatı gerçekten düşerse
-        // tek seferlik bir bildirim e-postası gönderiliyor (bkz. ProductWatchNotifier).
+        // Price alert: if this product's price really drops on a later scrape, a
+        // one-time notification email goes out (see ProductWatchNotifier).
         app.MapPost("/api/products/{id:int}/watch", async (int id, WatchProductRequest request, ProductWatchService watchService, HttpContext http, CancellationToken ct) =>
         {
             if (!EndpointHelpers.IsValidEmail(request.Email))
-                return Results.BadRequest(new { message = "Geçerli bir e-posta adresi girin." });
+                return Results.BadRequest(new { message = "Enter a valid email address." });
 
             var confirmBaseUrl = $"{http.Request.Scheme}://{http.Request.Host}";
             var success = await watchService.WatchAsync(id, request, confirmBaseUrl, ct);
-            return success ? Results.Ok(new { message = "Fiyat düşünce sana haber vereceğiz." }) : Results.NotFound();
+            return success ? Results.Ok(new { message = "We'll let you know when the price drops." }) : Results.NotFound();
         }).RequireRateLimiting("EmailSensitive").LogSensitiveRequest(app.Logger);
 
-        // Favoriler ("listem") — hesap/login gerektirmiyor. İlk ekleme e-posta ile
-        // yapılır, dönen token tarayıcıda saklanıp sonraki isteklerde kullanılır.
-        // Haber Ver'in aksine hiç e-posta gönderilmiyor, bu yüzden onay akışına
-        // hiç girmiyor.
+        // Watchlist: no account or login. The first add takes an email; the
+        // returned token is kept in the browser and used on later requests.
+        // Unlike price alerts it sends no email, so there's no confirmation flow.
         app.MapPost("/api/products/{id:int}/favorite", async (int id, FavoriteRequest request, FavoriteService favorites, CancellationToken ct) =>
         {
             if (string.IsNullOrEmpty(request.Token) && !EndpointHelpers.IsValidEmail(request.Email))
-                return Results.BadRequest(new { message = "Geçerli bir e-posta adresi girin." });
+                return Results.BadRequest(new { message = "Enter a valid email address." });
 
             var (success, token, recoverySent) = await favorites.AddAsync(id, request.Token, request.Email, frontendBaseUrl, ct);
             return success ? Results.Ok(new { token, recoverySent }) : Results.NotFound();
@@ -57,37 +56,35 @@ internal static class EngagementEndpoints
             return Results.Ok(result);
         });
 
-        // Favori listesi kurtarma — localStorage token'ı kaybolan kullanıcı (farklı
-        // cihaz/tarayıcı, temizlenen site verisi vb. — gerçek bir kullanıcı raporuyla
-        // fark edildi) e-postasını girip token'ı içeren bir linki e-postasına
-        // alabiliyor. Email enumeration'ı önlemek için (bkz. 2026-08-15 token ifşası
-        // düzeltmesiyle aynı gerekçe) yanıt e-postanın kayıtlı olup olmadığından
-        // bağımsız hep aynı — sadece format geçersizse ayırt edici bir hata dönüyoruz.
+        // Watchlist recovery: someone who lost the browser token (another device
+        // or browser, cleared site data) enters their email and gets a link with
+        // the token. To prevent email enumeration the response is the same
+        // whether or not the address is registered; only an invalid format gets
+        // a distinct error.
         app.MapPost("/api/favorites/recover", async (RecoverFavoritesRequest request, FavoriteService favorites, CancellationToken ct) =>
         {
             if (!EndpointHelpers.IsValidEmail(request.Email))
-                return Results.BadRequest(new { message = "Geçerli bir e-posta adresi girin." });
+                return Results.BadRequest(new { message = "Enter a valid email address." });
 
             await favorites.SendRecoveryEmailAsync(request.Email, frontendBaseUrl, ct);
-            return Results.Ok(new { message = "Bu e-posta kayıtlıysa favori linkini gönderdik." });
+            return Results.Ok(new { message = "If this email is registered, we've sent your watchlist link." });
         }).RequireRateLimiting("EmailSensitive").LogSensitiveRequest(app.Logger);
 
-        // Mağaza tıklaması. Bağlantı artık DOĞRUDAN mağazaya gittiği için (bkz.
-        // DealDto.StoreUrl) sayacı /go/{id} artıramıyor; tıklama anında buraya
-        // beacon gönderiliyor.
+        // Store click. The link goes STRAIGHT to the store (see DealDto.StoreUrl),
+        // so /go/{id} can't count it; a beacon is sent here at click time.
         //
-        // Yan fayda: sayaç artık yalnızca JavaScript çalıştıran gerçek tarayıcılarda
-        // artıyor. /go'da bunun için ayrıca user-agent'a bakıp bot ayıklamak
-        // gerekiyordu (sayaç markalarla paylaşılan tıklama raporunu besliyor ve bot
-        // trafiğiyle şişerse veri doğrudan yanıltıcı olur).
+        // Side benefit: the counter only increases in real browsers that run
+        // JavaScript. On /go that needed user-agent bot filtering (the counter
+        // feeds the click report shared with brands, and bot traffic would make
+        // it misleading).
         //
-        // Gövde beklenmiyor: navigator.sendBeacon boş gövdeyle çağrılıyor ki istek
-        // "basit" kalsın ve CORS ön kontrolü tetiklenmesin — ön kontrol, sayfa
-        // mağazaya giderken iptal edilip sayaç kaybolabilirdi.
+        // No body expected: navigator.sendBeacon is called with an empty body so
+        // the request stays "simple" and triggers no CORS preflight; a preflight
+        // could be cancelled as the page leaves for the store, losing the count.
         app.MapPost("/api/products/{id:int}/click", async (int id, AppDbContext db, CancellationToken ct) =>
         {
-            // Tek deyimde artırma: ürünü belleğe çekip SaveChanges yapmaya gerek yok
-            // ve eşzamanlı tıklamalarda kayıp güncelleme riski kalmıyor.
+            // Increment in a single statement: no need to load the product, and
+            // no lost updates on concurrent clicks.
             var affected = await db.Products
                 .Where(p => p.Id == id)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.ClickCount, p => p.ClickCount + 1), ct);
@@ -95,9 +92,8 @@ internal static class EngagementEndpoints
             return affected == 0 ? Results.NotFound() : Results.NoContent();
         }).RequireRateLimiting("General");
 
-        // "Bu bilgi faydalı mıydı?" oyu — basit güven sinyali, /go ile aynı desende
-        // (auth yok, kim oy verdiğini takip etmiyoruz — tekrar oy vermeyi frontend
-        // localStorage ile engelliyor, backend'de dedup gerekmiyor).
+        // "Was this helpful?" vote: a simple trust signal. No auth and no record
+        // of who voted; the frontend prevents repeat votes with localStorage.
         app.MapPost("/api/products/{id:int}/vote", async (int id, VoteRequest request, AppDbContext db, CancellationToken ct) =>
         {
             var product = await db.Products.FindAsync([id], ct);

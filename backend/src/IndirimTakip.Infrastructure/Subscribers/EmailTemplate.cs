@@ -1,25 +1,31 @@
+using System.Globalization;
 using System.Text.Encodings.Web;
 
 namespace IndirimTakip.Infrastructure.Subscribers;
 
 internal static class EmailTemplate
 {
-    internal const string ProductionFrontendUrl = "https://www.proteinavcisi.com.tr";
+    internal const string ProductionFrontendUrl = "https://www.wheyproof.com";
+
+    private static readonly CultureInfo UsCulture = CultureInfo.GetCultureInfo("en-US");
 
     internal static string AssetUrl(string frontendBaseUrl, string fileName) =>
         $"{frontendBaseUrl.TrimEnd('/')}/email-assets/{fileName}";
 
     internal static string Encode(string? value) => HtmlEncoder.Default.Encode(value ?? string.Empty);
 
+    /// <summary>A price as shown in email, e.g. "$39.99". One place, so every email agrees.</summary>
+    internal static string Price(decimal value) => value.ToString("C2", UsCulture);
+
     internal static string Document(string preheader, string content) => $$"""
         <!doctype html>
-        <html lang="tr">
+        <html lang="en">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width,initial-scale=1">
           <meta name="color-scheme" content="light only">
           <meta name="supported-color-schemes" content="light only">
-          <title>Protein Avcısı</title>
+          <title>WheyProof</title>
           <style>
             body, table, td, a { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
             table, td { mso-table-lspace:0pt; mso-table-rspace:0pt; }
@@ -62,8 +68,8 @@ internal static class EmailTemplate
             <a href="{Encode(frontendBaseUrl)}" style="display:inline-block;text-decoration:none;color:#171a2e;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td align="center" valign="middle" width="44" height="44" bgcolor="#171b3f" style="width:44px;height:44px;border:1px solid #6556e8;border-radius:10px;color:#b5abfc;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:800;line-height:44px;text-align:center;">PA</td>
-                  <td valign="middle" style="padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:800;line-height:24px;letter-spacing:-0.6px;color:#171a2e;white-space:nowrap;">PROTEİN<span style="color:#6556e8;">AVCISI</span></td>
+                  <td align="center" valign="middle" width="44" height="44" bgcolor="#171b3f" style="width:44px;height:44px;border:1px solid #6556e8;border-radius:10px;color:#b5abfc;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:800;line-height:44px;text-align:center;">WP</td>
+                  <td valign="middle" style="padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:800;line-height:24px;letter-spacing:-0.6px;color:#171a2e;white-space:nowrap;">WHEY<span style="color:#6556e8;">PROOF</span></td>
                 </tr>
               </table>
             </a>
@@ -77,8 +83,8 @@ internal static class EmailTemplate
             <a href="{Encode(frontendBaseUrl)}" style="display:inline-block;text-decoration:none;color:#ffffff;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td align="center" valign="middle" width="44" height="44" bgcolor="#171b3f" style="width:44px;height:44px;border:1px solid #6556e8;border-radius:10px;color:#b5abfc;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:800;line-height:44px;text-align:center;">PA</td>
-                  <td valign="middle" style="padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:800;line-height:24px;letter-spacing:-0.6px;color:#ffffff;white-space:nowrap;">PROTEİN<span style="color:#9b8cff;">AVCISI</span></td>
+                  <td align="center" valign="middle" width="44" height="44" bgcolor="#171b3f" style="width:44px;height:44px;border:1px solid #6556e8;border-radius:10px;color:#b5abfc;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:800;line-height:44px;text-align:center;">WP</td>
+                  <td valign="middle" style="padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:800;line-height:24px;letter-spacing:-0.6px;color:#ffffff;white-space:nowrap;">WHEY<span style="color:#9b8cff;">PROOF</span></td>
                 </tr>
               </table>
             </a>
