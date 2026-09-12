@@ -1,14 +1,13 @@
-// Kategori sayfalarına eklenen uzun-format bilimsel rehber içeriği.
-// Rakip analizinde (bkz. CLAUDE.md "Rakip analizi") en göze çarpan fark
-// buydu: onların kategori sayfaları ~2500-4800 kelimelik, H2/H3 yapılı
-// birer rehber, bizimkiler sadece ürün tablosu + kısa bir intro
-// (CATEGORY_INTROS) idi. Kademeli olarak genişletiliyor — önce en
-// yüksek hacimli 3 kategori (protein-tozu, kreatin, pre-workout),
-// kalan 6'sı için bu obje henüz tanımlı değil (sayfa o durumda bu
-// bölümü hiç göstermiyor).
+// Long-form guide content on category pages. Competing sites run category
+// pages as structured 2,500-4,800 word guides with H2/H3 sections, where ours
+// were a product table and a short intro (CATEGORY_INTROS). A category
+// without an entry here simply doesn't show the section.
 //
-// Ton: mevcut rehber yazılarıyla (article) aynı — dürüst, abartısız,
-// kesin tıbbi iddia yok, belirsizlik varsa açıkça belirtiliyor.
+// Tone: honest, no hype, no firm medical claims, uncertainty stated plainly.
+// Supplement claims are regulated in the US (FTC/FDA): describe what research
+// suggests, never promise results.
+
+import { SITE_NAME } from './site-identity';
 
 export interface CategoryGuideSection {
   heading: string;
@@ -17,579 +16,530 @@ export interface CategoryGuideSection {
 }
 
 export interface CategoryGuide {
-  // Sayfanın en üstüne, "zero-click-answer" olarak işaretlenen tek
-  // paragraflık tanım — Google/AI motorlarının doğrudan alıntılaması
-  // için (schema.org Speakable ile eşleşiyor, bkz. category-page.ts).
+  // A one-paragraph definition at the top of the page, marked up as a
+  // "zero-click answer" for search and AI engines to quote (matches the
+  // schema.org Speakable markup, see category-page.ts).
   zeroClickAnswer: string;
   sections: CategoryGuideSection[];
-  // İlgili rehber yazısına gerçek bir link (iç linkleme) — düz metin
-  // içinde "rehberimize bakabilirsiniz" yazıp tıklanamaz bırakmak yerine.
+  // A real link to the related guide (internal linking) rather than
+  // "see our guide" in plain, unclickable text.
   relatedArticleSlug: string;
   relatedArticleTitle: string;
 }
 
 export const CATEGORY_GUIDES: Partial<Record<string, CategoryGuide>> = {
-  'protein-tozu': {
+  'protein-powder': {
     zeroClickAnswer:
-      'Protein tozu karşılaştırması, farklı markaların protein takviyelerini servis başına protein miktarı, ' +
-      'gram başına maliyet, protein türü (whey konsantre, izole, kazein, bitkisel) ve saflık oranı gibi ' +
-      'nesnel kriterlere göre yan yana değerlendirme sürecidir. Sadece paket üzerindeki toplam gramaja değil, ' +
-      'bir porsiyonda gerçekten kaç gram protein olduğuna ve bunun fiyata oranına bakmak, en yanıltıcı ' +
-      'karşılaştırma hatasını (büyük paket = iyi fiyat sanmak) önler.',
+      'Comparing protein powders means looking past the tub size to objective numbers: protein per serving, ' +
+      'cost per gram of protein, protein type (whey concentrate, isolate, casein, plant) and purity. Checking how ' +
+      'many grams of protein a serving really has, and what that costs, avoids the most common mistake: assuming ' +
+      'the biggest tub is the best deal.',
     sections: [
       {
-        heading: 'Protein Tozu Türleri ve Aralarındaki Farklar',
+        heading: 'Types of Protein Powder and How They Differ',
         paragraphs: [
-          'Piyasadaki protein tozlarının büyük çoğunluğu süt kaynaklıdır: whey (peynir altı suyu) ve kazein. ' +
-            'Whey konsantre (WPC), en yaygın ve genelde en uygun fiyatlı türdür — protein oranı genellikle ' +
-            '%70-80 civarındadır, geri kalanı az miktarda yağ ve laktozdan oluşur. Whey izole (WPI), ek bir ' +
-            'filtreleme adımından geçtiği için protein oranı %85-95\'e çıkar, laktoz neredeyse sıfıra iner — ' +
-            'bu yüzden laktoz hassasiyeti olanlar genelde izole tercih eder.',
-          'Kazein, yine sütten gelir ama sindirimi çok daha yavaştır (whey dakikalar içinde, kazein saatler ' +
-            'içinde sindirilir) — bu yüzden genelde gece, uzun süre protein akışı istenen durumlarda tercih ' +
-            'edilir, antrenman sonrası hızlı toparlanma için değil.',
-          'Bitkisel protein tozları (bezelye, pirinç, kenevir, soya veya bunların karışımı) süt proteini ' +
-            'içermez, vegan/laktoz intoleranslı kullanıcılar için tek seçenektir. Tek bir bitkisel kaynağın ' +
-            'amino asit profili genelde eksiktir (örn. pirinç proteininde lisin az, bezelyede metiyonin az) — ' +
-            'bu yüzden kaliteli bitkisel ürünler genelde birden fazla kaynağı karıştırır.',
+          'Most protein powders are dairy-based: whey and casein. Whey concentrate (WPC) is the most common and ' +
+            'usually the cheapest, typically 70-80% protein with small amounts of fat and lactose. Whey isolate ' +
+            '(WPI) goes through an extra filtration step, reaching 85-95% protein with almost no lactose, which is ' +
+            'why people with lactose sensitivity often choose it.',
+          'Casein also comes from milk but digests much more slowly (whey in minutes, casein over hours), so it ' +
+            'is usually taken when a longer, steady supply of protein is wanted, such as before bed, rather than ' +
+            'for quick post-workout recovery.',
+          'Plant proteins (pea, rice, hemp, soy or blends) contain no dairy and are the option for vegan or ' +
+            'lactose-intolerant users. A single plant source often has an incomplete amino acid profile (rice is ' +
+            'low in lysine, pea in methionine), so good plant products usually blend several sources.',
         ],
         table: {
-          headers: ['Tür', 'Protein Oranı', 'Laktoz', 'Sindirim Hızı', 'En Uygun Kullanım'],
+          headers: ['Type', 'Protein Content', 'Lactose', 'Digestion', 'Best For'],
           rows: [
-            ['Whey Konsantre (WPC)', '%70-80', 'Düşük-orta', 'Hızlı', 'Genel/günlük kullanım, uygun fiyat'],
-            ['Whey İzole (WPI)', '%85-95', 'Neredeyse yok', 'Hızlı', 'Laktoz hassasiyeti, düşük kalori hedefi'],
-            ['Kazein', '%80-90', 'Düşük', 'Yavaş', 'Gece, uzun açlık aralıkları'],
-            ['Bitkisel (karışık)', '%70-80', 'Yok', 'Orta', 'Vegan/laktoz intoleransı'],
+            ['Whey Concentrate (WPC)', '70-80%', 'Low-moderate', 'Fast', 'Everyday use, lower price'],
+            ['Whey Isolate (WPI)', '85-95%', 'Almost none', 'Fast', 'Lactose sensitivity, low-calorie goals'],
+            ['Casein', '80-90%', 'Low', 'Slow', 'Before bed, long gaps between meals'],
+            ['Plant (blend)', '70-80%', 'None', 'Moderate', 'Vegan or lactose intolerance'],
           ],
         },
       },
       {
-        heading: 'Fiyat Karşılaştırmasında Neye Bakılmalı?',
+        heading: 'What to Look for When Comparing Prices',
         paragraphs: [
-          'İki ürünü paket fiyatına göre karşılaştırmak yanıltıcıdır — 2 kg\'lık bir paket, 900 g\'lık bir ' +
-            'paketten "ucuz" görünse bile porsiyon başına protein miktarı farklıysa gerçek maliyet tam tersi ' +
-            'olabilir. Doğru karşılaştırma birimi servis başına protein maliyeti: paket fiyatı ÷ (paketten ' +
-            'çıkan servis sayısı × servis başına protein gramı).',
-          'ProteinAvcısı, markanın kendi beyan ettiği servis büyüklüğü ve porsiyon başına protein bilgisi ' +
-            'ulaşılabildiğinde bu hesabı otomatik yapıp ürün kartlarında "servis başı fiyat" olarak gösteriyor ' +
-            '— bu bilgi markanın sitesinde yoksa tahmini bir rakam üretmiyoruz, alan boş kalıyor.',
+          'Comparing two products by tub price is misleading. A 5 lb tub may look "cheaper" than a 2 lb one, but ' +
+            'if the protein per serving differs, the real cost can be the other way around. The right unit is the ' +
+            'cost of protein: tub price ÷ (servings per tub × grams of protein per serving).',
+          `${SITE_NAME} runs this calculation automatically when the brand publishes its serving size and protein ` +
+            'per serving, and shows it as the price per serving. When the brand does not publish it, we show no ' +
+            'estimate; the field stays empty.',
         ],
       },
       {
-        heading: 'Biyoyararlanım ve Amino Asit Profili Nedir?',
+        heading: 'What Are Bioavailability and Amino Acid Profile?',
         paragraphs: [
-          'Biyoyararlanım, alınan proteinin vücut tarafından ne kadarının gerçekten kullanılabildiğini ifade ' +
-            'eder — sadece toplam protein gramajı bu konuda tam bir fikir vermez. Whey proteini, yüksek lösin ' +
-            'içeriği (kas protein sentezini tetikleyen dallı zincirli bir amino asit) ve hızlı emilimi ' +
-            'nedeniyle genellikle yüksek biyoyararlanımlı kabul edilir.',
-          'International Society of Sports Nutrition (ISSN), karşılaştırma yaparken servis başına lösin ' +
-            'miktarının (yaklaşık 2-3 g eşik değeri) dikkate alınmasını öneriyor — bu, sadece "kaç gram ' +
-            'protein" değil, "bu proteinin ne kadarı gerçekten işe yarıyor" sorusuna daha yakın bir cevap.',
+          'Bioavailability describes how much of the protein you take in the body can actually use; the total ' +
+            'grams on the label don\'t tell the whole story. Whey is generally considered highly bioavailable ' +
+            'because it is absorbed quickly and is rich in leucine, the branched-chain amino acid most associated ' +
+            'with triggering muscle protein synthesis.',
+          'The International Society of Sports Nutrition (ISSN) suggests considering leucine per serving (a ' +
+            'threshold of roughly 2-3 g) when comparing proteins. It is a closer answer to "how much of this ' +
+            'protein does the job" than grams of protein alone.',
         ],
       },
       {
-        heading: 'Üçüncü Taraf Test Sertifikaları Neden Önemli?',
+        heading: 'Why Third-Party Testing Matters',
         paragraphs: [
-          'Takviye sektöründe üretici beyanı ile gerçek içerik arasında fark çıkabiliyor (bu duruma "amino ' +
-            'spiking" deniyor — ucuz serbest amino asitlerin protein oranını yapay olarak şişirmek için ' +
-            'eklenmesi). Informed Sport veya NSF Certified for Sport gibi bağımsız sertifikalar, ürünün ' +
-            'etikette yazan içeriği gerçekten taşıdığını ve yasaklı madde içermediğini üçüncü bir tarafın ' +
-            'test ettiği anlamına gelir.',
-          'ProteinAvcısı şu an için bu sertifikaları ürün verisinde ayrı bir alan olarak takip etmiyor — ' +
-            'bir ürünü değerlendirirken markanın kendi ürün sayfasında bu sertifikalardan bahsedip ' +
-            'bahsetmediğine bakmak, ekstra bir güven katmanı ekler.',
+          'In the US, the FDA does not approve dietary supplements before they are sold, and label claims can ' +
+            'differ from what is in the tub. One known practice is "amino spiking": adding cheap free amino acids ' +
+            'to inflate the protein number. Independent programs such as NSF Certified for Sport or Informed Sport ' +
+            'mean a third party has tested that the product contains what the label says and no banned substances.',
+          `${SITE_NAME} doesn't track these certifications as a separate field yet. When evaluating a product, ` +
+            'checking whether the brand\'s own product page mentions one adds an extra layer of confidence.',
         ],
       },
       {
-        heading: 'Konsantre mi İzole mi: Hangisini Seçmeli?',
+        heading: 'Concentrate or Isolate: Which Should You Choose?',
         paragraphs: [
-          'İkisi de kaliteli bir seçenektir, doğru cevap kişisel ihtiyaca göre değişir. Bütçe öncelikliyse ve ' +
-            'laktoz hassasiyeti yoksa whey konsantre genelde daha iyi bir gram-başına-fiyat sunar. Laktoza ' +
-            'duyarlıysanız, kalori kısıtlı bir dönemdeyseniz (izole daha az yağ/karbonhidrat içerir) veya ' +
-            'daha yüksek protein saflığı istiyorsanız izole tercih sebebi olabilir.',
+          'Both are good options; the right answer depends on your needs. If budget matters most and you have no ' +
+            'lactose sensitivity, whey concentrate usually offers the better price per gram. If you are sensitive ' +
+            'to lactose, cutting calories (isolate has less fat and carbohydrate) or want higher protein purity, ' +
+            'isolate can be worth the difference.',
         ],
       },
     ],
-    relatedArticleSlug: 'whey-protein-nasil-secilir',
-    relatedArticleTitle: 'Whey Protein Nasıl Seçilir?',
+    relatedArticleSlug: 'how-to-choose-whey-protein',
+    relatedArticleTitle: 'How to Choose a Whey Protein',
   },
-  kreatin: {
+  creatine: {
     zeroClickAnswer:
-      'Kreatin karşılaştırması yapılırken en çok karıştırılan iki konu şudur: kreatin türleri arasındaki ' +
-      'gerçek fark ve yükleme fazının gerekliliği. Bilimsel literatürde en çok araştırılan ve etkinliği en ' +
-      'iyi kanıtlanmış form kreatin monohidrattır — daha pahalı alternatiflerin (HCL, kre-alkalyn gibi) ' +
-      'monohidrata karşı anlamlı bir üstünlüğü olduğuna dair güçlü bir kanıt yok.',
+      'The two points most often confused when comparing creatine are the real difference between forms and ' +
+      'whether a loading phase is needed. Creatine monohydrate is the most researched form with the strongest ' +
+      'evidence; there is no strong evidence that pricier alternatives such as creatine HCl or buffered creatine ' +
+      'work meaningfully better.',
     sections: [
       {
-        heading: 'Kreatin Türleri Arasındaki Gerçek Farklar',
+        heading: 'The Real Differences Between Creatine Forms',
         paragraphs: [
-          'Kreatin monohidrat, en eski, en çok araştırılan ve genelde en uygun fiyatlı formdur. Mikronize ' +
-            'monohidrat ise aynı molekül, sadece daha küçük partikül boyutuna öğütülmüş hali — suda daha ' +
-            'kolay çözünür ama vücuttaki etkinliği aynıdır, "daha güçlü" bir versiyon değildir.',
-          'Kreatin HCL (hidroklorür) ve kre-alkalyn gibi formlar, "daha az su tutar" veya "daha az mide ' +
-            'rahatsızlığı yapar" iddiasıyla pazarlanır — ama bu iddiaları doğrulayan bağımsız, geniş ölçekli ' +
-            'çalışma sayısı monohidrata kıyasla çok azdır. Fiyat farkının bilimsel bir üstünlükle ' +
-            'desteklenmediğini bilerek karar vermek önemli.',
-          'Creapure, bir marka değil bir üretim standardıdır (Almanya menşeli, yüksek saflıkta kreatin ' +
-            'monohidrat üreten bir tedarikçinin tescilli adı) — birçok Türk marka kendi ürününde Creapure ' +
-            'kullandığını belirtir, bu bir saflık/kalite güvencesi olarak değerlendirilebilir.',
+          'Creatine monohydrate is the oldest, most studied and usually the cheapest form. Micronized ' +
+            'monohydrate is the same molecule milled to a finer particle size: it mixes more easily in water, but ' +
+            'it is not a "stronger" version.',
+          'Forms such as creatine HCl and buffered creatine (Kre-Alkalyn) are marketed as causing less water ' +
+            'retention or less stomach upset, but far fewer large, independent studies support those claims than ' +
+            'support monohydrate. It is worth knowing the price difference isn\'t backed by a proven advantage.',
+          'Creapure is not a brand of supplement but a trademarked, high-purity creatine monohydrate made in ' +
+            'Germany. Many brands state they use it, which can be read as a purity and quality assurance.',
         ],
       },
       {
-        heading: 'Yükleme Fazı Gerekli mi?',
+        heading: 'Is a Loading Phase Necessary?',
         paragraphs: [
-          'Geleneksel protokol, ilk 5-7 gün günde 20 g (4 doza bölünmüş) "yükleme", ardından günde 3-5 g ' +
-            '"idame" şeklindeydi. Yükleme fazının tek faydası kas kreatin depolarının daha HIZLI dolmasıdır ' +
-            '— atlanırsa da (doğrudan günde 3-5 g ile başlanırsa) aynı doygunluk noktasına yaklaşık 3-4 ' +
-            'hafta içinde ulaşılır, sonuç aynıdır.',
-          'Bu yüzden yükleme fazı zorunlu değil, sadece bir hız tercihi. Mide rahatsızlığı yaşamak ' +
-            'istemeyenler doğrudan idame dozuyla başlayabilir.',
+          'The traditional protocol was a "loading" phase of 20 g a day (split into four doses) for 5-7 days, ' +
+            'then 3-5 g a day to maintain. Loading only fills muscle creatine stores FASTER. Skip it and start at ' +
+            '3-5 g a day, and you reach the same saturation in about 3-4 weeks; the end result is the same.',
+          'So loading is optional, a matter of speed. People who want to avoid stomach discomfort can start ' +
+            'directly with the maintenance dose.',
         ],
       },
       {
-        heading: 'Su Tutma ve Kilo Artışı Neden Olur?',
+        heading: 'Why Water Retention and Weight Gain Happen',
         paragraphs: [
-          'Kreatin, kas hücrelerinin içine su çeker (hücre içi hidrasyon) — bu, "şişkinlik" değil, kasın ' +
-            'kendisinin daha dolgun görünmesine yol açan, hücre içinde kalan bir su tutumudur. İlk 1-2 hafta ' +
-            'içinde 1-2 kg\'lık bir kilo artışı genelde bu su tutumundan kaynaklanır, yağ artışı değildir.',
-          'Bu etki geri dönüşümlüdür — kreatin kullanımı bırakıldığında birkaç hafta içinde kaybolur.',
+          'Creatine draws water into muscle cells (intracellular hydration). That is not "bloating" under the ' +
+            'skin but water held inside the muscle, which can make it look fuller. A gain of 2-4 lb in the first ' +
+            'week or two usually comes from this water, not fat.',
+          'The effect is reversible and fades within a few weeks of stopping creatine.',
         ],
       },
       {
-        heading: 'Fiyat Karşılaştırmasında Saflık ve Gramaj',
+        heading: 'Purity and Grams When Comparing Prices',
         paragraphs: [
-          'Kreatin ürünlerinde fiyat karşılaştırması nispeten basittir çünkü etkin madde tek bir bileşendir ' +
-            '— karmaşık bir amino asit profiline bakmaya gerek yok. Asıl dikkat edilmesi gereken, paketin ' +
-            'gerçekten saf kreatin monohidrat mı yoksa "kreatin kompleksi" adı altında başka (ve genelde daha ' +
-            'ucuz) bileşenlerle seyreltilmiş bir karışım mı olduğudur — ürün adında/etiketinde "monohidrat" ' +
-            'yazmayan bir kreatin ürünü karşılaştırırken bu ayrımı gözden kaçırmamak gerekir.',
+          'Comparing creatine prices is relatively simple because the active ingredient is a single compound. ' +
+            'The thing to check is whether the product is pure creatine monohydrate or a "creatine complex" ' +
+            'diluted with other, usually cheaper, ingredients. When a product doesn\'t say "monohydrate" on the ' +
+            'label, keep that distinction in mind.',
         ],
       },
       {
-        heading: 'Kimler Dikkatli Kullanmalı?',
+        heading: 'Who Should Be Careful?',
         paragraphs: [
-          'Böbrek fonksiyon bozukluğu olan kişiler kreatin kullanmadan önce mutlaka bir hekime danışmalı — ' +
-            'sağlıklı böbreklerde kreatinin güvenli olduğuna dair geniş bir literatür olsa da, önceden var ' +
-            'olan bir böbrek rahatsızlığı durumunda bu genellenemez.',
+          'People with impaired kidney function should talk to a doctor before taking creatine. There is a broad ' +
+            'body of research on its safety with healthy kidneys, but that can\'t be generalized to an existing ' +
+            'kidney condition.',
         ],
       },
     ],
-    relatedArticleSlug: 'kreatin-alirken-nelere-dikkat-edilmeli',
-    relatedArticleTitle: 'Kreatin Alırken Nelere Dikkat Edilmeli?',
+    relatedArticleSlug: 'creatine-what-to-know',
+    relatedArticleTitle: 'Creatine: What to Know Before You Buy',
   },
   'pre-workout': {
     zeroClickAnswer:
-      'Pre-workout karşılaştırması yapılırken en önemli kriter, etiketteki toplam bileşen sayısı değil, kafein ' +
-      'miktarı ve performansı etkilediği bilimsel olarak gösterilmiş birkaç bileşenin (beta-alanin, sitrülin, ' +
-      'kreatin) etkili dozda bulunup bulunmadığıdır. Aynı fiyata çok sayıda "özel karışım" bileşeni sıralayan ' +
-      'ama etkin dozları belirtmeyen ürünler, genelde her bileşenden az miktarda içerir.',
+      'When comparing pre-workouts, the key is not the number of ingredients on the label but the caffeine ' +
+      'content and whether the few ingredients with research behind them (beta-alanine, citrulline, creatine) ' +
+      'appear at effective doses. Products listing many ingredients in a "proprietary blend" without doses ' +
+      'usually contain small amounts of each.',
     sections: [
       {
-        heading: 'Pre-Workout İçeriğindeki Temel Bileşenler',
+        heading: 'The Core Ingredients in a Pre-Workout',
         paragraphs: [
-          'Kafein, pre-workout\'ların en yaygın ve etkisi en net kanıtlanmış bileşenidir — uyanıklık, algılanan ' +
-            'efor düzeyinde azalma ve kısa süreli performans artışıyla ilişkilendirilir. Servis başı doz ' +
-            'markadan markaya büyük farklılık gösterir (150-400 mg arası), bu yüzden karşılaştırma yaparken ' +
-            'ilk bakılması gereken rakamdır.',
-          'Beta-alanin, kas dokusunda karnosin birikimini artırarak yüksek yoğunluklu, 1-4 dakika süren ' +
-            'egzersizlerde yorgunluğu geciktirmeye yardımcı olur — etkili doz genelde günde 3,2-6,4 g arasında ' +
-            'kabul edilir (tek seferde değil, zamanla birikimli).',
-          'Sitrülin (malat formu dahil), kan akışını destekleyerek "pump" hissini artırır ve bazı çalışmalarda ' +
-            'egzersiz kapasitesine küçük bir katkı gösterir; etkili doz genelde 6-8 g civarındadır — birçok ' +
-            'ucuz üründe bu dozun çok altında kullanılır.',
+          'Caffeine is the most common ingredient with the clearest evidence, associated with alertness, lower ' +
+            'perceived effort and short-term performance. Doses per serving vary widely (roughly 150-400 mg), so ' +
+            'it is the first number to check.',
+          'Beta-alanine raises carnosine levels in muscle and can help delay fatigue in high-intensity efforts ' +
+            'lasting 1-4 minutes. Effective intake is usually considered 3.2-6.4 g a day, and it works by building ' +
+            'up over time, not from a single dose.',
+          'Citrulline (including citrulline malate) supports blood flow, adds to the "pump" feeling and in some ' +
+            'studies shows a small contribution to exercise capacity. Effective doses are usually around 6-8 g of ' +
+            'citrulline malate; many budget products use far less.',
         ],
       },
       {
-        heading: 'Karıncalanma (Parestezi) Neden Olur?',
+        heading: 'Why Does It Make You Tingle?',
         paragraphs: [
-          'Beta-alanin alımından sonra yüzde/ellerde hissedilen karıncalanma (parestezi) zararsız ama ' +
-            'rahatsız edici bir yan etkidir — beta-alaninin sinir uçlarını geçici olarak uyarmasından ' +
-            'kaynaklanır. Dozu bölerek almak (tek seferde büyük doz yerine) bu hissi azaltabilir. Bu, ürünün ' +
-            'kalitesiyle ilgili bir sorun değil, beta-alaninin doğal bir yan etkisidir.',
+          'The tingling in the face or hands after beta-alanine (paresthesia) is harmless but can be ' +
+            'uncomfortable; it comes from beta-alanine briefly stimulating nerve endings. Splitting the dose can ' +
+            'reduce it. It is a natural effect of the ingredient, not a sign of product quality.',
         ],
       },
       {
-        heading: 'Kafein Duyarlılığı ve Doz Aralığı',
+        heading: 'Caffeine Sensitivity and Dose Range',
         paragraphs: [
-          'Kafeine duyarlı kişiler için 150 mg\'ın altı "düşük doz" sayılabilirken, deneyimli kullanıcılar ' +
-            '300 mg\'ın üzerini tercih edebilir. Antrenman saatinden bağımsız günlük toplam kafein tüketimini ' +
-            '(kahve, çay, enerji içeceği dahil) hesaba katmak önemli — pre-workout\'taki dozu tek başına değil, ' +
-            'günün geri kalanına eklenen bir miktar olarak düşünmek gerekir.',
-          'Akşam antrenmanı yapanlar için yüksek dozlu bir pre-workout uyku kalitesini etkileyebilir — kafein ' +
-            'yarı ömrü ortalama 5 saat civarındadır.',
+          'For caffeine-sensitive people, under 150 mg can count as a low dose, while experienced users may ' +
+            'prefer 300 mg or more. The FDA cites 400 mg a day as an amount not generally associated with negative ' +
+            'effects in healthy adults, and that total includes coffee, tea and energy drinks. Think of the ' +
+            'pre-workout dose as part of your daily total, not on its own.',
+          'For evening workouts, a high-caffeine pre-workout can affect sleep; caffeine\'s half-life averages ' +
+            'around 5 hours.',
         ],
       },
       {
-        heading: 'Kreatin İçeren Pre-Workout\'lara Dikkat',
+        heading: 'Pre-Workouts That Contain Creatine',
         paragraphs: [
-          'Bazı pre-workout ürünleri formülüne kreatin de ekler — bu kendi içinde sorun değil, ama kreatinin ' +
-            'etkili olması için düzenli/günlük kullanım gerektirdiğini (bkz. yukarıdaki kreatin bölümü) göz ' +
-            'önünde bulundurmak gerekir. Sadece antrenman günlerinde pre-workout kullanıp diğer günler ' +
-            'almıyorsanız, kreatin dozunuz düzensiz kalır ve tam potansiyeline ulaşamaz — bu durumda ayrı bir ' +
-            'kreatin takviyesi almak daha tutarlı sonuç verir.',
+          'Some pre-workouts add creatine. That is fine in itself, but creatine works through regular daily use ' +
+            '(see the creatine guide). If you only take the pre-workout on training days, your creatine intake is ' +
+            'irregular; a separate creatine supplement gives more consistent results.',
         ],
       },
       {
-        heading: 'Fiyat/Porsiyon Karşılaştırması Nasıl Yapılır?',
+        heading: 'How to Compare Price per Serving',
         paragraphs: [
-          'Pre-workout karşılaştırmasında paket fiyatı yerine porsiyon başına maliyete bakmak burada da ' +
-            'geçerli — ama ek olarak porsiyon başına kafein/beta-alanin/sitrülin miktarına bölerek "etkin ' +
-            'doz başına maliyet" hesaplamak, aynı görünen iki üründe gerçek farkı ortaya çıkarır.',
+          'Here too, look at cost per serving rather than tub price, and go one step further: divide it by the ' +
+            'caffeine, beta-alanine and citrulline per serving to get a "cost per effective dose". It reveals the ' +
+            'real difference between two products that look alike.',
         ],
       },
     ],
-    relatedArticleSlug: 'pre-workout-nasil-secilir',
-    relatedArticleTitle: 'Pre-Workout Nasıl Seçilir?',
+    relatedArticleSlug: 'how-to-choose-a-pre-workout',
+    relatedArticleTitle: 'How to Choose a Pre-Workout',
   },
-  'amino-asitler': {
+  'amino-acids': {
     zeroClickAnswer:
-      'Amino asit takviyesi karşılaştırmasında ilk ayrım BCAA (dallı zincirli 3 amino asit) ile EAA (9 ' +
-      'esansiyel amino asidin tamamı) arasındadır. EAA, BCAA\'nın içerdiği tüm amino asitleri de kapsadığı ' +
-      'için kas protein sentezini tetiklemede genelde daha eksiksiz kabul edilir — ama zaten yeterli ' +
-      'miktarda protein (whey, et, yumurta) tüketen biri için ikisinin de ek bir katkısı sınırlıdır.',
+      'The first distinction when comparing amino acid supplements is BCAA (three branched-chain amino acids) ' +
+      'versus EAA (all nine essential amino acids). EAAs include every amino acid in a BCAA, so they are ' +
+      'generally considered more complete for muscle protein synthesis, but for someone who already eats enough ' +
+      'protein (whey, meat, eggs), either adds little.',
     sections: [
       {
-        heading: 'BCAA mı EAA mı? Temel Fark',
+        heading: 'BCAA or EAA? The Core Difference',
         paragraphs: [
-          'BCAA (Branched-Chain Amino Acids), lösin, izolösin ve valin olmak üzere 3 amino asitten oluşur ' +
-            've kas protein sentezini tetikleyen ana sinyal lösine odaklanır. EAA (Essential Amino Acids) ise ' +
-            'vücudun kendisinin üretemediği 9 amino asidin tamamını içerir — BCAA\'nın 3\'ü de bu 9\'un içinde.',
-          'Kas protein sentezi için sadece lösin sinyali yetmez, proteini gerçekten inşa etmek için diğer ' +
-            '8 esansiyel amino asit de gerekir — bu yüzden son yıllarda spor bilimi literatüründe EAA\'nın ' +
-            'BCAA\'ya kıyasla daha eksiksiz bir seçenek olduğu görüşü öne çıkıyor.',
+          'BCAAs (branched-chain amino acids) are leucine, isoleucine and valine, focused on leucine, the main ' +
+            'signal for muscle protein synthesis. EAAs (essential amino acids) are all nine amino acids the body ' +
+            'can\'t make itself, and the three BCAAs are among them.',
+          'The leucine signal alone isn\'t enough to build muscle protein; the other eight essential amino acids ' +
+            'are needed too. That is why sports nutrition research in recent years has favored EAAs as the more ' +
+            'complete option.',
         ],
       },
       {
-        heading: 'Zaten Yeterli Protein Alıyorsanız Gerekli mi?',
+        heading: 'Do You Need Them If You Already Eat Enough Protein?',
         paragraphs: [
-          'Günlük protein ihtiyacınızı (whey, et, yumurta, bakliyat gibi tam protein kaynaklarından) zaten ' +
-            'karşılıyorsanız, ayrıca BCAA/EAA takviyesi almanın ek bir kas gelişimi faydası sınırlıdır — çünkü ' +
-            'tam protein kaynakları zaten tüm esansiyel amino asitleri barındırır. Bu takviyeler asıl olarak ' +
-            'iki durumda anlamlı olur: açken (fasted) antrenman yapılıyorsa veya günlük protein hedefine ' +
-            'tam ulaşmak zor geliyorsa.',
+          'If you already meet your daily protein needs from complete sources (whey, meat, eggs, dairy, soy), ' +
+            'extra BCAAs or EAAs add limited benefit for muscle growth, since complete proteins already contain ' +
+            'every essential amino acid. They make the most sense when training fasted or when reaching a daily ' +
+            'protein target is hard.',
         ],
       },
       {
-        heading: 'Amino Asit Profili ve Oranlar',
+        heading: 'Amino Acid Profile and Ratios',
         paragraphs: [
-          'BCAA ürünlerinde sıkça görülen "2:1:1" veya "4:1:1" gibi oranlar, lösin:izolösin:valin oranını ' +
-            'ifade eder — yüksek lösin oranı (4:1:1 gibi) genelde daha güçlü bir kas protein sentezi sinyali ' +
-            'anlamına gelir ama tek başına toplam amino asit miktarından daha önemli değildir. Ürün ' +
-            'karşılaştırırken sadece orana değil, servis başına toplam gram miktarına da bakmak gerekir.',
+          'Ratios such as "2:1:1" or "4:1:1" on BCAA products describe leucine:isoleucine:valine. A higher ' +
+            'leucine ratio usually means a stronger synthesis signal, but it matters less than the total amount. ' +
+            'Compare grams per serving, not just the ratio.',
         ],
       },
       {
-        heading: 'Ne Zaman Alınmalı?',
+        heading: 'When to Take Them',
         paragraphs: [
-          'BCAA/EAA genelde antrenman sırasında veya antrenman öncesi/sonrası tüketilir — su ile karıştırılıp ' +
-            'içildiği için sindirimi hızlıdır. Aç karnına yapılan uzun kardiyo antrenmanlarında kas dokusunun ' +
-            'enerji için kullanılmasını (katabolizma) azaltmak amacıyla tercih edilebilir.',
+          'BCAAs and EAAs are usually taken during or around training; mixed in water, they digest quickly. On ' +
+            'long fasted cardio sessions they are sometimes used to limit muscle breakdown for energy.',
         ],
       },
       {
-        heading: 'Glutamin ve Diğer Amino Asitler',
+        heading: 'Glutamine and Other Amino Acids',
         paragraphs: [
-          'Glutamin, bağışıklık ve bağırsak sağlığıyla ilişkilendirilen, ama kas gelişimi üzerindeki doğrudan ' +
-            'etkisi BCAA/EAA kadar güçlü kanıtlanmamış ayrı bir amino asittir — bazı ürünlerde BCAA/EAA\'ya ek ' +
-            'olarak bulunur. Sitrülin de bir amino asit türevidir ama asıl etkisi kan akışı/pompa hissi ' +
-            'üzerinedir, kas protein sentezine katkısı BCAA/EAA\'dan farklı bir mekanizmadır.',
+          'Glutamine is linked to immune and gut health, but its direct effect on muscle growth is not as well ' +
+            'supported as BCAAs or EAAs; some products add it. Citrulline is an amino acid too, but its main effect ' +
+            'is on blood flow and the pump, a different mechanism from muscle protein synthesis.',
         ],
       },
       {
-        heading: 'Fiyat Karşılaştırmasında Neye Bakılmalı?',
+        heading: 'What to Look for When Comparing Prices',
         paragraphs: [
-          'Amino asit ürünlerinde de aynı kural geçerli: paket fiyatı değil, servis başına toplam amino asit ' +
-            'gramı ve lösin miktarı karşılaştırılmalı. Bazı ürünler "amino asit kompleksi" adı altında düşük ' +
-            'dozda birçok farklı amino asidi bir arada listeler — bu genelde etkili dozun altında kalan, ' +
-            'pazarlama amaçlı bir liste uzunluğudur.',
+          'The same rule applies: compare total grams of amino acids and leucine per serving, not tub price. ' +
+            'Some products list many amino acids at low doses under an "amino complex" name, which is usually ' +
+            'label length for marketing rather than effective doses.',
         ],
       },
     ],
-    relatedArticleSlug: 'bcaa-mi-eaa-mi-amino-asit-rehberi',
-    relatedArticleTitle: 'BCAA mı EAA mı? Amino Asit Takviyesi Rehberi',
+    relatedArticleSlug: 'bcaa-vs-eaa',
+    relatedArticleTitle: 'BCAA vs EAA: An Amino Acid Guide',
   },
-  'kilo-hacim': {
+  hydration: {
     zeroClickAnswer:
-      'Kilo aldırıcı (gainer) karşılaştırması yapılırken en önemli kriter, ürünün servis başına kalori ' +
-      'yoğunluğu ve karbonhidrat/protein/yağ dağılımıdır — gainer\'lar, standart protein tozlarından farklı ' +
-      'olarak yüksek kalori almayı kolaylaştırmak için tasarlanmıştır, bu yüzden aynı mantıkla (sadece ' +
-      'protein miktarına bakarak) karşılaştırılmamalıdır.',
+      'Hydration and electrolyte mixes add sodium, potassium and often magnesium to water. When comparing them, ' +
+      'the key numbers are sodium per serving (it varies from under 100 mg to over 1,000 mg), sugar content and ' +
+      'cost per serving. The right product depends on how much and how long you sweat, not on the length of the ' +
+      'ingredient list.',
     sections: [
       {
-        heading: 'Gainer Nedir, Kimler İçin Uygun?',
+        heading: 'What Electrolytes Do',
         paragraphs: [
-          'Gainer, standart bir protein tozuna kıyasla çok daha fazla karbonhidrat (genelde maltodekstrin ' +
-            'veya benzeri hızlı sindirilen bir kaynak) içeren, servis başına 300-1200 kalori arasında ' +
-            'değişebilen bir takviyedir. Doğal olarak çok yemek yiyemeyen veya günlük kalori ihtiyacını ' +
-            'sadece yemekle karşılamakta zorlanan, kilo almayı hedefleyen kişiler için pratik bir çözümdür.',
-          'Zaten kilo almakta zorlanmayan veya yağlanma eğilimi yüksek olan biri için gainer genelde gerekli ' +
-            'değildir — bu durumda normal bir protein tozu + yeterli günlük beslenme yeterlidir.',
+          'Electrolytes are minerals that carry an electrical charge and help regulate fluid balance, nerve ' +
+            'signals and muscle function. Sodium is the one lost in the largest amounts in sweat, followed by ' +
+            'potassium, with smaller amounts of magnesium and calcium.',
+          'For most people doing short, moderate workouts, water and normal meals replace what is lost. ' +
+            'Electrolyte products matter more for long sessions, hot conditions, heavy sweaters and low-carb diets.',
         ],
       },
       {
-        heading: 'Kalori Yoğunluğu ve Makro Dağılımı',
+        heading: 'Sodium Is the Number to Compare',
         paragraphs: [
-          'Gainer ürünleri arasında kalori yoğunluğu çok değişkendir — bazıları servis başına ~300 kalori ' +
-            '(daha "hafif" gainer, gerçekte yüksek proteinli bir ek atıştırmalığa yakın), bazıları 1000 ' +
-            'kalorinin üzerindedir. Karşılaştırma yaparken paket fiyatına değil, hedeflenen günlük kalori ' +
-            'fazlasına hangi ürünün daha uygun olduğuna bakmak gerekir.',
+          'Products differ most in sodium: some are closer to flavored water, others are built for endurance ' +
+            'athletes. A heavy sweater in the heat may lose well over 1,000 mg of sodium per hour; someone lifting ' +
+            'for 45 minutes loses far less. Match the sodium to your situation rather than assuming more is better.',
         ],
       },
       {
-        heading: 'Şeker/Maltodekstrin İçeriğine Dikkat',
+        heading: 'Sugar or No Sugar?',
         paragraphs: [
-          'Ucuz gainer ürünlerinin kalorisinin büyük kısmı genelde basit şeker veya maltodekstrinden gelir — ' +
-            'bu, hızlı enerji sağlar ama kan şekerinde ani yükselmelere yol açabilir. Daha kaliteli ürünler ' +
-            'karbonhidrat kaynağını (yulaf, tatlı patates unu gibi) çeşitlendirerek bu etkiyi azaltmaya ' +
-            'çalışır — etiketteki karbonhidrat kaynağına bakmak, sadece toplam kalori/protein rakamına ' +
-            'bakmaktan daha fazla bilgi verir.',
+          'Some mixes include sugar, which speeds fluid absorption and supplies energy during long efforts. For ' +
+            'everyday use or low-calorie goals, sugar-free versions sweetened with stevia or sucralose are common. ' +
+            'Neither is better in general; it depends on the activity.',
         ],
       },
       {
-        heading: 'Protein Tozundan Farkı',
+        heading: 'Who Should Be Careful?',
         paragraphs: [
-          'Standart bir whey protein tozu genelde servis başına 100-150 kalori ve düşük karbonhidrat ' +
-            'içerirken, gainer bilinçli olarak kalori yoğunluğunu artırır. Kilo almak istemeyen ama sadece ' +
-            'protein ihtiyacını karşılamak isteyen biri için gainer yanlış bir seçim olur — bu iki ürün ' +
-            'farklı hedeflere hizmet eder, biri diğerinin yerine geçmez.',
+          'People on a sodium-restricted diet, with high blood pressure, or with kidney or heart conditions ' +
+            'should talk to a doctor before using high-sodium products regularly.',
         ],
       },
       {
-        heading: 'Fiyat Karşılaştırmasında Kalori Başına Maliyet',
+        heading: 'What to Look for When Comparing Prices',
         paragraphs: [
-          'Gainer için en anlamlı karşılaştırma birimi genelde kalori başına maliyettir (protein tozundaki ' +
-            'gibi sadece protein gramı başına değil) — çünkü ürünün asıl işlevi kalori sağlamaktır. Aynı ' +
-            'paket fiyatına sahip iki gainer, servis başına kalorisi farklıysa gerçekte çok farklı bir ' +
-            'maliyet sunuyor olabilir.',
+          'Compare cost per serving and sodium per serving together. A cheap tub with little sodium may cost ' +
+            'more per useful dose than a pricier, more concentrated one.',
         ],
       },
     ],
-    relatedArticleSlug: 'kilo-aldirici-gainer-nasil-kullanilir',
-    relatedArticleTitle: 'Kilo Aldırıcı (Gainer) Nasıl Kullanılır?',
+    relatedArticleSlug: 'electrolytes-explained',
+    relatedArticleTitle: 'Electrolytes Explained',
   },
-  'l-carnitine-cla': {
+  'mass-gainers': {
     zeroClickAnswer:
-      'L-Karnitin ve CLA (Konjuge Linoleik Asit), genelde "yağ yakıcı" kategorisinde pazarlanan ama farklı ' +
-      'mekanizmalarla çalışan iki ayrı bileşendir. İkisinin de insan çalışmalarındaki etkisi mütevazı ve ' +
-      'tutarsızdır — kalori açığı ve düzenli antrenman olmadan tek başlarına anlamlı bir yağ kaybı sağladığına ' +
-      'dair güçlü bir kanıt yoktur.',
+      'When comparing mass gainers, the key criteria are calories per serving and the split of carbohydrate, ' +
+      'protein and fat. Unlike standard protein powders, gainers are designed to make a high calorie intake ' +
+      'easier, so they shouldn\'t be compared the same way (by protein alone).',
     sections: [
       {
-        heading: 'L-Karnitin Nasıl Çalışır?',
+        heading: 'What Is a Gainer, and Who Is It For?',
         paragraphs: [
-          'L-Karnitin, yağ asitlerini hücrenin enerji üreten kısmına (mitokondri) taşıyan bir bileşiktir — ' +
-            'teorik olarak yağın enerjiye dönüştürülmesine "yardımcı" olur. Ama vücut zaten karaciğerde ' +
-            'yeterli L-Karnitin üretir, dışarıdan alınan ek miktarın kas dokusuna ulaşan kısmı sınırlıdır — ' +
-            'bu yüzden etkisi beklenenden daha mütevazıdır.',
+          'A gainer contains far more carbohydrate than a standard protein powder (usually maltodextrin or ' +
+            'another fast-digesting source), with anywhere from about 300 to over 1,200 calories per serving. It ' +
+            'is a practical option for people who struggle to eat enough to reach their calorie target and want ' +
+            'to gain weight.',
+          'For someone who gains weight easily or tends to add fat, a gainer usually isn\'t necessary; a regular ' +
+            'protein powder plus adequate meals is enough.',
         ],
       },
       {
-        heading: 'CLA Nedir, L-Karnitin\'den Farkı',
+        heading: 'Calorie Density and Macro Split',
         paragraphs: [
-          'CLA, doğal olarak et ve süt ürünlerinde bulunan bir yağ asidi türevidir, farklı bir mekanizmayla ' +
-            '(yağ hücrelerinin büyümesini/depolanmasını etkileyerek) çalıştığı öne sürülür. L-Karnitin ile ' +
-            'aynı kategoride satılsa da kimyasal olarak tamamen farklı bir bileşendir, ikisi birbirinin ' +
-            'yerine geçmez.',
+          'Calorie density varies widely: some servings are around 300 calories (closer to a high-protein ' +
+            'snack), others exceed 1,000. Compare them by which fits your intended daily surplus, not by tub price.',
         ],
       },
       {
-        heading: 'Bilimsel Kanıt Ne Diyor?',
+        heading: 'Watch the Sugar and Maltodextrin',
         paragraphs: [
-          'Hem L-Karnitin hem CLA üzerine yapılan insan çalışmalarının sonuçları karışıktır — bazı ' +
-            'çalışmalar küçük bir yağ kaybı farkı gösterirken, birçoğu anlamlı bir fark bulamamıştır. Bu ' +
-            'takviyeleri "yağ eritici" gibi göstermek gerçekçi değildir; en iyi ihtimalle kalori açığı ve ' +
-            'antrenmanın yanında küçük bir destek olabilirler, bunların yerine geçmezler.',
+          'In cheaper gainers, most of the calories often come from simple sugar or maltodextrin, which provide ' +
+            'quick energy but can spike blood sugar. Better products diversify carbohydrate sources (oats, sweet ' +
+            'potato flour). The carbohydrate source on the label says more than total calories alone.',
         ],
       },
       {
-        heading: 'Şekil/Form Farkları',
+        heading: 'How It Differs From Protein Powder',
         paragraphs: [
-          'L-Karnitin birkaç farklı formda satılır: L-Karnitin Tartrat (genel kullanım), Asetil-L-Karnitin ' +
-            '(ALCAR, bilişsel etkileriyle de anılır) ve L-Karnitin L-Tartrat sıvı/shot formları. Formlar ' +
-            'arasında emilim hızı farklılık gösterebilir ama hiçbiri "yağ yakma" etkisini kanıtlanmış şekilde ' +
-            'artırmaz.',
+          'A standard whey protein is usually 100-150 calories per serving and low in carbohydrate; a gainer ' +
+            'deliberately raises calorie density. For someone who only wants to cover protein needs without ' +
+            'gaining weight, a gainer is the wrong choice: the two serve different goals.',
         ],
       },
       {
-        heading: 'Ne Zaman ve Nasıl Kullanılır?',
+        heading: 'Cost per Calorie When Comparing Prices',
         paragraphs: [
-          'Genelde antrenman öncesi tüketilir (teorik olarak yağ asidi kullanımını desteklemesi umulur). ' +
-            'Sıvı shot formları hızlı emilim iddiasıyla satılır ama kapsül/toz formuna göre kanıtlanmış bir ' +
-            'üstünlükleri yoktur — fiyat farkı genelde kullanım kolaylığına yöneliktir.',
-        ],
-      },
-      {
-        heading: 'Fiyat Karşılaştırmasında Neye Bakılmalı?',
-        paragraphs: [
-          'Servis başına L-Karnitin/CLA miktarı ürünler arasında oldukça değişkendir — bazı ürünler etkili ' +
-            'kabul edilen dozun (L-Karnitin için genelde 2 g civarı) çok altında kalır. Karşılaştırma ' +
-            'yaparken toplam paket fiyatı yerine servis başına aktif madde miktarına bakmak, hangi ürünün ' +
-            'gerçekten daha uygun fiyatlı olduğunu netleştirir.',
+          'For gainers the most meaningful unit is usually cost per calorie, not just per gram of protein, since ' +
+            'the product\'s main job is supplying calories. Two gainers at the same price can differ a lot if their ' +
+            'calories per serving differ.',
         ],
       },
     ],
-    relatedArticleSlug: 'l-karnitin-yag-yakiminda-ise-yarar-mi',
-    relatedArticleTitle: 'L-Karnitin Yağ Yakımında İşe Yarar mı?',
+    relatedArticleSlug: 'how-to-use-a-mass-gainer',
+    relatedArticleTitle: 'How to Use a Mass Gainer',
   },
-  'saglikli-atistirmaliklar': {
+  'fat-burners': {
     zeroClickAnswer:
-      'Sağlıklı atıştırmalık karşılaştırması yapılırken "protein bar" veya "fit atıştırmalık" etiketi tek ' +
-      'başına yeterli bir ölçüt değildir — şeker/tatlandırıcı içeriği, gerçek protein miktarı ve porsiyon ' +
-      'başına kalori arasındaki denge, ürünün gerçekten "sağlıklı" olup olmadığını belirler.',
+      'The most important fact when comparing fat burners: no supplement causes fat loss without a calorie ' +
+      'deficit and regular training. At best these products modestly support energy expenditure or appetite; ' +
+      'they don\'t "melt fat". Ingredients such as L-carnitine and CLA are sold in this category too, with modest ' +
+      'and inconsistent results in human studies.',
     sections: [
       {
-        heading: '"Sağlıklı Atıştırmalık" Ne Anlama Gelir?',
+        heading: 'Do Fat Burners Actually Burn Fat?',
         paragraphs: [
-          'Bu kategori genelde protein barları, düşük şekerli granola/müsli çeşitleri ve fonksiyonel ' +
-            'atıştırmalıkları kapsar. "Sağlıklı" etiketi standart bir tanıma sahip değildir — bir ürünün ' +
-            'gerçekten daha iyi bir seçim olup olmadığını anlamak için besin değeri tablosuna bakmak gerekir, ' +
-            'sadece paket üzerindeki pazarlama metnine güvenmek yeterli değildir.',
+          'Thermogenic ingredients (caffeine, green tea extract) can produce a small, temporary rise in ' +
+            'metabolic rate, but it is tiny next to a daily calorie deficit. Someone eating in a surplus won\'t ' +
+            'lose fat with any fat burner; the realistic role is a marginal addition on top of the right diet and ' +
+            'training.',
         ],
       },
       {
-        heading: 'Protein Bar Seçerken Nelere Bakılmalı?',
+        heading: 'Common Thermogenic Ingredients',
         paragraphs: [
-          'Bir protein barında bakılması gereken üç temel rakam: porsiyon başına protein miktarı, toplam ' +
-            'şeker miktarı ve toplam kalori. Bazı "protein bar" ürünleri aslında düşük protein/yüksek şeker ' +
-            'içerir — sadece isimde "protein" geçmesi yeterli bir kalite göstergesi değildir.',
+          'The most common are caffeine, green tea extract (EGCG), green coffee extract and capsaicin (chili ' +
+            'pepper extract). They are associated with a slight increase in energy expenditure, but the effect ' +
+            'varies by person and guarantees no large fat loss.',
         ],
       },
       {
-        heading: 'Şeker Alkolleri ve Sindirim Rahatsızlığı',
+        heading: 'L-Carnitine and CLA',
         paragraphs: [
-          'Düşük şekerli barlarda şeker yerine sıkça eritritol, maltitol gibi şeker alkolleri kullanılır — ' +
-            'bunlar kan şekerini daha az etkiler ama fazla miktarda tüketildiğinde bazı kişilerde şişkinlik ' +
-            've sindirim rahatsızlığına yol açabilir. Bu, ürünün kalitesiyle ilgili değil, bireysel toleransla ' +
-            'ilgili bir durumdur.',
+          'L-carnitine carries fatty acids into the mitochondria, where they are used for energy. The body ' +
+            'already makes enough, and only a limited share of supplemental L-carnitine reaches muscle, so its ' +
+            'effect is more modest than marketing suggests. It comes as L-carnitine tartrate, acetyl-L-carnitine ' +
+            '(ALCAR) and liquid shots; none has proven fat-burning effects.',
+          'CLA (conjugated linoleic acid) is a fatty acid found naturally in meat and dairy, said to affect fat ' +
+            'storage through a different mechanism. Human studies show mixed results: some a small difference, ' +
+            'many none.',
         ],
       },
       {
-        heading: 'Makro Dengesi Nasıl Okunur?',
+        heading: 'Side Effects and Cautions',
         paragraphs: [
-          'Bir atıştırmalığı değerlendirirken protein/karbonhidrat/yağ dağılımının o anki hedefe (kilo ' +
-            'verme, kas kazanımı, genel beslenme desteği) uygun olup olmadığına bakmak, tek bir rakama ' +
-            '(sadece kaloriye veya sadece proteine) odaklanmaktan daha sağlıklı bir karşılaştırma sağlar.',
+          'Most fat burners contain large amounts of caffeine and similar stimulants, which can cause a racing ' +
+            'heart, sleeplessness and anxiety, especially on top of coffee during the day. People with heart or ' +
+            'blood pressure conditions should talk to a doctor before using them.',
         ],
       },
       {
-        heading: 'Fiyat Karşılaştırmasında Neye Bakılmalı?',
+        heading: 'What to Look for When Comparing Prices',
         paragraphs: [
-          'Atıştırmalıklarda porsiyon büyüklüğü ürünler arasında oldukça değişkendir — birim fiyat yerine ' +
-            'porsiyon başına protein gramı başına maliyete bakmak, gerçekte hangi ürünün daha uygun fiyatlı ' +
-            'olduğunu ortaya çıkarır.',
+          'Compare caffeine and other active ingredients per serving, as with pre-workouts. Products that list ' +
+            'many ingredients at low amounts may be little more than an unproven "proprietary blend".',
         ],
       },
     ],
-    relatedArticleSlug: 'saglikli-atistirmaliklar-nasil-secilir',
-    relatedArticleTitle: 'Sağlıklı Atıştırmalıklar Nasıl Seçilir?',
+    relatedArticleSlug: 'do-fat-burners-work',
+    relatedArticleTitle: 'Do Fat Burners Actually Work?',
   },
-  vitamin: {
+  'protein-snacks': {
     zeroClickAnswer:
-      'Vitamin/mineral takviyesi karşılaştırması yapılırken en önemli ayrım, ihtiyacın tek bir eksiklik ' +
-      '(örn. D vitamini) mi yoksa genel bir destek mi olduğudur — multivitaminler geniş ama düşük dozlu bir ' +
-      'kapsam sunarken, tekli vitaminler hedeflenen bir eksikliği daha yüksek dozda karşılar.',
+      'When comparing protein snacks, the "protein bar" label alone isn\'t a useful measure. The balance of ' +
+      'sugar or sweeteners, real protein content and calories per serving decides whether a product is a better ' +
+      'choice.',
     sections: [
       {
-        heading: 'Multivitamin mi Tekli Vitamin mi?',
+        heading: 'What Counts as a Protein Snack?',
         paragraphs: [
-          'Multivitaminler, genel beslenme eksikliklerini önlemeye yönelik düşük-orta dozlarda birçok ' +
-            'vitamin/mineral içerir — belirli bir eksikliği hedef almaz. Kan tahlilinde belirli bir eksiklik ' +
-            '(örn. D vitamini, demir, B12) tespit edilmişse, o eksikliği tekli/yüksek dozlu bir takviyeyle ' +
-            'karşılamak genelde daha etkilidir; bir multivitaminin içindeki düşük doz yeterli olmayabilir.',
+          'The category covers protein bars, cookies, chips and similar snacks. "Healthy" has no standard ' +
+            'definition on a snack wrapper; the nutrition facts panel tells you more than the marketing copy.',
         ],
       },
       {
-        heading: 'Emilim Formları',
+        heading: 'What to Check in a Protein Bar',
         paragraphs: [
-          'Bazı vitaminlerin birden fazla kimyasal formu vardır ve emilimleri farklılık gösterebilir — ' +
-            'örneğin B12 vitamininde siyanokobalamin (daha yaygın, ucuz) ve metilkobalamin (vücudun doğrudan ' +
-            'kullanabildiği aktif form) arasında bir tercih söz konusudur. Form farkı fiyata da yansır, bu ' +
-            'yüzden karşılaştırma yaparken sadece "B12 var mı" değil, "hangi form" sorusu da önemlidir.',
+          'Three numbers matter: protein per serving, total sugar and total calories. Some "protein bars" are ' +
+            'actually low in protein and high in sugar; having "protein" in the name isn\'t a quality signal.',
         ],
       },
       {
-        heading: 'Yağda Eriyen ve Suda Eriyen Vitaminler',
+        heading: 'Sugar Alcohols and Digestive Discomfort',
         paragraphs: [
-          'A, D, E, K vitaminleri yağda erir ve vücutta depolanabilir — bu yüzden aşırı yüksek dozda uzun ' +
-            'süre kullanmak (özellikle A ve D) teorik olarak birikim riski taşır. B grubu ve C vitamini suda ' +
-            'erir, fazlası genelde idrarla atılır. Bu fark, "daha fazlası her zaman daha iyidir" varsayımının ' +
-            'neden yanlış olduğunu açıklar.',
+          'Low-sugar bars often use sugar alcohols such as erythritol or maltitol. They affect blood sugar less ' +
+            'but can cause bloating or discomfort in some people in larger amounts. That is individual tolerance, ' +
+            'not product quality.',
         ],
       },
       {
-        heading: 'Sporcular İçin Özel İhtiyaçlar',
+        heading: 'How to Read the Macro Balance',
         paragraphs: [
-          'Düzenli antrenman yapan kişilerde D vitamini ve magnezyum eksikliği nispeten sık görülür (kapalı ' +
-            'ortamda antrenman, terleme yoluyla mineral kaybı gibi sebeplerle) — ama bu genellemeler kişisel ' +
-            'bir kan tahlilinin yerini tutmaz, gerçek ihtiyacı belirlemenin en güvenilir yolu budur.',
+          'Judge a snack by whether its protein, carbohydrate and fat split suits your goal (losing weight, ' +
+            'gaining muscle, general nutrition) rather than by one number such as calories or protein alone.',
         ],
       },
       {
-        heading: 'Fiyat Karşılaştırmasında Neye Bakılmalı?',
+        heading: 'What to Look for When Comparing Prices',
         paragraphs: [
-          'Vitamin/mineral ürünlerinde karşılaştırma, servis başına her bir bileşenin miktarını günlük ' +
-            'referans alım değeriyle (%RDA/NRV) karşılaştırmayı gerektirir — bazı ucuz ürünler etiket ' +
-            'listesinde çok sayıda vitamin sıralar ama her birinden çok düşük miktar içerir.',
+          'Serving sizes vary a lot between snacks. The cost per gram of protein reveals which product is really ' +
+            'cheaper, more than the price per bar or box.',
         ],
       },
     ],
-    relatedArticleSlug: 'vitamin-mineral-takviyesi-nasil-secilir',
-    relatedArticleTitle: 'Vitamin ve Mineral Takviyesi Nasıl Seçilir?',
+    relatedArticleSlug: 'how-to-choose-protein-bars',
+    relatedArticleTitle: 'How to Choose Protein Bars',
   },
-  'yag-yakici': {
+  vitamins: {
     zeroClickAnswer:
-      'Yağ yakıcı takviye karşılaştırması yapılırken bilinmesi gereken en önemli gerçek şu: hiçbir takviye, ' +
-      'kalori açığı ve düzenli antrenman olmadan yağ kaybı sağlamaz. Bu ürünler en iyi ihtimalle metabolizmayı ' +
-      've iştahı hafifçe destekleyen yardımcılardır, "yağ eritici" değildir — karşılaştırma yaparken bu ' +
-      'gerçekçi çerçeveyi korumak önemlidir.',
+      'The key question when comparing vitamin and mineral supplements is whether you need to cover a specific ' +
+      'deficiency (vitamin D, for example) or want general support. Multivitamins offer broad but low-dose ' +
+      'coverage, while single vitamins address a targeted need at a higher dose.',
     sections: [
       {
-        heading: 'Yağ Yakıcılar Gerçekten Yağ Yaktırır mı?',
+        heading: 'Multivitamin or Single Vitamin?',
         paragraphs: [
-          'Termojenik bileşenler (kafein, yeşil çay ekstresi gibi) metabolizma hızında küçük, geçici bir ' +
-            'artış sağlayabilir — ama bu etki, günlük kalori açığının yanında ölçülemeyecek kadar küçüktür. ' +
-            'Kalori fazlası tüketen biri hiçbir yağ yakıcıyla yağ kaybedemez; bu ürünlerin gerçek katkısı ' +
-            'ancak doğru beslenme ve antrenmanın üzerine, marjinal bir destek olarak değerlendirilmelidir.',
+          'Multivitamins contain many vitamins and minerals at low to moderate doses to help prevent general ' +
+            'gaps; they don\'t target a specific deficiency. If a blood test shows one (vitamin D, iron, B12), a ' +
+            'single, appropriately dosed supplement is usually more effective than the small amount in a ' +
+            'multivitamin.',
         ],
       },
       {
-        heading: 'Termojenik Bileşenler',
+        heading: 'Absorption and Forms',
         paragraphs: [
-          'En sık kullanılan bileşenler kafein, yeşil çay ekstresi (EGCG), yeşil kahve ekstresi ve kapsaisin ' +
-            '(acı biber özütü) gibi maddelerdir. Bunların ortak noktası, hafif bir metabolizma/enerji ' +
-            'harcaması artışı ile ilişkilendirilmeleridir — ama etkileri kişiden kişiye değişir ve büyük, ' +
-            'anlamlı bir yağ kaybı garantisi vermez.',
+          'Some vitamins come in more than one chemical form with different absorption. For vitamin B12, for ' +
+            'example, there is cyanocobalamin (common and cheap) and methylcobalamin (an active form). The form ' +
+            'shows in the price, so ask not just "does it have B12" but "which form".',
         ],
       },
       {
-        heading: 'Kalori Açığının Önemi',
+        heading: 'Fat-Soluble and Water-Soluble Vitamins',
         paragraphs: [
-          'Yağ kaybının tek kanıtlanmış yolu, harcanan kaloriyle alınan kalori arasında sürdürülebilir bir ' +
-            'açık oluşturmaktır. Yağ yakıcı takviyeler bu denklemin yerine geçemez — bir ürünü seçerken ' +
-            '"bu bana kalori açığı olmadan yağ kaybettirir mi" beklentisiyle değil, mevcut bir beslenme ' +
-            'planına küçük bir destek olarak yaklaşmak gerçekçidir.',
+          'Vitamins A, D, E and K are fat-soluble and can be stored in the body, so very high doses over long ' +
+            'periods (especially A and D) carry a theoretical risk of buildup. B vitamins and vitamin C are ' +
+            'water-soluble, and excess is mostly excreted. That is why "more is always better" is wrong.',
         ],
       },
       {
-        heading: 'Yan Etkiler ve Dikkat Edilmesi Gerekenler',
+        heading: 'Needs of People Who Train',
         paragraphs: [
-          'Çoğu yağ yakıcı ürün yüksek miktarda kafein ve benzeri uyarıcılar içerir — bu, kalp çarpıntısı, ' +
-            'uykusuzluk ve kaygı gibi yan etkilere yol açabilir, özellikle günün geri kalanında da kafein ' +
-            'tüketiliyorsa. Kalp/tansiyon rahatsızlığı olanların bu tür ürünleri kullanmadan önce bir ' +
-            'hekime danışması önemlidir.',
+          'Vitamin D and magnesium shortfalls are relatively common in people who train regularly (indoor ' +
+            'training, minerals lost in sweat), but generalizations don\'t replace a personal blood test, the most ' +
+            'reliable way to know what you need.',
         ],
       },
       {
-        heading: 'Fiyat Karşılaştırmasında Neye Bakılmalı?',
+        heading: 'What to Look for When Comparing Prices',
         paragraphs: [
-          'Bu kategoride fiyat karşılaştırması yaparken servis başına kafein ve diğer aktif bileşen ' +
-            'miktarlarına bakmak (pre-workout kategorisindeki mantığın aynısı) en anlamlı yöntemdir — çok ' +
-            'sayıda bileşen listeleyip her birinden düşük miktar içeren ürünler, etkisi kanıtlanmamış bir ' +
-            '"özel karışım" olmaktan öteye geçmeyebilir.',
+          'Compare the amount of each ingredient per serving against its Daily Value (%DV) on the Supplement ' +
+            'Facts panel. Some cheap products list many vitamins but contain very little of each.',
         ],
       },
     ],
-    relatedArticleSlug: 'yag-yakici-takviyeler-gercekten-ise-yarar-mi',
-    relatedArticleTitle: 'Yağ Yakıcı Takviyeler Gerçekten İşe Yarar mı?',
+    relatedArticleSlug: 'how-to-choose-vitamins-and-minerals',
+    relatedArticleTitle: 'How to Choose Vitamin and Mineral Supplements',
   },
 };

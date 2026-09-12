@@ -5,67 +5,67 @@
     <section class="pa-guide-hub-intro">
       <div class="pa-guide-hub-heading">
         <nav class="pa-guide-breadcrumb">
-          <a routerLink="/">Ana Sayfa</a> / Rehber
+          <a routerLink="/">Home</a> / Guides
         </nav>
-        <h1>Spor Takviyesi Rehberi</h1>
-        <p>Nereden başlayacağını bilmiyorsan hedefini seç.</p>
+        <h1>Supplement Guides</h1>
+        <p>Not sure where to start? Pick your goal.</p>
 
         <label class="pa-guide-search">
           <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
-          <span class="sr-only">Rehberlerde ara</span>
+          <span class="sr-only">Search guides</span>
           <input
             type="search"
-            placeholder="Kreatin, protein tozu, kullanım..."
+            placeholder="Creatine, protein powder, how to use..."
             [value]="searchQuery()"
             (input)="setSearchQuery($any($event.target).value)"
           />
           @if (hasSearch()) {
-            <button type="button" aria-label="Aramayı temizle" (click)="clearSearch()">
+            <button type="button" aria-label="Clear search" (click)="clearSearch()">
               <i class="ph ph-x" aria-hidden="true"></i>
             </button>
           }
         </label>
       </div>
 
-      <aside class="pa-guide-utilities" aria-label="Rehberle ilgili araçlar">
-        <a routerLink="/hesaplama" data-tone="violet">
+      <aside class="pa-guide-utilities" aria-label="Related tools">
+        <a routerLink="/calculators" data-tone="violet">
           <span class="pa-guide-icon-well" aria-hidden="true"><i class="ph ph-calculator"></i></span>
-          <span><strong>Hesaplama araçları</strong><small>Doz ve ihtiyaç hesaplamalarına git.</small></span>
+          <span><strong>Calculators</strong><small>Dosage and needs calculators.</small></span>
           <i class="ph ph-arrow-right" aria-hidden="true"></i>
         </a>
-        <a routerLink="/kategoriler" data-tone="mint">
+        <a routerLink="/categories" data-tone="mint">
           <span class="pa-guide-icon-well" aria-hidden="true"><i class="ph ph-squares-four"></i></span>
-          <span><strong>Takviye kategorileri</strong><small>Tüm takviye kategorilerini keşfet.</small></span>
+          <span><strong>Supplement categories</strong><small>Browse every supplement category.</small></span>
           <i class="ph ph-arrow-right" aria-hidden="true"></i>
         </a>
       </aside>
     </section>
 
     @if (loading()) {
-      <div class="pa-guide-state">Yükleniyor...</div>
+      <div class="pa-guide-state">Loading...</div>
     } @else if (loadError()) {
-      <div class="pa-guide-state">Rehber yazıları yüklenemedi. Lütfen daha sonra tekrar dene.</div>
+      <div class="pa-guide-state">We couldn't load the guides. Please try again later.</div>
     } @else if (articles().length === 0) {
-      <div class="pa-guide-state">Henüz bir rehber yazısı yok, yakında eklenecek.</div>
+      <div class="pa-guide-state">No guides yet; they're on the way.</div>
     } @else if (hasSearch()) {
       <section class="pa-guide-section pa-guide-search-results" aria-live="polite">
         <div class="pa-guide-section-heading">
           <div>
-            <h2>Arama sonuçları</h2>
-            <p>{{ filteredArticles().length }} rehber bulundu.</p>
+            <h2>Search results</h2>
+            <p>{{ filteredArticles().length }} {{ filteredArticles().length === 1 ? 'guide' : 'guides' }} found.</p>
           </div>
-          <button type="button" (click)="clearSearch()">Tüm rehberleri göster</button>
+          <button type="button" (click)="clearSearch()">Show all guides</button>
         </div>
 
         @if (filteredArticles().length === 0) {
           <div class="pa-guide-state pa-guide-empty">
             <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
-            Bu aramayla eşleşen bir rehber bulunamadı.
+            No guide matches that search.
           </div>
         } @else {
           <div class="pa-guide-search-result-list">
             @for (article of filteredArticles(); track article.slug) {
-              <a [routerLink]="['/rehber', article.slug]" [attr.data-tone]="articleTone(article)">
+              <a [routerLink]="['/guides', article.slug]" [attr.data-tone]="articleTone(article)">
                 <span class="pa-guide-icon-well" aria-hidden="true"><i [class]="'ph ' + articleIconClass(article)"></i></span>
                 <span class="pa-guide-search-result-copy"><strong>{{ article.title }}</strong><small>{{ article.summary }}</small></span>
                 <span class="pa-guide-search-result-date">{{ formatArticleDate(article.publishedAt) }}</span>
@@ -79,8 +79,8 @@
       <section class="pa-guide-section">
         <div class="pa-guide-section-heading">
           <div>
-            <h2>Başlangıç rotaları</h2>
-            <p>Amacına en uygun okuma rotasını seç ve doğru yerden başla.</p>
+            <h2>Where to start</h2>
+            <p>Pick the reading path that fits your goal.</p>
           </div>
         </div>
 
@@ -94,7 +94,7 @@
 
               <div class="pa-guide-path-links">
                 @for (article of path.articles; track article.slug) {
-                  <a [routerLink]="['/rehber', article.slug]">
+                  <a [routerLink]="['/guides', article.slug]">
                     <span class="pa-guide-mini-icon" aria-hidden="true"><i class="ph ph-file-text"></i></span>
                     <span>{{ article.title }}</span>
                     <i class="ph ph-arrow-right" aria-hidden="true"></i>
@@ -107,10 +107,10 @@
       </section>
 
       <section class="pa-guide-section">
-        <div class="pa-guide-section-heading"><div><h2>Son eklenen rehberler</h2></div></div>
+        <div class="pa-guide-section-heading"><div><h2>Latest guides</h2></div></div>
         <div class="pa-guide-recent-list">
           @for (article of featuredArticles(); track article.slug; let i = $index) {
-            <a [routerLink]="['/rehber', article.slug]" [class.is-featured]="i === 0" [attr.data-tone]="articleTone(article)">
+            <a [routerLink]="['/guides', article.slug]" [class.is-featured]="i === 0" [attr.data-tone]="articleTone(article)">
               <span class="pa-guide-icon-well" aria-hidden="true"><i [class]="'ph ' + articleIconClass(article)"></i></span>
               <span class="pa-guide-recent-copy"><strong>{{ article.title }}</strong><small>{{ article.summary }}</small></span>
               <span class="pa-guide-recent-date"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ formatArticleDate(article.publishedAt) }}</span>
@@ -121,12 +121,12 @@
       </section>
 
       <section class="pa-guide-section">
-        <div class="pa-guide-section-heading"><div><h2>Tüm konular</h2><p>Rehberdeki tüm konuları incele.</p></div></div>
+        <div class="pa-guide-section-heading"><div><h2>All topics</h2><p>Every topic in our guides.</p></div></div>
         <div class="pa-guide-topic-grid">
           @for (column of topicColumns(); track $index) {
             <div class="pa-guide-topic-column">
               @for (article of column; track article.slug) {
-                <a [routerLink]="['/rehber', article.slug]" [attr.data-tone]="articleTone(article)">
+                <a [routerLink]="['/guides', article.slug]" [attr.data-tone]="articleTone(article)">
                   <span class="pa-guide-mini-icon" aria-hidden="true"><i [class]="'ph ' + articleIconClass(article)"></i></span>
                   <span>{{ article.title }}</span>
                   <i class="ph ph-arrow-right" aria-hidden="true"></i>
@@ -139,7 +139,7 @@
 
       <aside class="pa-guide-disclaimer">
         <i class="ph ph-info" aria-hidden="true"></i>
-        <p><strong>Bilgilendirme:</strong> Rehber içerikleri genel bilgilendirme amaçlıdır; kişiye özel tıbbi tavsiye değildir.</p>
+        <p><strong>Please note:</strong> Our guides are general information, not personal medical advice. These statements have not been evaluated by the Food and Drug Administration.</p>
       </aside>
     }
   </main>

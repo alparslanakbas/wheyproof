@@ -5,15 +5,13 @@ import { of } from 'rxjs';
 
 import { ProductModal } from './product-modal';
 
-// Bu bileşenin grafik yardımcı metotları bu oturumda üç kez gerçek prod
-// bug'ı vermişti — regresyon testleri bilinçli olarak buraya odaklandı.
-// Hover/dedupe/tooltip hesapları inceleme sayfasıyla paylaşıldığı için
-// core/chart-hover.ts'e taşındı; testleri de core/chart-hover.spec.ts'te.
-// Buradaki metotlar `points` parametresi alıp saf hesaplama
-// yaptığı için `deal` input'unu hiç set etmeden (ve detectChanges hiç
-// çağırmadan, constructor'daki effect()'lerin tetiklenmesini önleyerek)
-// doğrudan çağrılabiliyor — HTTP/route mock'una gerek yok.
-describe('ProductModal - fiyat grafiği yardımcı fonksiyonları', () => {
+// This component's chart helpers caused real production bugs three times, so
+// the regression tests focus here. Hover/dedupe/tooltip math is shared with
+// the review page and lives in core/chart-hover.ts, with its tests. The
+// methods below take `points` and compute purely, so they're called without
+// setting the `deal` input (and without detectChanges, which would fire the
+// constructor's effects); no HTTP or route mocks needed.
+describe('ProductModal: price chart helpers', () => {
   let component: any;
 
   beforeEach(() => {
@@ -21,8 +19,8 @@ describe('ProductModal - fiyat grafiği yardımcı fonksiyonları', () => {
       imports: [ProductModal],
       providers: [
         provideHttpClient(),
-        // Şablondaki RouterLink (marka/ürün linkleri) view oluşturulurken
-        // ActivatedRoute'a ihtiyaç duyuyor, detectChanges() hiç çağrılmasa bile.
+        // The template's RouterLinks need ActivatedRoute while the view is
+        // created, even without detectChanges().
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({})) } },
       ],
     });
@@ -30,13 +28,13 @@ describe('ProductModal - fiyat grafiği yardımcı fonksiyonları', () => {
   });
 
   describe('buildXAxisLabels', () => {
-    it('boş veri için boş dizi döner', () => {
+    it('returns an empty array for no data', () => {
       expect(component.buildXAxisLabels([])).toEqual([]);
     });
 
-    it('kısa veri aralığında ardışık aynı etiketleri tekilleştiriyor', () => {
+    it('removes consecutive duplicate labels over a short range', () => {
       const points = [
-        { price: 100, scrapedAt: '2026-08-11T08:00:00Z' },
+        { price: 100, scrapedAt: '2026-08-11T12:00:00Z' },
         { price: 100, scrapedAt: '2026-08-11T20:00:00Z' },
       ];
 
@@ -47,8 +45,8 @@ describe('ProductModal - fiyat grafiği yardımcı fonksiyonları', () => {
       expect(hasConsecutiveDuplicate).toBe(false);
     });
 
-    it('tek zaman noktasında tek, ortalanmış bir etiket döner', () => {
-      const points = [{ price: 100, scrapedAt: '2026-08-11T08:00:00Z' }];
+    it('returns one centered label for a single point in time', () => {
+      const points = [{ price: 100, scrapedAt: '2026-08-11T12:00:00Z' }];
 
       const labels = component.buildXAxisLabels(points);
 
@@ -58,25 +56,24 @@ describe('ProductModal - fiyat grafiği yardımcı fonksiyonları', () => {
   });
 
   describe('discountEventCount', () => {
-    it('ardışık fiyat düşüşlerini sayar, artışları saymaz', () => {
+    it('counts consecutive price drops, not increases', () => {
       component.points.set([
-        { price: 500, scrapedAt: '2026-08-01T00:00:00Z' },
-        { price: 400, scrapedAt: '2026-08-05T00:00:00Z' }, // düşüş
-        { price: 450, scrapedAt: '2026-08-08T00:00:00Z' }, // artış
-        { price: 350, scrapedAt: '2026-08-12T00:00:00Z' }, // düşüş
+        { price: 50, scrapedAt: '2026-08-01T00:00:00Z' },
+        { price: 40, scrapedAt: '2026-08-05T00:00:00Z' }, // drop
+        { price: 45, scrapedAt: '2026-08-08T00:00:00Z' }, // increase
+        { price: 35, scrapedAt: '2026-08-12T00:00:00Z' }, // drop
       ]);
 
       expect(component.discountEventCount()).toBe(2);
     });
 
-    it('hiç düşüş yoksa 0 döner', () => {
+    it('returns 0 when there are no drops', () => {
       component.points.set([
-        { price: 100, scrapedAt: '2026-08-01T00:00:00Z' },
-        { price: 200, scrapedAt: '2026-08-05T00:00:00Z' },
+        { price: 10, scrapedAt: '2026-08-01T00:00:00Z' },
+        { price: 20, scrapedAt: '2026-08-05T00:00:00Z' },
       ]);
 
       expect(component.discountEventCount()).toBe(0);
     });
   });
-
 });

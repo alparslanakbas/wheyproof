@@ -1,4 +1,4 @@
-import { DOCUMENT, DecimalPipe, isPlatformBrowser } from '@angular/common';
+import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { Component, PLATFORM_ID, computed, effect, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -12,6 +12,8 @@ import { Deal } from '../core/deal.model';
 import { displayName } from '../core/display-name';
 import { FavoritesService } from '../core/favorites.service';
 import { friendlyErrorMessage } from '../core/friendly-error-message';
+import { MARKET } from '../core/market';
+import { PricePipe } from '../core/price.pipe';
 import { PricePoint } from '../core/price-history.model';
 import { PriceHistoryService } from '../core/price-history.service';
 import { ProductFeedbackService } from '../core/product-feedback.service';
@@ -28,11 +30,11 @@ interface TimeRangeOption {
 }
 
 const TIME_RANGES: TimeRangeOption[] = [
-  { label: '7G', days: 7, periodName: 'son 7 günün' },
-  { label: '15G', days: 15, periodName: 'son 15 günün' },
-  { label: '1A', days: 30, periodName: 'son 1 ayın' },
-  { label: '6A', days: 180, periodName: 'son 6 ayın' },
-  { label: '1Y', days: 365, periodName: 'son 1 yılın' },
+  { label: '7D', days: 7, periodName: 'the last 7 days' },
+  { label: '15D', days: 15, periodName: 'the last 15 days' },
+  { label: '1M', days: 30, periodName: 'the last month' },
+  { label: '6M', days: 180, periodName: 'the last 6 months' },
+  { label: '1Y', days: 365, periodName: 'the last year' },
 ];
 
 const CHART_WIDTH = 600;
@@ -40,36 +42,20 @@ const CHART_HEIGHT = 220;
 const CHART_PADDING_Y = 16;
 const AXIS_LABEL_COUNT = 5;
 
-// timeZone sabit Europe/Istanbul — kullanıcının kendi cihaz saat dilimine
-// bırakılırsa (ör. yurt dışından erişim, ya da SSR'ın sunucu saat dilimi
-// tarayıcıdan farklıysa) aynı fiyat noktası farklı ziyaretçilere farklı
-// "gün"e ait gösterilebilirdi. Gerçek bir örnek: ProteinOcean'ın ilk
-// taraması UTC 21:10'da olmuştu — bu, tarayıcı yerel saatine bırakılan
-// eski davranışta bazı saat dilimlerinde "11 Ağustos", TR saatinde ise
-// "10 Ağustos"un son dakikaları oluyordu; sabitleme bu tutarsızlığı
-// ortadan kaldırıyor (site zaten sadece TR pazarına hizmet ediyor).
-const axisDateFormatter = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', timeZone: 'Europe/Istanbul' });
-const tooltipDateFormatter = new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Istanbul' });
-// Aynı gün içinde fiyat gerçekten değiştiyse (dedupeSameDaySamePrice sonrası
-// hâlâ aynı güne ait birden fazla nokta kaldıysa) sadece tarih yetersiz
-// kalıyor — o durumda saat de eklenip hangi anda değiştiği gösteriliyor.
-const tooltipDateTimeFormatter = new Intl.DateTimeFormat('tr-TR', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  timeZone: 'Europe/Istanbul',
-});
+// A fixed zone (MARKET.timeZone) rather than the visitor's device zone or the
+// SSR server's: otherwise the same price point could belong to a different
+// "day" for different visitors (a scan at 21:10 UTC falls on different dates
+// in different zones).
+const axisDateFormatter = new Intl.DateTimeFormat(MARKET.locale, { month: 'short', day: 'numeric', timeZone: MARKET.timeZone });
 
 @Component({
   selector: 'app-product-modal',
-  imports: [DecimalPipe, ShareButton, RouterLink, FormsModule],
+  imports: [PricePipe, ShareButton, RouterLink, FormsModule],
   templateUrl: './product-modal.html',
 })
 export class ProductModal {
-  // Marka bağlantısı için: toLowerCase() boşluklu/Türkçe harfli marka
-  // adlarını adrese olduğu gibi taşıyıp kanonikten sapan kopya üretiyordu.
+  // For the brand link: toLowerCase() carried spaces into the address and
+  // produced a copy that differed from the canonical.
   protected readonly brandSlug = brandSlug;
 
   protected readonly displayName = displayName;
@@ -84,19 +70,18 @@ export class ProductModal {
   readonly closed = output<void>();
 
   protected readonly shareUrl = computed(
-    () => `${canonicalOrigin(this.document)}/urun/${this.deal().productId}/${slugify(this.deal().productName)}`,
+    () => `${canonicalOrigin(this.document)}/product/${this.deal().productId}/${slugify(this.deal().productName)}`,
   );
 
-  protected readonly reviewLink = computed(() => ['/urun-inceleme', this.deal().productId, slugify(this.deal().productName)]);
+  protected readonly reviewLink = computed(() => ['/review', this.deal().productId, slugify(this.deal().productName)]);
 
   protected readonly timeRanges = TIME_RANGES;
   protected readonly selectedRange = signal<TimeRangeOption>(TIME_RANGES[2]);
   protected readonly lastCheckedText = computed(() => formatRelativeTime(this.deal().scrapedAt));
 
-  // "loading": bir istek sürüyor. "hasData": en az bir kez veri geldi.
-  // Sekme değişiminde eski grafiği gizlemek yerine üstünde soluk bir
-  // yükleniyor efekti gösteriyoruz — tüm modal her tıklamada "refresh"
-  // atmış gibi görünmesin diye.
+  // "loading": a request is in flight. "hasData": data arrived at least once.
+  // Switching ranges dims the old chart instead of hiding it, so the whole
+  // modal doesn't look like it "refreshes" on every click.
   protected readonly loading = signal(true);
   protected readonly hasData = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -106,22 +91,20 @@ export class ProductModal {
   protected readonly currentPrice = signal(0);
   protected readonly hoverIndex = signal<number | null>(null);
 
-  // "Haber Ver" — bu ürünün fiyatı bir sonraki taramada düşerse tek
-  // seferlik bir bildirim e-postası almak için.
+  // "Notify me": a one-time email if this product's price drops on a later check.
   protected readonly watchFormOpen = signal(false);
   protected readonly watchEmail = signal('');
   protected readonly watchSubmitting = signal(false);
   protected readonly watchStatusMessage = signal<string | null>(null);
 
-  // "Bu bilgi faydalı mıydı?" — basit güven sinyali, tekrar oy vermeyi
-  // (auth olmadığı için) localStorage ile engelliyoruz, backend'de dedup yok.
+  // "Was this helpful?": a simple trust signal. With no accounts, repeat
+  // votes are blocked with localStorage; there is no dedup on the backend.
   protected readonly votedHelpful = signal<boolean | null>(null);
 
-  // Favoriler — hesap gerektirmiyor, ilk eklemede e-posta isteniyor
-  // (token localStorage'a kaydediliyor), sonraki ürünlerde tekrar
-  // sorulmuyor. "favorited" oturum bazlı iyimser (optimistic) bir
-  // durum — sayfa yenilenince sıfırlanır, tekrar tıklamak zararsız
-  // (backend zaten aynı favoriyi ikinci kez eklemiyor).
+  // Watchlist: no account needed; the first add asks for an email (the token
+  // is saved to localStorage) and later products don't ask again. "favorited"
+  // is an optimistic per-session state: it resets on reload, and clicking
+  // again is harmless (the backend doesn't add the same item twice).
   protected readonly favorited = signal(false);
   protected readonly favoriteFormOpen = signal(false);
   protected readonly favoriteEmail = signal('');
@@ -148,10 +131,9 @@ export class ProductModal {
     if (idx >= coords.length || idx >= pts.length) return null;
 
     const [x, y] = coords[idx];
-    // Tooltip nokta ile birlikte kayıyor; grafiğin kenarlarına çok yakınken
-    // ortalı hizalama tooltip'in yarısını taşırıp kırpılmasına yol açıyordu
-    // (modal overflow-y-auto olduğu için overflow-x da örtük kısıtlanıyor).
-    // Kenara yakınsa hizalamayı o yöne kaydırıyoruz.
+    // The tooltip moves with the point; centered near an edge it overflowed
+    // and was clipped (the modal is overflow-y-auto, which implicitly limits
+    // overflow-x too), so near an edge it leans that way.
     const align = hoverAlign(x, CHART_WIDTH);
 
     return {
@@ -172,11 +154,10 @@ export class ProductModal {
     return { diff, percent, periodName: this.selectedRange().periodName };
   });
 
-  // "Bu ürün son X günde Y kez indirime girdi" — ham veri yerine bir
-  // içgörü. points() zaten dedupeSameDaySamePrice'tan geçtiği için
-  // (aynı gün aynı fiyat tekrarları elenmiş) art arda gerçek fiyat
-  // düşüşlerini saymak yeterli. 0 ise hiç gösterilmiyor (boş/soğuk bir
-  // "0 kez" mesajı yerine sessiz kalmak tercih edildi).
+  // "This product's price dropped N times": an insight instead of raw data.
+  // points() already went through dedupeSameDaySamePrice, so counting
+  // consecutive real drops is enough. Zero shows nothing rather than a cold
+  // "0 times".
   protected readonly discountEventCount = computed(() => {
     const pts = this.points();
     let count = 0;
@@ -186,31 +167,28 @@ export class ProductModal {
     return count;
   });
 
-  // Markanın kendi açıklama metni artık BURADA GÖSTERİLMİYOR — yerine
-  // tamamen kendi ölçümlerimizden türeyen bir bilgi listesi basılıyor.
-  // Gerekçe için core/product-facts.ts'teki nota bak.
+  // The store's own description is NOT shown here; a list built entirely from
+  // our own measurements is. See the note in core/product-facts.ts.
   protected readonly productFacts = computed(() =>
     buildProductFacts(this.deal(), this.discountEventCount()),
   );
 
-  // Kendi ölçümlerimizden üretilen anlatı. Bilgi listesi taranabilirlik için
-  // duruyor; bu bölüm ise sayfanın ayırt edici metnini sağlıyor (bkz.
-  // core/product-narrative.ts'teki gerekçe).
+  // A narrative from our own measurements. The fact list is for scanning;
+  // this gives the page its distinctive text (see core/product-narrative.ts).
   protected readonly narrative = computed(() =>
     buildProductNarrative(this.deal(), this.discountEventCount()),
   );
 
   constructor() {
     effect(() => {
-      // deal() veya selectedRange() değişince yeniden çek.
+      // Refetch when deal() or selectedRange() changes.
       const deal = this.deal();
       const range = this.selectedRange();
       this.load(deal.productId, range.days);
     });
 
-    // Modal aynı bileşen örneği üzerinden farklı ürünler arasında yeniden
-    // kullanıldığı için (route reuse), oy durumu her deal() değişiminde
-    // o ürüne özel yeniden okunmalı.
+    // The modal instance is reused across products (route reuse), so the
+    // vote state must be read again for each product.
     effect(() => {
       const productId = this.deal().productId;
       if (!this.isBrowser) {
@@ -221,8 +199,8 @@ export class ProductModal {
       this.votedHelpful.set(stored === 'yes' ? true : stored === 'no' ? false : null);
     });
 
-    // "favorited" da deal() bazlı sıfırlanmalı — aksi halde bir önceki
-    // üründeki "Favorilere Eklendi" durumu yeni ürüne sızardı.
+    // "favorited" also resets per deal(); otherwise "On your watchlist" from
+    // the previous product would leak into the next one.
     effect(() => {
       this.deal();
       this.favorited.set(false);
@@ -232,10 +210,9 @@ export class ProductModal {
     });
   }
 
-  // İlk ve son X ekseni etiketi tam kenara ortalanınca (-translate-x-1/2)
-  // yarısı konteynerin dışına taşıp kesiliyordu (mobilde özellikle belirgin,
-  // dar viewport'ta kenar payı daha az) — uçlardaki etiketleri kenara
-  // ortalamak yerine kenara yaslıyoruz, ortadakiler ortalı kalıyor.
+  // The first and last x-axis labels centered on the very edge overflowed by
+  // half and were cut (noticeably on narrow mobile screens), so the end
+  // labels lean to the edge and the middle ones stay centered.
   protected xAxisLabelAlignClass(x: number): string {
     if (x <= 0) return 'left-0';
     if (x >= CHART_WIDTH) return '-translate-x-full';
@@ -279,8 +256,8 @@ export class ProductModal {
   protected toggleFavorite(): void {
     if (this.favorited()) return;
 
-    // Zaten bir token varsa (daha önce başka bir üründe e-posta girilmiş)
-    // tekrar sormadan direkt ekle — sadece ilk seferde form açılıyor.
+    // With a token already (an email entered on an earlier product), add
+    // directly; the form only opens the first time.
     if (this.favoritesService.getToken()) {
       this.addFavorite();
     } else {
@@ -304,13 +281,11 @@ export class ProductModal {
         this.favoriteFormOpen.set(false);
         this.favoriteEmail.set('');
         this.favoriteSubmitting.set(false);
-        // Token null ama bu cihaz zaten önceden token almışsa (result.token
-        // null olması normal — bkz. token null dönme kuralı) hiçbir ek
-        // mesaj gerekmiyor, liste zaten doğru çalışacak. recoverySent true
-        // ise bu cihazda hiç token yoktu, e-posta gönderildi.
+        // recoverySent means this device had no token and an email was sent;
+        // otherwise no extra message is needed.
         this.favoriteStatusMessage.set(
           result.recoverySent
-            ? 'Favorilere eklendi! Bu cihazda listeni görebilmek için e-postana gönderdiğimiz linke tıkla (farklı bir tarayıcı kullanıyorsan oradan da ayrıca tıklaman gerekir).'
+            ? 'Added to your watchlist! To see your list on this device, click the link we emailed you (on another browser, click it there too).'
             : null,
         );
       },
@@ -334,8 +309,8 @@ export class ProductModal {
     return this.priceHistoryService.goToStoreUrl(d.productId, d.storeUrl);
   }
 
-  /** Mağaza tıklamasını sayar (bkz. PriceHistoryService). */
-  protected magazaTiklamasi(): void {
+  /** Counts the store click (see PriceHistoryService). */
+  protected trackStoreClick(): void {
     const d = this.deal();
     if (d) this.priceHistoryService.trackStoreClick(d.productId);
   }
@@ -348,17 +323,15 @@ export class ProductModal {
     this.hoverIndex.set(null);
   }
 
-  // Mobilde mousemove tetiklenmiyor (dokunma, gerçek bir sürükleme değil
-  // tek tek tap olarak algılanıyordu) — Akakçe'deki gibi parmağı grafik
-  // üzerinde gezdirince noktanın kesintisiz takip etmesi için touchstart/
-  // touchmove'a ayrıca bağlandı, aynı en-yakın-nokta hesabını kullanıyor.
-  // touchend'de bilinçli olarak hoverIndex sıfırlanmıyor — parmak kalkınca
-  // son değer görünür kalıyor, kaybolmuyor.
+  // mousemove doesn't fire on touch screens (a drag was read as separate
+  // taps), so touchstart/touchmove are bound too, with the same nearest-point
+  // math, so the point follows a finger across the chart. touchend doesn't
+  // clear hoverIndex on purpose: the last value stays visible.
   protected onChartTouchMove(event: TouchEvent): void {
     const touch = event.touches[0];
     if (!touch) return;
-    // Grafik içindeyken sayfanın kaydırılmasını (scroll) engelliyoruz —
-    // aksi halde parmak grafikte gezinirken modal da kayardı.
+    // Stop the page scrolling while the finger is on the chart; otherwise the
+    // modal would scroll too.
     event.preventDefault();
     this.updateHoverFromClientX(event.currentTarget as SVGSVGElement, touch.clientX);
   }
@@ -382,23 +355,15 @@ export class ProductModal {
         this.hasData.set(true);
       },
       error: () => {
-        this.error.set('Fiyat geçmişi yüklenemedi.');
+        this.error.set("We couldn't load the price history.");
         this.loading.set(false);
       },
     });
   }
 
-  // Tarama günde birkaç kez çalıştığı için aynı gün içinde fiyat hiç
-  // değişmemişse birden fazla nokta birikiyordu — hover'da art arda aynı
-  // günü/fiyatı gösteren anlamsız duraklara yol açıyordu (saat/dakika
-  // göstermiyoruz, sadece gün). Aynı gün + aynı fiyat olan ardışık
-  // noktaları tek noktaya indiriyoruz; fiyat o gün içinde değiştiyse
-  // (gerçek bir bilgi) ikisi de kalıyor. Sadece grafiğin çizdiği/hover
-  // ettiği noktalar etkileniyor — En Düşük/En Yüksek/Şu Anki Fiyat
-  // kutuları hâlâ ham backend verisinden (history.minPrice vb.) geliyor.
-  // Aynı gün içinde (dedupe sonrası) başka bir nokta daha kaldıysa, bu
-  // gerçek bir gün-içi fiyat değişikliği demektir — sadece tarih göstermek
-  // hangi nokta hangi an olduğunu ayırt ettirmiyor, saat de ekleniyor.
+  // Five evenly spaced labels. On a short range (a few days of tracking) they
+  // could land on the same calendar day and repeat ("Sep 11" twice), so
+  // consecutive duplicates are dropped.
   private buildXAxisLabels(points: PricePoint[]): { x: number; label: string }[] {
     if (points.length === 0) return [];
 
@@ -416,10 +381,6 @@ export class ProductModal {
       return { x: fraction * CHART_WIDTH, label: axisDateFormatter.format(new Date(t)) };
     });
 
-    // Veri aralığı kısayken (ör. fiyat takibi daha birkaç gün sürdüğünde)
-    // eşit zaman aralıklı 5 nokta aynı takvim gününe denk gelip aynı
-    // etiketi (ör. "11 Ağu") art arda birden fazla kez gösterebiliyordu —
-    // ardışık aynı etiketleri tekilleştiriyoruz.
     return candidates.filter((c, i) => i === 0 || c.label !== candidates[i - 1].label);
   }
 }

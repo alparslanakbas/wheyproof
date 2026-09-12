@@ -3,37 +3,36 @@
 
   <main class="mx-auto max-w-[760px] px-[28px] py-[22px]">
     @if (loading()) {
-      <div class="py-24 text-center text-[var(--noc-neutral-500)]">Yükleniyor...</div>
+      <div class="py-24 text-center text-[var(--noc-neutral-500)]">Loading...</div>
     } @else if (comparison(); as c) {
       <div class="text-center">
-        <!-- H1, title ile aynı ifadeyi taşıyor ("X vs Y Fiyat Karşılaştırması")
-             — eski "X, Y'a karşı" yazımı title'la uyuşmuyordu ve "vs"
-             kalıbını hiç içermiyordu, oysa insanlar tam öyle arıyor. -->
-        <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">{{ c.brand1 }} vs {{ c.brand2 }} Fiyat Karşılaştırması</h1>
+        <!-- The H1 carries the same phrase as the title ("X vs Y Price
+             Comparison"), because that "vs" pattern is exactly how people search. -->
+        <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">{{ c.brand1 }} vs {{ c.brand2 }} Price Comparison</h1>
         <p class="mx-auto mt-2 max-w-xl text-[15px] text-[var(--noc-neutral-300)]">
-          Kategori bazında güncel ortalama fiyatlar — canlı veriden hesaplanır, elle yazılmış bir içerik değildir.
+          Current average prices by category, calculated from live data, not written by hand.
         </p>
       </div>
 
       <div class="mb-6 mt-6 grid grid-cols-2 gap-4">
-        <a [routerLink]="['/marka', brandSlug(c.brand1), 'indirim-kodu']" class="rounded-[14px] bg-[var(--noc-card)] p-4 text-center shadow-[var(--noc-shadow-sm)] hover:shadow-[var(--noc-shadow-md)]">
+        <a [routerLink]="['/brand', brandSlug(c.brand1)]" class="rounded-[14px] bg-[var(--noc-card)] p-4 text-center shadow-[var(--noc-shadow-sm)] hover:shadow-[var(--noc-shadow-md)]">
           <div class="text-[15px] font-medium">{{ c.brand1 }}</div>
-          <div class="mt-1 text-xs text-[var(--noc-neutral-500)]">{{ c.brand1TotalProducts }} ürün takip ediliyor</div>
+          <div class="mt-1 text-xs text-[var(--noc-neutral-500)]">{{ c.brand1TotalProducts }} {{ c.brand1TotalProducts === 1 ? 'product' : 'products' }} tracked</div>
         </a>
-        <a [routerLink]="['/marka', brandSlug(c.brand2), 'indirim-kodu']" class="rounded-[14px] bg-[var(--noc-card)] p-4 text-center shadow-[var(--noc-shadow-sm)] hover:shadow-[var(--noc-shadow-md)]">
+        <a [routerLink]="['/brand', brandSlug(c.brand2)]" class="rounded-[14px] bg-[var(--noc-card)] p-4 text-center shadow-[var(--noc-shadow-sm)] hover:shadow-[var(--noc-shadow-md)]">
           <div class="text-[15px] font-medium">{{ c.brand2 }}</div>
-          <div class="mt-1 text-xs text-[var(--noc-neutral-500)]">{{ c.brand2TotalProducts }} ürün takip ediliyor</div>
+          <div class="mt-1 text-xs text-[var(--noc-neutral-500)]">{{ c.brand2TotalProducts }} {{ c.brand2TotalProducts === 1 ? 'product' : 'products' }} tracked</div>
         </a>
       </div>
 
       @if (c.categories.length === 0) {
-        <div class="mx-auto max-w-md rounded-[8px] bg-[var(--noc-surface)] px-6 py-10 text-center text-[var(--noc-neutral-500)]">İki markanın da ortak bir kategoride ürünü yok, karşılaştırma yapılamıyor.</div>
+        <div class="mx-auto max-w-md rounded-[8px] bg-[var(--noc-surface)] px-6 py-10 text-center text-[var(--noc-neutral-500)]">These two brands don't share a category, so there's nothing to compare.</div>
       } @else {
         <div class="overflow-hidden rounded-[14px] bg-[var(--noc-card)] shadow-[var(--noc-shadow-sm)]">
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left text-[11px] uppercase tracking-[0.08em] text-[var(--noc-neutral-500)]">
-                <th class="px-4 py-3 font-normal">Kategori</th>
+                <th class="px-4 py-3 font-normal">Category</th>
                 <th class="px-4 py-3 text-right font-normal">{{ c.brand1 }}</th>
                 <th class="px-4 py-3 text-right font-normal">{{ c.brand2 }}</th>
               </tr>
@@ -44,16 +43,16 @@
                   <td class="px-4 py-3 font-medium">{{ categoryLabel(cat.category) }}</td>
                   <td class="px-4 py-3 text-right" [class]="cheaperBrand(cat) === 1 ? 'font-medium text-[var(--noc-accent)]' : 'text-[var(--noc-neutral-500)]'">
                     @if (cat.brand1AvgPrice !== null) {
-                      {{ cat.brand1AvgPrice | number:'1.2-2' }} ₺
-                      <span class="block text-[10px] font-normal text-[var(--noc-neutral-500)]">{{ cat.brand1Count }} ürün</span>
+                      {{ cat.brand1AvgPrice | price }}
+                      <span class="block text-[10px] font-normal text-[var(--noc-neutral-500)]">{{ cat.brand1Count }} {{ cat.brand1Count === 1 ? 'product' : 'products' }}</span>
                     } @else {
                       <span class="text-[var(--noc-neutral-500)]">—</span>
                     }
                   </td>
                   <td class="px-4 py-3 text-right" [class]="cheaperBrand(cat) === 2 ? 'font-medium text-[var(--noc-accent)]' : 'text-[var(--noc-neutral-500)]'">
                     @if (cat.brand2AvgPrice !== null) {
-                      {{ cat.brand2AvgPrice | number:'1.2-2' }} ₺
-                      <span class="block text-[10px] font-normal text-[var(--noc-neutral-500)]">{{ cat.brand2Count }} ürün</span>
+                      {{ cat.brand2AvgPrice | price }}
+                      <span class="block text-[10px] font-normal text-[var(--noc-neutral-500)]">{{ cat.brand2Count }} {{ cat.brand2Count === 1 ? 'product' : 'products' }}</span>
                     } @else {
                       <span class="text-[var(--noc-neutral-500)]">—</span>
                     }
@@ -64,29 +63,29 @@
           </table>
         </div>
         <p class="mt-4 text-center text-xs text-[var(--noc-neutral-500)]">
-          Fiyatlar, o kategorideki tüm ürünlerin güncel fiyatlarının ortalamasıdır — vurgulu taraf o kategoride ortalama olarak daha uygun fiyatlı.
+          Prices are the average of the current prices of every product in that category; the highlighted side is cheaper on average in that category.
         </p>
 
         @if (summary(); as s) {
           <p class="mx-auto mt-4 max-w-xl text-center text-sm leading-relaxed text-[var(--noc-neutral-300)]">
             @if (s.leader; as leader) {
-              {{ c.categories.length }} ortak kategoriden {{ s.leaderWins }} tanesinde {{ leader === 1 ? c.brand1 : c.brand2 }} ortalama daha ucuz
+              {{ leader === 1 ? c.brand1 : c.brand2 }} is cheaper on average in {{ s.leaderWins }} of {{ c.categories.length }} shared categories
               @if (s.ties > 0) {
-                ({{ s.ties }} kategori eşit)
+                ({{ s.ties }} tied)
               }.
               @if (s.biggestDiff; as d) {
-                En belirgin fark {{ categoryLabel(d.category) }} kategorisinde:
-                {{ d.cheaper === 1 ? c.brand1 : c.brand2 }} yaklaşık %{{ d.percent }} daha uygun.
+                The biggest gap is in {{ categoryLabel(d.category) }}:
+                {{ d.cheaper === 1 ? c.brand1 : c.brand2 }} is about {{ d.percent }}% cheaper.
               }
             } @else {
-              Ortak kategorilerde ortalama fiyatlar neredeyse eşit.
+              Average prices in the shared categories are about even.
             }
           </p>
         }
       }
 
       <div class="mt-6 text-center">
-        <a routerLink="/" class="text-sm font-medium text-[var(--noc-accent)]">← Tüm markaların indirimlerini gör</a>
+        <a routerLink="/" class="text-sm font-medium text-[var(--noc-accent)]">← See deals from every brand</a>
       </div>
     }
   </main>

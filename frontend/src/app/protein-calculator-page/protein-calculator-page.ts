@@ -1,4 +1,4 @@
-import { DecimalPipe } from '@angular/common';
+import { DOCUMENT, DecimalPipe } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -6,18 +6,25 @@ import { RouterLink } from '@angular/router';
 import { Deal } from '../core/deal.model';
 import { DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
+import { MARKET } from '../core/market';
 import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
-import { DOCUMENT } from '@angular/common';
+import { PricePipe } from '../core/price.pipe';
+import { SITE_NAME } from '../core/site-identity';
 import { slugify } from '../core/slugify';
+import { pricePerServing, servingsInPackage } from '../core/value-metrics';
 import { SiteHeader } from '../site-header/site-header';
+
+const KG_PER_LB = 0.45359237;
+
+type WeightUnit = 'lb' | 'kg';
 
 interface ActivityLevel {
   id: string;
   label: string;
   description: string;
-  // Kilo başına gram protein aralığı — sektörde ve beslenme kaynaklarında
-  // yaygın kabul gören değerler, uydurma değil. Tek bir sayı yerine ARALIK
-  // veriyoruz çünkü gerçekte de tek bir doğru sayı yok.
+  // Grams of protein per kg of body weight: ranges widely used in sports
+  // nutrition sources, not invented. A RANGE rather than one number, because
+  // in reality there's no single right number.
   minPerKg: number;
   maxPerKg: number;
 }
@@ -25,22 +32,22 @@ interface ActivityLevel {
 const ACTIVITY_LEVELS: ActivityLevel[] = [
   {
     id: 'sedentary',
-    label: 'Hareketsiz',
-    description: 'Düzenli spor yapmıyorum',
+    label: 'Sedentary',
+    description: "I don't exercise regularly",
     minPerKg: 0.8,
     maxPerKg: 1.0,
   },
   {
     id: 'active',
-    label: 'Düzenli egzersiz',
-    description: 'Haftada 3-5 gün antrenman',
+    label: 'Regular exercise',
+    description: 'Training 3-5 days a week',
     minPerKg: 1.2,
     maxPerKg: 1.6,
   },
   {
     id: 'intense',
-    label: 'Yoğun antrenman',
-    description: 'Kas kazanımı odaklı, haftada 5+ gün',
+    label: 'Intense training',
+    description: 'Focused on building muscle, 5+ days a week',
     minPerKg: 1.6,
     maxPerKg: 2.2,
   },
@@ -49,24 +56,22 @@ const ACTIVITY_LEVELS: ActivityLevel[] = [
 interface ProductValue {
   deal: Deal;
   pricePerServing: number;
-  proteinServings: number;
+  servings: number;
 }
 
-// Tablo, ürün grid'lerinden (24) daha küçük bir sayfa boyutu kullanıyor —
-// hem satır listesi olduğu için hem de SSR çıktısını hafif tutmak adına
-// (sayfanın ilk hali tüm kategoriyi gömüp 451 KB'a çıkmıştı).
+// The table uses a smaller page size than the product grids (24): it's a
+// row list, and it keeps the SSR output light.
 const PAGE_SIZE = 12;
 const SEARCH_DEBOUNCE_MS = 350;
 
-// Bu sayfanın fikri: "günlük protein ihtiyacı hesaplama" araması yüksek
-// hacimli ve rakiplerin çoğunda bir hesaplayıcı var — ama hiçbirinde CANLI
-// fiyat verisi yok. Bizde ikisi de olduğu için hesaplama sonucunu doğrudan
-// "servis başı en uygun ürün" listesine bağlayabiliyoruz. Öneri listesi
-// yalnızca porsiyon büyüklüğü GERÇEKTEN bilinen ürünlerden kuruluyor —
-// "30 gr = 1 servis" gibi bir varsayım bu projede hiç yapılmadı.
+// The idea of this page: "how much protein do I need" is a high-volume
+// search and most competitors have a calculator, but none has LIVE prices.
+// We have both, so the result links straight to a "best value per serving"
+// list. That list only includes products whose serving size is ACTUALLY
+// known; no "30 g = 1 serving" assumption is ever made.
 @Component({
   selector: 'app-protein-calculator-page',
-  imports: [DecimalPipe, FormsModule, RouterLink, SiteHeader],
+  imports: [PricePipe, DecimalPipe, FormsModule, RouterLink, SiteHeader],
   templateUrl: './protein-calculator-page.html',
 })
 export class ProteinCalculatorPage implements OnInit {
@@ -78,6 +83,9 @@ export class ProteinCalculatorPage implements OnInit {
 
   protected readonly activityLevels = ACTIVITY_LEVELS;
 
+  // US visitors know their weight in pounds, so lb is the default; kg stays
+  // one tap away. The ranges themselves are defined per kg.
+  protected readonly weightUnit = signal<WeightUnit>('lb');
   protected readonly weight = signal<number | null>(null);
   protected readonly activityId = signal<string>('active');
   protected readonly loading = signal(true);
@@ -85,10 +93,8 @@ export class ProteinCalculatorPage implements OnInit {
 
   private readonly products = signal<Deal[]>([]);
 
-  // Tablo filtreleri — ana sayfadaki aynı desen (arama debounce'lu,
-  // marka çipleri, sayfalama). İlk hali yalnızca 6 ürün gösteriyordu ve
-  // o 6'sının hepsi tek markadan çıkıyordu; kullanıcı bunu fark edip
-  // "protein tozlarının tamamını, arama kutusuyla birlikte" istedi.
+  // Table filters, the same pattern as the home page (debounced search,
+  // brand chips, pagination).
   protected readonly searchQuery = signal('');
   protected readonly selectedBrands = signal<Set<string>>(new Set());
   protected readonly availableBrands = signal<string[]>([]);
@@ -105,11 +111,23 @@ export class ProteinCalculatorPage implements OnInit {
     () => ACTIVITY_LEVELS.find((level) => level.id === this.activityId()) ?? ACTIVITY_LEVELS[1],
   );
 
-  // Kilo girilmeden hiçbir sonuç göstermiyoruz — varsayılan bir kiloyla
-  // (ör. 70 kg) doldurup "senin ihtiyacın şu" demek yanıltıcı olurdu.
+  // The same range expressed per pound, for the explanation under the result.
+  protected readonly perLbRange = computed(() => {
+    const level = this.selectedActivity();
+    return {
+      min: Math.round(level.minPerKg * KG_PER_LB * 100) / 100,
+      max: Math.round(level.maxPerKg * KG_PER_LB * 100) / 100,
+    };
+  });
+
+  // No result until a weight is entered: filling in a default weight and
+  // saying "this is what you need" would mislead.
   protected readonly dailyProtein = computed(() => {
-    const kg = this.weight();
-    if (!kg || kg <= 0 || kg > 400) return null;
+    const value = this.weight();
+    if (!value || value <= 0) return null;
+
+    const kg = this.weightUnit() === 'lb' ? value * KG_PER_LB : value;
+    if (kg > 400) return null;
 
     const level = this.selectedActivity();
     return {
@@ -118,51 +136,33 @@ export class ProteinCalculatorPage implements OnInit {
     };
   });
 
-  // Backend zaten servis başı fiyata göre sıralı ve elenmiş bir liste
-  // döndürüyor (bkz. GetBestValuePerServingAsync); burada sadece gösterim
-  // için servis sayısı/birim fiyat tekrar hesaplanıyor.
+  // The backend already returns a filtered list sorted by price per serving
+  // (see GetBestValuePerServingAsync); servings and unit price are computed
+  // here only for display, with the shared rules in core/value-metrics.ts.
   protected readonly bestValueProducts = computed<ProductValue[]>(() =>
     this.products()
       .map((deal) => {
-        const servings = this.calculateServings(deal);
-        if (!servings || servings < 1) return null;
-
-        return {
-          deal,
-          pricePerServing: deal.currentPrice / servings,
-          proteinServings: servings,
-        };
+        const servings = servingsInPackage(deal);
+        const perServing = pricePerServing(deal);
+        if (!servings || perServing === null) return null;
+        return { deal, pricePerServing: perServing, servings };
       })
       .filter((item): item is ProductValue => item !== null),
   );
 
-  protected productLink(deal: Deal): string[] {
-    return ['/urun', String(deal.productId), slugify(deal.productName)];
-  }
-
-  // Backend'deki DealsQueryService.CalculateServings ile aynı öncelik:
-  // markanın doğrudan beyan ettiği servis sayısı (ProteinOcean) varsa o,
-  // yoksa paket gramajı ÷ porsiyon büyüklüğü.
-  private calculateServings(deal: Deal): number | null {
-    if (deal.servingsPerPackage && deal.servingsPerPackage > 0) return deal.servingsPerPackage;
-
-    const packageGrams = this.parsePackageGrams(deal.size);
-    if (packageGrams && deal.servingSizeGrams && deal.servingSizeGrams > 0) {
-      return packageGrams / deal.servingSizeGrams;
+  protected setWeightUnit(unit: WeightUnit): void {
+    if (unit === this.weightUnit()) return;
+    // Convert what was typed so switching units doesn't change the result.
+    const value = this.weight();
+    if (value && value > 0) {
+      const converted = unit === 'kg' ? value * KG_PER_LB : value / KG_PER_LB;
+      this.weight.set(Math.round(converted * 10) / 10);
     }
-
-    return null;
+    this.weightUnit.set(unit);
   }
 
-  private parsePackageGrams(size: string | null): number | null {
-    if (!size) return null;
-    const match = /^(\d+(?:[.,]\d+)?)\s*(Gr|Kg)$/i.exec(size.trim());
-    if (!match) return null;
-
-    const value = Number(match[1].replace(',', '.'));
-    if (!value) return null;
-
-    return match[2].toLowerCase() === 'kg' ? value * 1000 : value;
+  protected productLink(deal: Deal): string[] {
+    return ['/product', String(deal.productId), slugify(deal.productName)];
   }
 
   protected onSearchChange(value: string): void {
@@ -201,7 +201,7 @@ export class ProteinCalculatorPage implements OnInit {
 
     this.dealsService
       .getBestValuePerServing({
-        category: 'protein-tozu',
+        category: 'protein-powder',
         brands: [...this.selectedBrands()],
         search: this.searchQuery().trim() || undefined,
         page: this.currentPage(),
@@ -223,25 +223,25 @@ export class ProteinCalculatorPage implements OnInit {
 
   ngOnInit(): void {
     this.pageMeta.set({
-      title: 'Günlük Protein İhtiyacı Hesaplama | ProteinAvcısı',
+      title: `Daily Protein Calculator | ${SITE_NAME}`,
       description:
-        'Kilona ve antrenman yoğunluğuna göre günlük protein ihtiyacını hesapla, sonucu doğrudan güncel fiyatlarla karşılaştır — servis başı en uygun protein tozu ürünlerini gör.',
-      canonicalPath: '/hesaplama/protein-ihtiyaci',
+        'Work out your daily protein needs from body weight and training load, then compare against current prices to see the best value protein powders per serving.',
+      canonicalPath: '/calculators/protein',
     });
 
-    // Google'ın hesaplayıcı sayfalarını anlamasına yardımcı olan yapısal veri.
+    // Structured data that helps Google understand calculator pages.
     this.structuredDataEl = upsertJsonLdScript(this.document, this.structuredDataEl, {
       '@context': 'https://schema.org',
       '@type': 'WebApplication',
-      name: 'Günlük Protein İhtiyacı Hesaplama',
+      name: 'Daily Protein Calculator',
       applicationCategory: 'HealthApplication',
       operatingSystem: 'Web',
-      offers: { '@type': 'Offer', price: '0', priceCurrency: 'TRY' },
+      offers: { '@type': 'Offer', price: '0', priceCurrency: MARKET.currency },
     });
 
-    // Marka çipleri: yalnızca bu kategoride servis başı fiyatı gerçekten
-    // hesaplanabilen markalar (boş sonuç veren çip göstermemek için).
-    this.dealsService.getBestValueBrands('protein-tozu').subscribe({
+    // Brand chips: only brands whose price per serving can actually be
+    // calculated in this category (no chip that returns nothing).
+    this.dealsService.getBestValueBrands('protein-powder').subscribe({
       next: (brands) => this.availableBrands.set(brands),
       error: () => this.availableBrands.set([]),
     });

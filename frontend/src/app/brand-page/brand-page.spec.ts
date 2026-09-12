@@ -7,11 +7,10 @@ import { of } from 'rxjs';
 import { ThemeService } from '../core/theme.service';
 import { BrandPage } from './brand-page';
 
-// comparisonPairSlug marka karşılaştırma sayfalarının kanonik URL'ini
-// üretiyor — sıra ne olursa olsun aynı çift için aynı URL'e çıkması
-// (duplicate content riskini önlemek için bilinçli tasarlandı) buranın
-// tek gerçek davranışsal garantisi, regresyon testi burada değerli.
-describe('BrandPage - comparisonPairSlug', () => {
+// comparisonPairSlug builds the canonical URL of brand comparison pages. The
+// same pair must map to the same URL whatever the order (by design, to avoid
+// duplicate content); that's the one real behavioral guarantee here.
+describe('BrandPage: comparisonPairSlug', () => {
   let component: any;
 
   beforeEach(() => {
@@ -21,31 +20,29 @@ describe('BrandPage - comparisonPairSlug', () => {
         provideHttpClient(),
         provideRouter([]),
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({})) } },
-        // BrandPage kendi başına ThemeService'e bağlı değil ama şablonundaki
-        // <app-site-header> child component'i bağlı — TestBed.createComponent
-        // detectChanges() çağrılmasa bile şablondaki child component'leri view
-        // oluşturma aşamasında instantiate ediyor, bu yüzden SiteHeader'ın
-        // gerçek ThemeService constructor'ı (window.matchMedia çağırıyor,
-        // jsdom'da yok) burada da tetikleniyor. comparisonPairSlug'ın temayla
-        // hiç ilgisi yok, minimal bir sahte ile değiştiriliyor.
+        // BrandPage itself doesn't depend on ThemeService, but its template's
+        // <app-site-header> does. TestBed.createComponent instantiates child
+        // components while creating the view even without detectChanges(), so
+        // the real ThemeService constructor (which calls window.matchMedia,
+        // missing in jsdom) would run. A minimal fake replaces it.
         { provide: ThemeService, useValue: { preference: signal('system') } },
       ],
     });
     component = TestBed.createComponent(BrandPage).componentInstance;
   });
 
-  it('iki markayı alfabetik sırayla birleştirir', () => {
-    component.brandName.set('SSN');
+  it('joins the two brands in alphabetical order', () => {
+    component.brandName.set('Kaged');
 
-    expect(component.comparisonPairSlug('HIQ')).toBe('hiq-vs-ssn');
+    expect(component.comparisonPairSlug('Ghost')).toBe('ghost-vs-kaged');
   });
 
-  it('hangi marka "mevcut" hangisi "diğer" olursa olsun aynı kanonik URL üretir', () => {
-    component.brandName.set('hiq');
-    const a = component.comparisonPairSlug('ssn');
+  it('produces the same canonical URL whichever brand is "current"', () => {
+    component.brandName.set('ghost');
+    const a = component.comparisonPairSlug('kaged');
 
-    component.brandName.set('ssn');
-    const b = component.comparisonPairSlug('hiq');
+    component.brandName.set('kaged');
+    const b = component.comparisonPairSlug('ghost');
 
     expect(a).toBe(b);
   });

@@ -73,12 +73,12 @@ services:
       # Kaynak tazeliği alarmının eşiği (saat). Tanımlanmazsa 26.
       # Deploy yapmadan ayarlanabilsin diye burada: bir alarmın eşiği,
       # yanlış ayarlandığında kod değişikliği beklemeden düzeltilebilmeli.
-      # Yonetim paneli Cloudflare Access'in arkasinda; backend Access'in
-      # imzali kimlik jetonunu da kabul ediyor. IKISI DE TANIMLI DEGILSE
-      # bu yol tamamen KAPALI - eksik ayarda jetonu yine de kabul etmek,
-      # yanlis bir yapilandirmanin kapiyi sessizce acmasi demekti.
-      # Aud etiketi Access uygulamasinin panelinden aliniyor ve gizli
-      # bir deger degil; jetonu BU uygulamaya baglamak icin gerekli.
+      # The admin panel sits behind Cloudflare Access; the backend also
+      # accepts Access's signed identity token. UNLESS BOTH ARE SET this
+      # path is fully CLOSED: accepting the token with half a configuration
+      # would let a misconfiguration silently open the door.
+      # The aud tag comes from the Access application's dashboard and isn't
+      # secret; it binds the token to THIS application.
       - CloudflareAccess__TeamDomain=${CF_ACCESS_TEAM_DOMAIN:-}
       - CloudflareAccess__Aud=${CF_ACCESS_AUD:-}
       - Health__StaleHours=${HEALTH_STALE_HOURS:-26}
@@ -98,8 +98,8 @@ services:
       # Adres öneki API alan adı üzerinden: dosyaları .NET sunuyor, Caddy'ye
       # bilerek dosya sunucusu eklenmedi (bkz. Program.cs'teki gerekçe).
       - ProductImages__Enabled=true
-      - ProductImages__Dizin=/app/urun-gorsel
-      - ProductImages__TabanAdres=https://api.proteinavcisi.com.tr/api/gorsel
+      - ProductImages__Dizin=/app/product-images
+      - ProductImages__TabanAdres=https://api.wheyproof.com/api/images
       - Cors__AllowedOrigins__0=https://proteinavcisi.com.tr
       - Cors__AllowedOrigins__1=https://www.proteinavcisi.com.tr
       - Scraping__Enabled=true
@@ -122,7 +122,7 @@ services:
     # sıfırdan indirtirdi. `docker builder prune` (haftalık cron) adlandırılmış
     # volume'lara dokunmuyor.
     volumes:
-      - urun_gorsel:/app/urun-gorsel
+      - product_images:/app/product-images
     # Backend açılışta EF migration çalıştırıyor; veritabanı hazır değilken
     # başlarsa hata verir. Deploy workflow'u backend'i "--no-deps" ile
     # yenilediği için bu koşul orada devreye girmiyor (db zaten sürekli
@@ -166,7 +166,7 @@ services:
       - frontend
 
 volumes:
-  urun_gorsel:
+  product_images:
   caddy_data:
   caddy_config:
   pg_data:

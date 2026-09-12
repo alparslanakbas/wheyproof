@@ -11,32 +11,30 @@ using Microsoft.Extensions.Options;
 
 namespace IndirimTakip.Api.Endpoints;
 
-// Yönetim uçları (/api/dev/*). HEPSİ X-Admin-Key ile korunuyor —
-// 2026-08-15'te bu uçlar korumasızdı ve herkes tarama tetikleyip sahte
-// kupon ekleyebiliyordu.
+// Admin endpoints (/api/dev/*). ALL of them require X-Admin-Key (or the
+// admin session); unprotected, anyone could trigger scrapes and add fake
+// coupons.
 internal static class AdminEndpoints
 {
     public static void MapAdminEndpoints(this WebApplication app, string? adminApiKey)
     {
-        // Taramayı elle tetiklemek için. İş ARKA PLANDA çalışıyor, uç hemen 202
-        // dönüyor.
+        // Triggers a scrape by hand. The work runs IN THE BACKGROUND and the
+        // endpoint returns 202 right away.
         //
-        // NEDEN: eskiden tarama isteğin İÇİNDE çalışıp bitince yanıt dönüyordu ve bu
-        // uzun süren kaynaklarda hiç işe yaramıyordu. Cloudflare origin yanıtını
-        // ~100-125 saniye bekleyip 524 dönüyor; bağlantı kesilince ASP.NET isteği
-        // iptal ediyor, CancellationToken tetikleniyor ve HİÇBİR ŞEY KAYDEDİLMİYOR.
-        // 1 Eylül'de Provitamin denemesinde tam olarak bu oldu: ~500 istek karşı
-        // siteye gitti, veritabanına tek ürün yazılmadı. protein7 (~15 dk) ve
-        // Provitamin (~38 dk) bu yolla hiç tetiklenemezdi.
+        // WHY: running the scrape inside the request was useless for long
+        // sources. Cloudflare waits ~100-125 seconds for the origin and then
+        // returns 524; when the connection drops ASP.NET cancels the request,
+        // the CancellationToken fires and NOTHING IS SAVED. Hundreds of
+        // requests can hit a store with not a single product written.
         //
-        // İki incelik:
-        //   • İstek kapsamı yanıt döner dönmez atılıyor, bu yüzden arka plan işi
-        //     KENDİ kapsamını açıp scraper'ı oradan çözüyor.
-        //   • İptal jetonu isteğe değil UYGULAMA ÖMRÜNE bağlı; yoksa aynı hatayı
-        //     başka bir kılıkta tekrarlardık.
+        // Two subtleties:
+        //   • The request scope is disposed as soon as the response returns, so
+        //     the background job opens ITS OWN scope and resolves the scraper there.
+        //   • The cancellation token is tied to the APPLICATION lifetime, not the
+        //     request; otherwise the same bug would come back in another form.
         //
-        // Aynı kaynağın eşzamanlı taranmasına karşı koruma ScrapeIngestionService'te
-        // zaten var (ikinci tetikleme reddediliyor), burada tekrarlanmıyor.
+        // Protection against scraping the same source concurrently already
+        // lives in ScrapeIngestionService (a second trigger is rejected).
         app.MapPost("/api/dev/ingest/{brand}", (
             string brand,
             IEnumerable<IBrandScraper> scrapers,
@@ -46,10 +44,10 @@ internal static class AdminEndpoints
         {
             var scraper = scrapers.FirstOrDefault(s => s.BrandName.Equals(brand, StringComparison.OrdinalIgnoreCase));
             if (scraper is null)
-                return Results.NotFound($"'{brand}' için scraper bulunamadı.");
+                return Results.NotFound($"No scraper found for '{brand}'.");
 
             var brandName = scraper.BrandName;
-            var logger = loggerFactory.CreateLogger("ElleTarama");
+            var logger = loggerFactory.CreateLogger("ManualScrape");
 
             _ = Task.Run(async () =>
             {
@@ -60,78 +58,71 @@ internal static class AdminEndpoints
 
                 try
                 {
-                    logger.LogInformation("Elle tetiklenen tarama başladı: {Brand}.", brandName);
+                    logger.LogInformation("Manual scrape started: {Brand}.", brandName);
                     var count = await ingestion.IngestAsync(scoped, lifetime.ApplicationStopping);
 
-                    // Veri değişti: önbelleği düşür ve sıcak uçları yeniden doldur.
-                    // Elle tarama çoğunlukla deploy sonrası çalıştırılıyor, yani tam
-                    // da ziyaretçinin soğuk önbelleğe düşeceği an.
-                    // Fiyat özeti ÖNCE: önbellek ısıtması bu alanları okuyor,
-                    // ters sırada ısıtma eski özeti önbelleğe alırdı.
+                    // The data changed: drop the cache and warm the hot endpoints.
+                    // Manual scrapes mostly run right after a deploy, exactly
+                    // when a visitor would hit a cold cache.
+                    // The price summary goes FIRST: cache warming reads those
+                    // fields, and the reverse order would cache the old summary.
                     await scope.ServiceProvider.GetRequiredService<PriceSummaryRefresher>()
                         .RefreshAsync(lifetime.ApplicationStopping);
 
                     await scope.ServiceProvider.GetRequiredService<IPublicCacheRefresher>()
                         .RefreshAsync(lifetime.ApplicationStopping);
 
-                    logger.LogInformation("Elle tetiklenen tarama bitti: {Brand}, {Count} ürün.", brandName, count);
+                    logger.LogInformation("Manual scrape finished: {Brand}, {Count} products.", brandName, count);
                 }
                 catch (Exception ex)
                 {
-                    // Yutulmamalı: arka plan işinin sessizce ölmesi, tam da bu ucun
-                    // çözmeye çalıştığı "çalışıyor sandım ama veri yok" durumudur.
-                    logger.LogError(ex, "Elle tetiklenen tarama BAŞARISIZ: {Brand}.", brandName);
+                    // Never swallowed: a background job dying silently is exactly
+                    // the "I thought it ran but there's no data" case this
+                    // endpoint exists to solve.
+                    logger.LogError(ex, "Manual scrape FAILED: {Brand}.", brandName);
                 }
             });
 
-            // Sonuç loglardan ve veritabanından izlenir; istemcinin bağlantıyı açık
-            // tutmasına gerek yok.
+            // Follow the result in the logs and the database; the client doesn't
+            // need to keep the connection open.
             return Results.Accepted(value: new
             {
                 brand = brandName,
-                durum = "tarama arka planda başlatıldı",
-                nasilIzlenir = "docker compose logs backend | grep 'Elle tetiklenen tarama'",
+                status = "scrape started in the background",
+                howToFollow = "docker compose logs backend | grep 'Manual scrape'",
             });
         }).RequireAdminKey(adminApiKey);
 
-        // Geçici elle-ekleme endpoint'i (roadmap'teki /api/dev/ingest ile aynı desende):
-        // kupon kodları scrape edilmiyor, elle doğrulanıp buradan ekleniyor. Henüz auth
-        // yok — /api/dev/ingest gibi bu da site canlıya çıkmadan önce korumaya alınmalı.
+        // Coupons aren't scraped: they're checked by hand and added here.
         app.MapPost("/api/dev/coupons", async (CreateCouponRequest request, CouponService coupons, CancellationToken ct) =>
         {
             if (!request.HasExactlyOneTarget)
-                return Results.BadRequest("Kupon yalnızca bir markaya veya bir satıcıya bağlanmalıdır.");
-            // Kod BİLİNÇLİ olarak zorunlu değil: her kampanyanın girilecek bir kodu
-            // yok (ör. üyelikle otomatik uygulanan "ilk alışverişte ek %5"). Açıklama
-            // ise zorunlu — kullanıcının kutuda göreceği tek metin o.
+                return Results.BadRequest("A coupon must belong to exactly one brand or one seller.");
+            // The code is deliberately OPTIONAL: not every promotion has a code
+            // to enter (e.g. an automatic first-order discount for members). The
+            // description is required: it's the only text people see.
             if (string.IsNullOrWhiteSpace(request.Description))
-                return Results.BadRequest("Kupon açıklaması boş olamaz.");
+                return Results.BadRequest("The coupon description can't be empty.");
 
             var result = await coupons.CreateAsync(request, ct);
-            return result is null ? Results.NotFound($"'{request.BrandName}' adında marka bulunamadı.") : Results.Ok(result);
+            return result is null ? Results.NotFound($"No brand named '{request.BrandName}'.") : Results.Ok(result);
         }).RequireAdminKey(adminApiKey);
 
-        // Süresi geçen/yanlış çıkan bir kuponu deaktive edebilmek için (Article'daki
-        // PUT deseniyle aynı) — önceden sadece ekleme vardı, bir kuponu kapatmanın
-        // API üzerinden hiçbir yolu yoktu.
+        // Edits or deactivates a coupon (an expired or wrong one, for example).
         app.MapPut("/api/dev/coupons/{id:int}", async (int id, UpdateCouponRequest request, CouponService coupons, CancellationToken ct) =>
         {
             var result = await coupons.UpdateAsync(id, request, ct);
-            return result is null ? Results.NotFound($"{id} numaralı kupon bulunamadı.") : Results.Ok(result);
+            return result is null ? Results.NotFound($"Coupon {id} not found.") : Results.Ok(result);
         }).RequireAdminKey(adminApiKey);
 
-        // Kapsam dışı kalan ürünleri (ör. bir markanın feed'inde karışan giyim/
-        // ekipman ürünleri — bkz. HiqScraper'daki "type:wearable"/"type:equipment"
-        // filtresi) elle temizlemek için. Cascade delete sayesinde ilişkili
-        // PriceHistory/ProductFavorite/ProductWatch kayıtları da otomatik siliniyor.
-        // Scraper filtresi zaten kurulduğu için silinen ürün bir sonraki taramada
-        // geri gelmiyor.
+        // Removes out-of-scope products by hand. Cascade delete removes their
+        // PriceHistory/ProductFavorite/ProductWatch rows too. With the scraper
+        // filter in place, a deleted product doesn't come back on the next scrape.
         app.MapDelete("/api/dev/products/{id:int}", async (int id, AppDbContext db, CancellationToken ct) =>
         {
-            // FindAsync global filtreden etkilenmiyor ama acikca belirtiyoruz:
-            // gizlenmis bir urun de silinebilmeli.
+            // Explicit: a hidden product must be deletable too.
             var product = await db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == id, ct);
-            if (product is null) return Results.NotFound($"{id} numaralı ürün bulunamadı.");
+            if (product is null) return Results.NotFound($"Product {id} not found.");
             db.Products.Remove(product);
             await db.SaveChangesAsync(ct);
             return Results.Ok();
@@ -140,20 +131,18 @@ internal static class AdminEndpoints
         app.MapPost("/api/dev/articles", async (CreateArticleRequest request, ArticleService articles, CancellationToken ct) =>
         {
             var result = await articles.CreateAsync(request, ct);
-            return result is null ? Results.Conflict($"'{request.Slug}' slug'ı zaten kullanılıyor.") : Results.Ok(result);
+            return result is null ? Results.Conflict($"The slug '{request.Slug}' is already taken.") : Results.Ok(result);
         }).RequireAdminKey(adminApiKey);
 
-        // Mevcut bir yazıyı düzenlemek için (ör. derinleştirme) — kısmi güncelleme,
-        // gönderilmeyen alanlar olduğu gibi kalır.
+        // Edits an existing article; a partial update, fields not sent stay as they are.
         app.MapPut("/api/dev/articles/{slug}", async (string slug, UpdateArticleRequest request, ArticleService articles, CancellationToken ct) =>
         {
             var result = await articles.UpdateAsync(slug, request, ct);
-            return result is null ? Results.NotFound($"'{slug}' slug'ıyla yazı bulunamadı.") : Results.Ok(result);
+            return result is null ? Results.NotFound($"No article with slug '{slug}'.") : Results.Ok(result);
         }).RequireAdminKey(adminApiKey);
 
-        // Asıl gönderim artık DigestBackgroundService ile haftada bir otomatik
-        // tetikleniyor — bu endpoint elle/anlık test tetiklemesi için hâlâ duruyor
-        // (aynı /api/dev/ingest deseninde, BackgroundService eklendikten sonra da).
+        // The digest is sent automatically by DigestBackgroundService; this
+        // endpoint stays for manual and test sends.
         app.MapPost("/api/dev/send-digest", async (DigestService digest, HttpContext http, CancellationToken ct) =>
         {
             var baseUrl = $"{http.Request.Scheme}://{http.Request.Host}";
@@ -161,186 +150,177 @@ internal static class AdminEndpoints
             return Results.Ok(result);
         }).RequireAdminKey(adminApiKey);
 
-        // Asıl tamamlama artık DescriptionBackfillBackgroundService ile haftada bir
-        // otomatik tetikleniyor — bu endpoint elle/anlık test tetiklemesi için
-        // (aynı /api/dev/* desende).
+        // Description backfill runs automatically in
+        // DescriptionBackfillBackgroundService; this is the manual trigger.
         app.MapPost("/api/dev/backfill-descriptions", async (ProductDetailBackfillService backfill, CancellationToken ct) =>
         {
             var updated = await backfill.BackfillAsync(ct);
             return Results.Ok(new { updatedCount = updated });
         }).RequireAdminKey(adminApiKey);
 
-        // Markaların sitelerindeki yıldız ortalamasını elle tazelemek için. Asıl
-        // mekanizma RatingRefreshBackgroundService (6 saatte bir, en eski kontrol
-        // edilenlerden başlayarak); bu uç ilk doldurma ve anlık kontrol için.
+        // Refreshes the brands' star ratings by hand. The real mechanism is
+        // RatingRefreshBackgroundService (every 6 hours, oldest checks first);
+        // this endpoint is for the first fill and spot checks.
         app.MapPost("/api/dev/refresh-ratings", async (ProductRatingRefreshService ratings, int? max, CancellationToken ct) =>
         {
             var updated = await ratings.RefreshAsync(max, ct);
             return Results.Ok(new { updatedCount = updated });
         }).RequireAdminKey(adminApiKey);
 
-        // Guvenlik olaylari - panelin "akis" gorunumunun kaynagi.
+        // The admin panel's "Status" screen, in ONE request.
         //
-        // OZET LISTEDEN AYRI SORGULANIYOR: liste `take` ile kirpiliyor ve
-        // kirpilmis listeden sayi cikarmak yaniltir ("3 saldiri var" derken
-        // aslinda 3.000 olabilir).
-        // Yonetim panelinin "Durum" ekrani - TEK istekte ozet.
+        // WHY A SEPARATE ENDPOINT: the panel comes through /admin/api/* and
+        // Caddy rewrites that to /api/dev/*, so the panel CAN'T reach
+        // endpoints outside /api/dev such as /api/stats or
+        // /api/health/sources. Rather than a second Caddy rule there's one
+        // summary endpoint: one request, and what the panel can see is
+        // visible in ONE place.
         //
-        // NEDEN AYRI BIR UC: panel /yonetim/api/* uzerinden geliyor ve Caddy o
-        // yolu /api/dev/* olarak yeniden yaziyor, yani panel /api/stats ya da
-        // /api/health/sources gibi /api/dev disindaki uclara ULASAMIYOR. Caddy'ye
-        // ikinci bir kural eklemek yerine tek bir ozet ucu yazildi: panel tek
-        // istek atiyor ve hangi verinin panele acildigi TEK YERDE gorunuyor.
-        //
-        // KAYNAK TAZELIGI BURADA YENIDEN YORUMLANMIYOR. Bayat/emekli esikleri
-        // /api/health/sources'ta tanimli ve alarm oradan (UptimeRobot) geliyor;
-        // ayni kurali ikinci kez yazmak, iki kopyanin zamanla ayrismasi demekti.
-        // Burada yalnizca HAM son tarama zamanlari donuyor, yorumu arayuz yapiyor.
-        app.MapGet("/api/dev/durum", async (AppDbContext db, CancellationToken ct) =>
+        // SOURCE FRESHNESS ISN'T RE-INTERPRETED HERE. The stale/retired
+        // thresholds live in /api/health/sources and alerts come from there;
+        // writing the same rule twice means two copies that drift apart. Only
+        // RAW last-scrape times are returned; the UI interprets them.
+        app.MapGet("/api/dev/status", async (AppDbContext db, CancellationToken ct) =>
         {
-            // Panel gercegi gostermeli: gizlenmis urunler de katalogun parcasi.
-            var urunler = await db.Products
+            // The panel should show the truth: hidden products are part of the catalog too.
+            var products = await db.Products
                 .IgnoreQueryFilters()
                 .GroupBy(_ => 1)
                 .Select(g => new
                 {
-                    toplam = g.Count(),
-                    besinli = g.Count(p => p.NutritionJson != null),
-                    tiklama = g.Sum(p => p.ClickCount),
-                    sonBesinTuru = g.Max(p => p.NutritionCheckedAt),
+                    total = g.Count(),
+                    withNutrition = g.Count(p => p.NutritionJson != null),
+                    clicks = g.Sum(p => p.ClickCount),
+                    lastNutritionRun = g.Max(p => p.NutritionCheckedAt),
                 })
                 .FirstOrDefaultAsync(ct);
 
-            var markaSayisi = await db.Brands.CountAsync(ct);
+            var brandCount = await db.Brands.CountAsync(ct);
 
-            var aboneler = await db.Subscribers
+            var subscribers = await db.Subscribers
                 .GroupBy(_ => 1)
                 .Select(g => new
                 {
-                    onayli = g.Count(x => x.IsConfirmed && x.UnsubscribedAt == null),
-                    bekleyen = g.Count(x => !x.IsConfirmed && x.UnsubscribedAt == null),
+                    confirmed = g.Count(x => x.IsConfirmed && x.UnsubscribedAt == null),
+                    pending = g.Count(x => !x.IsConfirmed && x.UnsubscribedAt == null),
                 })
                 .FirstOrDefaultAsync(ct);
 
-            // Kaynak birimi COALESCE(Seller, Brand.Name) - saglik ucuyla ayni
-            // tanim. En eskiden baslayarak ilk 12 kaynak yeterli; panel bir
-            // izleme araci degil, hizli bakis.
-            var kaynaklar = await db.Products
+            // A source is COALESCE(Seller, Brand.Name), the same definition as
+            // the health endpoint. The 12 stalest are enough; the panel is a
+            // quick look, not a monitoring tool.
+            var sources = await db.Products
                 .IgnoreQueryFilters()
                 .Where(p => p.LatestScrapedAt != null)
                 .GroupBy(p => p.Seller ?? p.Brand!.Name)
-                .Select(g => new { kaynak = g.Key, sonTarama = g.Max(p => p.LatestScrapedAt) })
-                .OrderBy(x => x.sonTarama)
+                .Select(g => new { source = g.Key, lastScraped = g.Max(p => p.LatestScrapedAt) })
+                .OrderBy(x => x.lastScraped)
                 .Take(12)
                 .ToListAsync(ct);
 
-            var gunOnce = DateTimeOffset.UtcNow.AddDays(-1);
-            var olayOzeti = await db.SecurityEvents
-                .Where(x => x.OccurredAt >= gunOnce)
+            var dayAgo = DateTimeOffset.UtcNow.AddDays(-1);
+            var eventSummary = await db.SecurityEvents
+                .Where(x => x.OccurredAt >= dayAgo)
                 .GroupBy(x => x.Kind)
                 .Select(g => new { kind = g.Key, count = g.Count() })
                 .ToListAsync(ct);
 
             return Results.Ok(new
             {
-                urun = new
+                products = new
                 {
-                    toplam = urunler?.toplam ?? 0,
-                    besinli = urunler?.besinli ?? 0,
-                    markaSayisi,
+                    total = products?.total ?? 0,
+                    withNutrition = products?.withNutrition ?? 0,
+                    brandCount,
                 },
-                tiklamaToplam = urunler?.tiklama ?? 0,
-                besin = new
+                clickTotal = products?.clicks ?? 0,
+                nutrition = new
                 {
-                    sonTur = urunler?.sonBesinTuru,
-                    siradakiTur = urunler?.sonBesinTuru?.AddDays(2),
+                    lastRun = products?.lastNutritionRun,
+                    nextRun = products?.lastNutritionRun?.AddDays(2),
                 },
-                abone = new
+                subscribers = new
                 {
-                    onayli = aboneler?.onayli ?? 0,
-                    bekleyen = aboneler?.bekleyen ?? 0,
+                    confirmed = subscribers?.confirmed ?? 0,
+                    pending = subscribers?.pending ?? 0,
                 },
-                kaynaklar,
-                sonGunOlaylari = olayOzeti,
+                sources,
+                lastDayEvents = eventSummary,
             });
         }).RequireAdminKey(adminApiKey);
 
-        // --- Marka ve urun gorunurlugu (yonetim paneli) ---
+        // --- Brand and product visibility (admin panel) ---
         //
-        // MARKA TARAFI ZATEN CALISIYORDU: Brand.IsActive alani bastan beri var
-        // ve DealsQueryService 14 ayri sorguda kontrol ediyor. Eksik olan
-        // yalnizca onu acip kapatacak bir arayuzdu.
+        // Brands: Brand.IsActive has always existed and DealsQueryService checks
+        // it in every public query; this only adds the switch.
         //
-        // URUN TARAFI YENI: Product.IsActive + AppDbContext'te global sorgu
-        // filtresi. Filtre tek yerde durdugu icin gizlenen urun butun
-        // sayfalardan ve sitemap'ten kendiliginden dusuyor.
-        app.MapGet("/api/dev/markalar", async (AppDbContext db, CancellationToken ct) =>
+        // Products: Product.IsActive plus a global query filter in
+        // AppDbContext. The filter lives in one place, so a hidden product
+        // drops out of every page and the sitemap on its own.
+        app.MapGet("/api/dev/brands", async (AppDbContext db, CancellationToken ct) =>
         {
-            var markalar = await db.Brands
+            var brands = await db.Brands
                 .AsNoTracking()
                 .Select(b => new
                 {
                     b.Id,
                     b.Name,
                     b.IsActive,
-                    // Gizli urunler de sayiliyor: panelde "kac urunu var"
-                    // sorusunun cevabi katalogun tamami olmali.
-                    urunSayisi = db.Products.IgnoreQueryFilters().Count(p => p.BrandId == b.Id),
-                    gizliUrun = db.Products.IgnoreQueryFilters().Count(p => p.BrandId == b.Id && !p.IsActive),
+                    // Hidden products count too: "how many products does it
+                    // have" should be answered with the whole catalog.
+                    productCount = db.Products.IgnoreQueryFilters().Count(p => p.BrandId == b.Id),
+                    hiddenProducts = db.Products.IgnoreQueryFilters().Count(p => p.BrandId == b.Id && !p.IsActive),
                 })
                 .OrderBy(b => b.Name)
                 .ToListAsync(ct);
 
-            return Results.Ok(markalar);
+            return Results.Ok(brands);
         }).RequireAdminKey(adminApiKey);
 
-        app.MapPut("/api/dev/markalar/{id:int}", async (
-            int id, GorunurlukIstegi istek, AppDbContext db, IPublicCacheRefresher cache, CancellationToken ct) =>
+        app.MapPut("/api/dev/brands/{id:int}", async (
+            int id, VisibilityRequest request, AppDbContext db, IPublicCacheRefresher cache, CancellationToken ct) =>
         {
-            var marka = await db.Brands.FirstOrDefaultAsync(b => b.Id == id, ct);
-            if (marka is null)
-                return Results.NotFound($"{id} numaralı marka bulunamadı.");
+            var brand = await db.Brands.FirstOrDefaultAsync(b => b.Id == id, ct);
+            if (brand is null)
+                return Results.NotFound($"Brand {id} not found.");
 
-            marka.IsActive = istek.IsActive;
+            brand.IsActive = request.IsActive;
             await db.SaveChangesAsync(ct);
 
-            // Onbellek tazelenmezse degisiklik bir saat boyunca sitede
-            // gorunmuyor ve "calismadi" sanilir (cikti onbellegi 1 saat).
+            // Without a cache refresh the change stays invisible on the site
+            // for an hour (the output cache TTL) and looks like it didn't work.
             await cache.RefreshAsync(ct);
-            return Results.Ok(new { marka.Id, marka.Name, marka.IsActive });
+            return Results.Ok(new { brand.Id, brand.Name, brand.IsActive });
         }).RequireAdminKey(adminApiKey);
 
-        // Katalogda 4.900+ urun var; listeleme ARAMAYA bagli.
-        app.MapGet("/api/dev/urunler", async (
-            AppDbContext db, string? ara, bool? yalnizGizli, CancellationToken ct) =>
+        // The catalog has thousands of products; listing REQUIRES a search.
+        app.MapGet("/api/dev/products", async (
+            AppDbContext db, string? search, bool? hiddenOnly, CancellationToken ct) =>
         {
-            var sorgu = db.Products.IgnoreQueryFilters().AsNoTracking();
+            var query = db.Products.IgnoreQueryFilters().AsNoTracking();
 
-            if (yalnizGizli == true)
-                sorgu = sorgu.Where(p => !p.IsActive);
+            if (hiddenOnly == true)
+                query = query.Where(p => !p.IsActive);
 
-            if (!string.IsNullOrWhiteSpace(ara))
+            if (!string.IsNullOrWhiteSpace(search))
             {
-                // Turkce buyuk/kucuk harf tuzagi: ILIKE yerine iki tarafi da
-                // ayni sekilde kucultmek gerekiyor. Postgres'in lower()'i
-                // veritabani locale'ine gore calisiyor ve bu projede locale
-                // C.UTF-8 (builtin) - yani ASCII disi harflerde katlama YOK.
-                // Bu yuzden arama, kullanicinin yazdigi bicimle eslesecek
-                // sekilde hem ham hem kucultulmus haliyle deneniyor.
-                var ham = ara.Trim();
-                var kucuk = ham.ToLowerInvariant();
-                sorgu = sorgu.Where(p =>
-                    EF.Functions.ILike(p.Name, "%" + ham + "%")
-                    || EF.Functions.ILike(p.Name, "%" + kucuk + "%")
-                    || EF.Functions.ILike(p.Brand!.Name, "%" + ham + "%"));
+                // Postgres lower()/ILIKE fold case by the database locale, and
+                // this database uses C.UTF-8 (builtin): no folding for non-ASCII
+                // letters. So the search is tried both as typed and lower-cased.
+                var raw = search.Trim();
+                var lower = raw.ToLowerInvariant();
+                query = query.Where(p =>
+                    EF.Functions.ILike(p.Name, "%" + raw + "%")
+                    || EF.Functions.ILike(p.Name, "%" + lower + "%")
+                    || EF.Functions.ILike(p.Brand!.Name, "%" + raw + "%"));
             }
-            else if (yalnizGizli != true)
+            else if (hiddenOnly != true)
             {
-                // Arama da yoksa liste anlamsiz derecede buyuk olurdu.
+                // Without a search the list would be uselessly large.
                 return Results.Ok(Array.Empty<object>());
             }
 
-            var urunler = await sorgu
+            var products = await query
                 .OrderBy(p => p.Brand!.Name)
                 .ThenBy(p => p.Name)
                 .Take(200)
@@ -348,39 +328,39 @@ internal static class AdminEndpoints
                 {
                     p.Id,
                     p.Name,
-                    marka = p.Brand!.Name,
+                    brand = p.Brand!.Name,
                     p.Seller,
                     p.IsActive,
                     p.LatestPrice,
                 })
                 .ToListAsync(ct);
 
-            return Results.Ok(urunler);
+            return Results.Ok(products);
         }).RequireAdminKey(adminApiKey);
 
-        app.MapPut("/api/dev/urunler/{id:int}", async (
-            int id, GorunurlukIstegi istek, AppDbContext db, IPublicCacheRefresher cache, CancellationToken ct) =>
+        app.MapPut("/api/dev/products/{id:int}", async (
+            int id, VisibilityRequest request, AppDbContext db, IPublicCacheRefresher cache, CancellationToken ct) =>
         {
-            var urun = await db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == id, ct);
-            if (urun is null)
-                return Results.NotFound($"{id} numaralı ürün bulunamadı.");
+            var product = await db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == id, ct);
+            if (product is null)
+                return Results.NotFound($"Product {id} not found.");
 
-            urun.IsActive = istek.IsActive;
+            product.IsActive = request.IsActive;
             await db.SaveChangesAsync(ct);
 
-            // Ayni sebep: urun gizlenince liste onbellegi tazelenmeli.
+            // Same reason: hiding a product must refresh the list cache.
             await cache.RefreshAsync(ct);
-            return Results.Ok(new { urun.Id, urun.Name, urun.IsActive });
+            return Results.Ok(new { product.Id, product.Name, product.IsActive });
         }).RequireAdminKey(adminApiKey);
 
-        // Kupon listesi - panelin duzenleme ekrani icin.
-        // Genel /api/coupons ucu YALNIZCA aktif ve suresi gecmemis kuponlari
-        // donduruyor (ziyaretcinin gormesi gereken bu). Panelde pasif ve
-        // suresi gecmis olanlar da gorunmeli, yoksa bir kupon kapatildiginda
-        // yonetim ekranindan da kaybolur ve geri acilamaz.
+        // Coupon list for the panel's editing screen. The public /api/coupons
+        // endpoint returns ONLY active, unexpired coupons (what visitors should
+        // see). The panel must show inactive and expired ones too, or a coupon
+        // would vanish from the admin screen once turned off and could never
+        // be turned back on.
         app.MapGet("/api/dev/coupons", async (AppDbContext db, CancellationToken ct) =>
         {
-            var kuponlar = await db.Coupons
+            var coupons = await db.Coupons
                 .AsNoTracking()
                 .Include(c => c.Brand)
                 .OrderByDescending(c => c.IsActive)
@@ -399,29 +379,34 @@ internal static class AdminEndpoints
                 })
                 .ToListAsync(ct);
 
-            return Results.Ok(kuponlar);
+            return Results.Ok(coupons);
         }).RequireAdminKey(adminApiKey);
 
-        // Yonetim islemlerinin BASARISIZLIK sebepleri. Panelin "Olaylar"
-        // sekmesinde guvenlik olaylarinin YANINDA ama AYRI gosteriliyor:
-        // ikisi farkli sorulara cevap veriyor (biri "bana kim saldiriyor",
-        // digeri "benim islemim neden olmadi") ve tek listede birlestirmek
-        // suc duyurusuna dayanak olan listeyi kendi hatalarimizla kirletirdi.
+        // WHY admin operations failed. Shown on the panel's "Events" tab NEXT
+        // TO the security events but SEPARATELY: they answer different
+        // questions ("who is attacking me" vs "why didn't my action work"),
+        // and one list would pollute the record that backs an abuse report
+        // with our own mistakes.
         app.MapGet("/api/dev/admin-failures", async (
             AppDbContext db, int? limit, int? days, CancellationToken ct) =>
         {
             var since = DateTimeOffset.UtcNow.AddDays(-Math.Clamp(days ?? 7, 1, 365));
             var take = Math.Clamp(limit ?? 100, 1, 500);
 
-            var kayitlar = await db.AdminOperationFailures.AsNoTracking()
+            var records = await db.AdminOperationFailures.AsNoTracking()
                 .Where(x => x.OccurredAt >= since)
                 .OrderByDescending(x => x.OccurredAt)
                 .Take(take)
                 .ToListAsync(ct);
 
-            return Results.Ok(kayitlar);
+            return Results.Ok(records);
         }).RequireAdminKey(adminApiKey);
 
+        // Security events: the source of the panel's event feed.
+        //
+        // THE SUMMARY IS QUERIED SEPARATELY FROM THE LIST: the list is cut by
+        // `take`, and counting a truncated list misleads ("3 attacks" when
+        // there are really 3,000).
         app.MapGet("/api/dev/security-events", async (
             AppDbContext db, string? kind, string? ip, int? limit, int? days, CancellationToken ct) =>
         {
@@ -444,7 +429,7 @@ internal static class AdminEndpoints
                 .Select(g => new { kind = g.Key, count = g.Count() })
                 .ToListAsync(ct);
 
-            // Bir suc duyurusunda ilk sorulan sey "hangi adres, kac kez, ne zaman".
+            // The first thing an abuse report asks: which address, how often, when.
             var topIps = await query
                 .GroupBy(x => x.Ip)
                 .Select(g => new
@@ -461,13 +446,10 @@ internal static class AdminEndpoints
             return Results.Ok(new { events, summary, topIps });
         }).RequireAdminKey(adminApiKey);
 
-
-        // Porsiyon (servis) büyüklüğü çıkarımı, açıklamalar DB'ye yazıldıktan SONRA
-        // eklendi — bu endpoint, zaten kayıtlı açıklamaları yeniden okuyup eksik
-        // ServingSizeGrams'ları tek seferde dolduruyor. Markalara hiç istek atmıyor
-        // (tamamen DB içi bir işlem), bu yüzden yeniden tarama gerekmiyor. Sonraki
-        // taramalarda/backfill'lerde aynı çıkarım otomatik yapılıyor, bu endpoint
-        // yalnızca geçmişi tamamlamak için.
+        // Re-reads stored descriptions and fills missing ServingSizeGrams in one
+        // go. No requests to stores (a pure database job), so no re-scrape is
+        // needed. Later scrapes and backfills do the same extraction
+        // automatically; this endpoint only completes the history.
         app.MapPost("/api/dev/backfill-serving-sizes", async (AppDbContext db, CancellationToken ct) =>
         {
             var candidates = await db.Products
@@ -489,12 +471,10 @@ internal static class AdminEndpoints
             return Results.Ok(new { candidateCount = candidates.Count, updatedCount = updated });
         }).RequireAdminKey(adminApiKey);
 
-        // Markalara "bu hafta size şu kadar tıklama gönderdik" raporu hazırlamak
-        // için — ClickCount tarihsiz/kümülatif bir sayaç olduğundan (tek tek
-        // tıklama zaman damgası tutulmuyor) burada dönen sayılar site açılışından
-        // beri toplam tıklamalar. Haftalık rapor için: bu endpoint'i her hafta
-        // aynı gün çalıştırıp bir önceki haftanın sayısından fark alınmalı
-        // (elle, tarih bazlı bir tıklama günlüğü tutmak MVP'de aşırı mühendislik).
+        // For a "here's how many clicks we sent you" report to brands.
+        // ClickCount is an undated, cumulative counter (no per-click timestamp),
+        // so these are totals since launch. For a weekly report, run this on the
+        // same day each week and subtract the previous week's number.
         app.MapGet("/api/dev/click-report", async (AppDbContext db, CancellationToken ct) =>
         {
             var report = await db.Products
@@ -513,31 +493,30 @@ internal static class AdminEndpoints
             return Results.Ok(report);
         }).RequireAdminKey(adminApiKey);
 
-        // Site haritasındaki TÜM adresleri arama motorlarına bildirir (IndexNow).
-        // Normal akışta yalnızca yeni ürünler bildiriliyor; bu uç ilk kurulum ve
-        // toplu yeniden bildirim için. Bing sitemap'i almasına rağmen siteyi hiç
-        // dizinlemediği için (2026-08-28 ölçümü) ilk toplu bildirim gerekiyordu.
+        // Submits EVERY sitemap URL to search engines (IndexNow). Normally only
+        // new products are submitted; this endpoint is for the first setup and
+        // bulk resubmission.
         app.MapPost("/api/dev/indexnow/submit-all", async (
             DealsQueryService deals, IndexNowClient indexNow, IConfiguration config, CancellationToken ct) =>
         {
             if (!indexNow.IsEnabled)
-                return Results.BadRequest(new { message = "IndexNow devre dışı ya da anahtar tanımlı değil." });
+                return Results.BadRequest(new { message = "IndexNow is disabled or has no key configured." });
 
-            var frontendBaseUrl = (config["FrontendBaseUrl"] ?? "https://www.proteinavcisi.com.tr").TrimEnd('/');
+            var frontendBaseUrl = (config["FrontendBaseUrl"] ?? "https://www.wheyproof.com").TrimEnd('/');
             var entries = await deals.GetSitemapEntriesAsync(ct);
 
             var urls = new List<string> { frontendBaseUrl };
-            urls.AddRange(entries.Select(e => $"{frontendBaseUrl}/urun/{e.Id}/{Slugifier.Slugify(e.Name)}"));
+            urls.AddRange(entries.Select(e => $"{frontendBaseUrl}/product/{e.Id}/{Slugifier.Slugify(e.Name)}"));
 
             var sent = await indexNow.SubmitAsync(urls, ct);
             return Results.Ok(new { submitted = sent, total = urls.Count });
         }).RequireAdminKey(adminApiKey);
 
-        // E-posta kapasitesi raporu. Sağlayıcının günlük kotası bültenle transactional
-        // mailler (onay, fiyat alarmı, favori kurtarma) arasında paylaşıldığı için,
-        // kota sessizce dolduğunda yeni bir abone onay mailini hiç alamaz — dışarıdan
-        // hiçbir hata görünmeden. Bu uç nokta, o sınıra ne kadar kaldığını görünür
-        // kılıyor; buradaki "kalan gün" tahmini abone sayısı arttıkça takip edilmeli.
+        // Email capacity report. The provider's daily quota is shared between the
+        // digest and transactional mail (confirmation, price alert, watchlist
+        // recovery), so when the quota fills up silently, a new subscriber
+        // never gets the confirmation email, with no visible error anywhere.
+        // This endpoint shows how close that limit is.
         app.MapGet("/api/dev/email-stats", async (AppDbContext db, IConfiguration config, CancellationToken ct) =>
         {
             var intervalDays = config.GetValue("Digest:IntervalDays", 7);
@@ -556,8 +535,8 @@ internal static class AdminEndpoints
                 .CountAsync(s => s.IsConfirmed && s.UnsubscribedAt == null
                     && (s.LastDigestSentAt == null || s.LastDigestSentAt < dueBefore), ct);
 
-            // Bir bülten turunun kaç güne yayıldığı: kota tavanı aşıldığında kalanlar
-            // ertesi güne devrediyor (bkz. DigestService).
+            // How many days one digest round spans: past the quota, the rest
+            // roll over to the next day (see DigestService).
             var daysPerRound = (int)Math.Ceiling(activeSubscribers / (double)dailyQuota);
 
             return Results.Ok(new
@@ -570,8 +549,8 @@ internal static class AdminEndpoints
                 remainingQuotaToday = Math.Max(0, dailyQuota - sentToday),
                 awaitingDigest,
                 daysPerRound,
-                // Bülten turu, gönderim aralığından uzun sürmeye başladığında abonelerin
-                // bir kısmı o turu kaçırmaya başlar — pratik tavan bu.
+                // Once a round takes longer than the send interval, some
+                // subscribers start missing rounds; that's the practical ceiling.
                 maxSubscribersAtCurrentSettings = dailyQuota * intervalDays,
                 capacityUsedPercent = Math.Round(activeSubscribers * 100.0 / (dailyQuota * intervalDays), 2),
             });
@@ -579,4 +558,4 @@ internal static class AdminEndpoints
     }
 }
 
-internal record GorunurlukIstegi(bool IsActive);
+internal record VisibilityRequest(bool IsActive);

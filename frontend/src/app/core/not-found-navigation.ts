@@ -1,24 +1,19 @@
 import { Router } from '@angular/router';
 
 /**
- * İstenen içerik yoksa 404 sayfasını göster.
+ * Shows the 404 page when the requested content doesn't exist.
  *
- * <b>NEDEN YÖNLENDİRME DEĞİL.</b> 4 Eylül'e kadar bu durumlarda
- * `router.navigate(['/'])` çağrılıyordu ve koddaki yorum bunu "soft-404'ten
- * kaçınmak" diye gerekçelendiriyordu. Gerekçe TERSİNE dönmüştü: Google'ın
- * tanımında var olmayan bir adresi ana sayfaya yönlendirmek soft 404'ün
- * kendisi — "geçerli sayfa" sinyali veriyor. O karar verildiğinde elimizde
- * gerçek 404 dönen bir sayfa yoktu, seçenekler 200 + "bulunamadı" metni ya da
- * yönlendirmeydi; ikisi de yanlıştı. Artık üçüncü ve doğru seçenek var.
+ * <b>WHY NOT A REDIRECT.</b> Redirecting a missing address to the home page
+ * is, by Google's definition, the soft 404 itself: it signals a valid page.
  *
- * <b>skipLocationChange ŞART.</b> Adres çubuğunda İSTENEN adres kalıyor,
- * `/bulunamadi` görünmüyor. Sebep sadece görüntü değil: arama motoruna
- * "bu adres yok" demek istiyoruz. Adres değişseydi istenen adres için
- * dönen cevap bir yönlendirme olurdu ve baştaki soruna geri dönerdik.
+ * <b>skipLocationChange IS REQUIRED.</b> The address bar keeps the REQUESTED
+ * address; `/not-found` never shows. Not just cosmetics: we want to tell the
+ * search engine "this address doesn't exist". If the address changed, the
+ * response for the requested one would be a redirect again.
  *
- * Durum kodunu (404) sayfanın kendisi `RESPONSE_INIT` ile veriyor, bkz.
+ * The page itself sets the status code (404) through `RESPONSE_INIT`; see
  * `NotFoundPage`.
  */
 export function showNotFound(router: Router): void {
-  void router.navigate(['/bulunamadi'], { skipLocationChange: true });
+  void router.navigate(['/not-found'], { skipLocationChange: true });
 }

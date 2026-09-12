@@ -13,9 +13,11 @@ import { productPath, shouldHandleInApp } from '../core/product-link';
 import { DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
 import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
-import { adrestenSayfa, sayfaliBaslik, sayfaPenceresi } from '../core/pagination-window';
+import { pageFromQuery, paginatedTitle, pageWindow } from '../core/pagination-window';
 import { PriceHistoryService } from '../core/price-history.service';
+import { PricePipe } from '../core/price.pipe';
 import { formatRelativeTime } from '../core/relative-time';
+import { SITE_NAME } from '../core/site-identity';
 import { ProductModal } from '../product-modal/product-modal';
 import { SiteHeader } from '../site-header/site-header';
 import { showNotFound } from '../core/not-found-navigation';
@@ -26,7 +28,7 @@ const SEARCH_DEBOUNCE_MS = 350;
 
 @Component({
   selector: 'app-category-page',
-  imports: [DecimalPipe, RouterLink, FormsModule, ProductModal, SiteHeader],
+  imports: [PricePipe, DecimalPipe, RouterLink, FormsModule, ProductModal, SiteHeader],
   templateUrl: './category-page.html',
 })
 export class CategoryPage implements OnInit {
@@ -42,61 +44,51 @@ export class CategoryPage implements OnInit {
   protected readonly categoryLabel = signal<string>('');
   protected readonly categoryIntro = signal<string>('');
 
-  // Kategoriye ÖZEL sorular — ana sayfadaki SSS platformu anlatıyor,
-  // buradakiler ürünün kendisiyle ilgili ve gerçek arama ifadelerini
-  // hedefliyor (bkz. category-faqs.ts). Sayfa "sadece ürün listesi"
-  // olmaktan çıkıyor.
+  // Category-SPECIFIC questions: the home page FAQ explains the platform;
+  // these are about the product and target real search phrases (see
+  // category-faqs.ts), so the page is more than a product list.
   protected readonly faqItems = signal<FaqItem[]>([]);
   private faqStructuredDataEl: HTMLScriptElement | null = null;
   private breadcrumbEl: HTMLScriptElement | null = null;
-  // Uzun-format bilimsel rehber içeriği — şimdilik yalnızca en yüksek
-  // hacimli 3 kategoride (bkz. core/category-guides.ts), diğerlerinde
-  // null: sayfa o durumda bu bölümü hiç göstermiyor.
+  // Long-form guide (see core/category-guides.ts); null for categories
+  // without one, and the page then hides the section.
   protected readonly categoryGuide = signal<CategoryGuide | null>(null);
   private speakableEl: HTMLScriptElement | null = null;
   protected readonly otherCategories = signal<{ slug: string; label: string }[]>([]);
   protected readonly loading = signal(true);
-  // bkz. brand-page.ts'teki aynı isim/gerekçe: bu yalnızca /api/filters
-  // isteği başarısız olunca set ediliyor, geçersiz slug zaten yönlendirmeyle
-  // ele alınıyor — "notFound" ismi yanıltıcıydı.
+  // Only set when the /api/filters request fails; an invalid slug is handled
+  // by the not-found page.
   protected readonly loadError = signal(false);
   protected readonly itemsError = signal(false);
 
-  // Kategori sayfası eskiden sadece indirimli/kampanyalı ürünleri gösteriyordu
-  // — normal fiyatlı ürünler tamamen görünmezdi. Ana sayfadaki aynı sekme +
-  // sayfalama deseni buraya da taşındı ki kategori bazında TÜM ürünler de
-  // görülebilsin (kullanıcı geri bildirimi: "kreatin kategorisinde sadece
-  // kampanyalı ürünler geliyor").
+  // The category page once showed only discounted products, hiding regular
+  // prices entirely. The home page's tabs and pagination apply here too, so
+  // every product in a category can be seen.
   protected readonly viewMode = signal<ViewMode>('all');
   protected readonly items = signal<Deal[]>([]);
   protected readonly totalCount = signal(0);
   protected readonly totalPages = signal(0);
   protected readonly currentPage = signal(1);
-  // Sayfalama çubuğunda gösterilecek numaralar (null = "…").
-  protected readonly sayfaOgeleri = computed(() => sayfaPenceresi(this.currentPage(), this.totalPages()));
+  // Page numbers for the pagination bar (null = "…").
+  protected readonly pageItems = computed(() => pageWindow(this.currentPage(), this.totalPages()));
   protected readonly sortBy = signal<string>('');
-  // Kullanıcı geri bildirimi: kategori sayfasında (ana sayfanın aksine)
-  // arama kutusu hiç yoktu — bir kategori içinde ürün ismine göre daraltmak
-  // mümkün değildi. Backend zaten `search` parametresini destekliyordu
-  // (deals-list.ts'teki aynı sorgu), sadece bu sayfaya hiç bağlanmamıştı.
+  // Search within the category. The backend already supported `search`
+  // (the same query as deals-list.ts); it just wasn't wired up here.
   protected readonly searchQuery = signal('');
   private searchDebounceHandle: ReturnType<typeof setTimeout> | null = null;
-  // Aynı gerekçeyle: marka filtresi ve fiyat aralığı da yoktu. Kategori
-  // zaten bu sayfada sabit olduğu için marka çipleri anlamlı bir daraltma
-  // sağlıyor (ana sayfadaki marka çipleriyle aynı desen).
+  // Brand chips and a price range. The category is fixed on this page, so
+  // brand chips narrow the list meaningfully.
   protected readonly availableBrands = signal<string[]>([]);
   protected readonly selectedBrands = signal<Set<string>>(new Set());
   protected readonly priceMin = signal<number | null>(null);
   protected readonly priceMax = signal<number | null>(null);
   protected readonly hasActiveFilters = signal(false);
 
-  // Ürün modalı — deals-list.ts'teki aynı desen ama path param yerine
-  // ?urun= query param'ı kullanıyor (bu sayfanın kendi kanonik URL'i
-  // /kategori/:slug, /urun/:id ayrı bir SAYFA'ya değil, aynı sayfa
-  // üzerinde bir modal durumuna işaret etmeli). Daha önce goToProduct
-  // doğrudan /urun/:id'ye (DealsList'in route'u) navigate ediyordu — bu
-  // kategori sayfasından TAMAMEN ayrılıp modal kapanınca ana sayfaya
-  // dönmesine yol açan gerçek bir bug'dı (kullanıcı bildirdi).
+  // Product modal: the same pattern as deals-list.ts but with a ?product=
+  // query param instead of a path param. This page's canonical URL is
+  // /category/:slug, and the modal is a state of this page, not another page.
+  // Navigating to /product/:id used to leave the category page entirely and
+  // land on the home page when the modal closed (a real bug).
   protected readonly selectedDeal = signal<Deal | null>(null);
 
   ngOnInit(): void {
@@ -106,22 +98,20 @@ export class CategoryPage implements OnInit {
     });
 
     this.route.queryParamMap.subscribe((params) => {
-      // Sayfa numarası ADRESTEN geliyor. 5 Eylül'e kadar yalnızca bileşen
-      // içi bir signal'di: "?page=3" ile gelen ziyaretçi (ve tarayıcı)
-      // her zaman 1. sayfayı görüyordu — ölçüldü, 3. sayfa 1. sayfayla
-      // birebir aynı ürünleri döndürüyordu.
-      const sayfa = adrestenSayfa(params.get('page'));
-      if (sayfa !== this.currentPage()) {
-        this.currentPage.set(sayfa);
-        // Kategori henüz çözülmediyse yükleme zaten loadCategory'den
-        // gelecek; burada ikinci bir istek atmıyoruz.
+      // The page number comes FROM THE URL. As a component-only signal,
+      // "?page=3" always showed page 1 (measured: identical products).
+      const page = pageFromQuery(params.get('page'));
+      if (page !== this.currentPage()) {
+        this.currentPage.set(page);
+        // Before the category resolves, loadCategory does the load; no
+        // second request here.
         if (this.categorySlug()) {
           this.loadItems();
           this.setMeta(this.categoryLabel(), this.categorySlug());
         }
       }
 
-      const idParam = params.get('urun');
+      const idParam = params.get('product');
       if (!idParam) {
         this.selectedDeal.set(null);
         return;
@@ -144,10 +134,9 @@ export class CategoryPage implements OnInit {
   private loadCategory(slug: string): void {
     this.loading.set(true);
     this.viewMode.set('all');
-    // Doğrudan "?page=3" ile gelinmiş olabilir (arama sonucu, paylaşılan
-    // bağlantı, tarayıcı). Sabit 1 yazmak o adresi sessizce 1. sayfaya
-    // düşürüyordu.
-    this.currentPage.set(adrestenSayfa(this.route.snapshot.queryParamMap.get('page')));
+    // The visitor may arrive directly on "?page=3" (a search result, a shared
+    // link, a crawler); hard-coding 1 silently dropped that address to page 1.
+    this.currentPage.set(pageFromQuery(this.route.snapshot.queryParamMap.get('page')));
     this.searchQuery.set('');
     this.selectedBrands.set(new Set());
     this.priceMin.set(null);
@@ -217,11 +206,10 @@ export class CategoryPage implements OnInit {
         this.totalCount.set(result.totalCount);
         this.totalPages.set(result.totalPages);
         this.loading.set(false);
-        // Aralık dışı sayfa (katalog küçülmüş, elle yazılmış adres) KENDİNİ
-        // canonical göstermemeli: boş bir sayfaya "geçerli sayfa" demek,
-        // azaltmaya çalıştığımız "tarandı ama dizine eklenmedi" kutusunu
-        // besler. Toplam sayfa ancak burada biliniyor, setMeta'nın ilk
-        // çağrısında değil — bu yüzden gerekince tekrar çağrılıyor.
+        // An out-of-range page (a shrunk catalog, a typed address) must NOT
+        // claim itself canonical: calling an empty page valid feeds "Crawled -
+        // currently not indexed". The page total is only known here, not at
+        // the first setMeta call, so it is called again when needed.
         if (result.totalPages > 0 && this.currentPage() > result.totalPages) {
           this.setMeta(this.categoryLabel(), this.categorySlug());
         }
@@ -236,19 +224,19 @@ export class CategoryPage implements OnInit {
   protected setViewMode(mode: ViewMode): void {
     if (this.viewMode() === mode) return;
     this.viewMode.set(mode);
-    this.ilkSayfayaDon();
+    this.backToFirstPage();
   }
 
   protected onSortChange(value: string): void {
     this.sortBy.set(value);
-    this.ilkSayfayaDon();
+    this.backToFirstPage();
   }
 
   protected onSearchChange(value: string): void {
     this.searchQuery.set(value);
     if (this.searchDebounceHandle) clearTimeout(this.searchDebounceHandle);
     this.searchDebounceHandle = setTimeout(() => {
-      this.ilkSayfayaDon();
+      this.backToFirstPage();
     }, SEARCH_DEBOUNCE_MS);
   }
 
@@ -256,17 +244,17 @@ export class CategoryPage implements OnInit {
     const current = new Set(this.selectedBrands());
     current.has(brand) ? current.delete(brand) : current.add(brand);
     this.selectedBrands.set(current);
-    this.ilkSayfayaDon();
+    this.backToFirstPage();
   }
 
   protected onPriceMinChange(value: number | null): void {
     this.priceMin.set(value);
-    this.ilkSayfayaDon();
+    this.backToFirstPage();
   }
 
   protected onPriceMaxChange(value: number | null): void {
     this.priceMax.set(value);
-    this.ilkSayfayaDon();
+    this.backToFirstPage();
   }
 
   protected clearFilters(): void {
@@ -274,25 +262,24 @@ export class CategoryPage implements OnInit {
     this.priceMin.set(null);
     this.priceMax.set(null);
     this.searchQuery.set('');
-    this.ilkSayfayaDon();
+    this.backToFirstPage();
   }
 
   /**
-   * Filtre/arama/sıralama değişince ilk sayfaya dön.
+   * Back to page one when filters, search or sort change.
    *
-   * Adresteki `page` de TEMİZLENMEK ZORUNDA: temizlenmezse bileşen 1.
-   * sayfayı gösterirken adres hâlâ "?page=7" der ve ziyaretçi 7 numaralı
-   * bağlantıya bastığında hiçbir şey olmaz — `queryParamMap` değer
-   * değişmediği için yayın yapmaz.
+   * The URL's `page` MUST be cleared too: otherwise the component shows page
+   * 1 while the URL still says "?page=7", and clicking the link for page 7
+   * does nothing, since `queryParamMap` doesn't emit for an unchanged value.
    */
-  private ilkSayfayaDon(): void {
+  private backToFirstPage(): void {
     this.currentPage.set(1);
     if (this.route.snapshot.queryParamMap.get('page')) {
       this.router.navigate([], {
         relativeTo: this.route,
         queryParams: { page: null },
         queryParamsHandling: 'merge',
-        // Her filtre tıklaması ayrı bir "geri" durağı olmasın.
+        // Each filter click should not become its own "back" stop.
         replaceUrl: true,
       });
     }
@@ -300,19 +287,16 @@ export class CategoryPage implements OnInit {
   }
 
   /**
-   * Sayfalama bağlantısına tıklanınca listenin başına dön.
-   *
-   * Gezinmenin kendisini `routerLink` yapıyor (bkz. şablon) — burada
-   * yalnızca kaydırma var. Sayfa değişimi adres üzerinden aktığı için
-   * bu metot olmasa da liste doğru yüklenir.
+   * Scrolls to the top of the list after a pagination click. The navigation
+   * itself is the `routerLink` (see the template); the list loads correctly
+   * without this method.
    */
-  protected sayfayaKaydir(): void {
+  protected scrollToListTop(): void {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // Görünür SSS + aynı içerikten üretilen FAQPage structured data.
-  // Google bu işaretlemeyi arama sonucunda açılır soru-cevap olarak
-  // gösterebiliyor (ana sayfadaki aynı desen, deals-list.ts).
+  // The visible FAQ plus FAQPage structured data from the same content, which
+  // Google can show as expandable Q&A in results (as on the home page).
   private setFaq(slug: string): void {
     const items = CATEGORY_FAQS[slug] ?? [];
     this.faqItems.set(items);
@@ -335,41 +319,40 @@ export class CategoryPage implements OnInit {
   }
 
   private setMeta(label: string, slug: string): void {
-    // Sayfalanmış adresler KENDİLERİNİ canonical gösteriyor.
-    // 1. sayfaya canonical vermek Google'ın dokümantasyonunda açıkça
-    // önerilmiyor: seri "kopya" sayılır, taranması seyrekleşir ve tam da
-    // erişilebilir kılmaya çalıştığımız derin ürünler yine erişilemez
-    // kalır. Başlık da ayrışmalı, yoksa 200+ adres aynı başlığı taşır.
-    const toplam = this.totalPages();
-    const sayfa = toplam > 0 && this.currentPage() > toplam ? 1 : this.currentPage();
-    const title = sayfaliBaslik(`${label} Fiyatları ve İndirimleri 2026 | ProteinAvcısı`, sayfa);
-    const description = `${label} kategorisindeki güncel fiyatlar, gerçek fiyat geçmişine dayanan doğrulanmış indirimler ve mağaza kampanyaları. ProteinAvcısı, fiyatları düzenli olarak takip ediyor.`;
+    // Paginated addresses are their OWN canonical. Pointing them at page 1
+    // is explicitly discouraged by Google: the series counts as duplicates,
+    // is crawled less, and the deep products we want reachable stay out of
+    // reach. The title must differ too, or hundreds of addresses share one.
+    const total = this.totalPages();
+    const page = total > 0 && this.currentPage() > total ? 1 : this.currentPage();
+    const year = new Date().getFullYear();
+    const title = paginatedTitle(`${label} Prices and Deals ${year} | ${SITE_NAME}`, page);
+    const description = `Current ${label.toLowerCase()} prices, verified discounts based on real price history, and store sales. ${SITE_NAME} tracks prices every day.`;
 
     this.pageMeta.set({
       title,
       description,
-      canonicalPath: sayfa > 1 ? `/kategori/${slug}?page=${sayfa}` : `/kategori/${slug}`,
+      canonicalPath: page > 1 ? `/category/${slug}?page=${page}` : `/category/${slug}`,
     });
 
     this.breadcrumbEl = upsertJsonLdScript(
       this.document,
       this.breadcrumbEl,
       buildBreadcrumbJsonLd(this.document, [
-        { name: 'Ana Sayfa', path: '/' },
-        { name: 'Kategoriler', path: '/kategoriler' },
-        { name: label, path: `/kategori/${slug}` },
+        { name: 'Home', path: '/' },
+        { name: 'Categories', path: '/categories' },
+        { name: label, path: `/category/${slug}` },
       ]),
     );
 
-    // Uzun-format rehber içeriği olan kategorilerde, AI/sesli asistan
-    // motorlarının doğrudan alıntılayabileceği bir "konuşulabilir" bölüm
-    // işaretlemesi (rakip analizinde gördüğümüz bir desen).
+    // Categories with a long-form guide get a "speakable" section that AI and
+    // voice assistants can quote directly.
     if (CATEGORY_GUIDES[slug]) {
       this.speakableEl = upsertJsonLdScript(this.document, this.speakableEl, {
         '@context': 'https://schema.org',
         '@type': 'WebPage',
         speakable: { '@type': 'SpeakableSpecification', cssSelector: ['#zero-click-answer'] },
-        url: `${canonicalOrigin(this.document)}/kategori/${slug}`,
+        url: `${canonicalOrigin(this.document)}/category/${slug}`,
       });
     } else {
       this.speakableEl?.remove();
@@ -378,24 +361,23 @@ export class CategoryPage implements OnInit {
   }
 
   protected discountBadge(deal: Deal): string {
-    return `-%${deal.discountPercent}`;
+    return `-${deal.discountPercent}%`;
   }
 
   protected storeDiscountBadge(deal: Deal): string {
-    return `Mağaza -%${deal.storeDiscountPercent}`;
+    return `Store -${deal.storeDiscountPercent}%`;
   }
 
-  // Kart/satır bağlantıları gerçek <a href> olmak zorunda (bkz.
-  // core/product-link.ts). Bu sayfalarda modal, ürün sayfasına gitmeden
-  // ?urun= parametresiyle açılıyor — bu yüzden RouterLink yerine gerçek bir
-  // href + kontrollü tıklama kullanılıyor: bot kanonik ürün adresini görüyor,
-  // kullanıcı ise sayfadan ayrılmadan modalı açıyor.
+  // Row links must be real <a href> (see core/product-link.ts). Here the
+  // modal opens through ?product= without leaving the page, so a real href
+  // plus a controlled click is used instead of RouterLink: crawlers see the
+  // canonical product address, visitors open the modal in place.
   protected productPath(deal: Deal): string {
     return productPath(deal);
   }
 
   protected onProductClick(event: MouseEvent, deal: Deal): void {
-    // Satırın/kartın kendi tıklama işleyicisi de varsa iki kez tetiklenmesin.
+    // The row has its own click handler; don't fire twice.
     event.stopPropagation();
     if (!shouldHandleInApp(event)) return;
     event.preventDefault();
@@ -403,11 +385,11 @@ export class CategoryPage implements OnInit {
   }
 
   protected openDeal(deal: Deal): void {
-    this.router.navigate([], { relativeTo: this.route, queryParams: { urun: deal.productId }, queryParamsHandling: 'merge' });
+    this.router.navigate([], { relativeTo: this.route, queryParams: { product: deal.productId }, queryParamsHandling: 'merge' });
   }
 
   protected closeDeal(): void {
-    this.router.navigate([], { relativeTo: this.route, queryParams: { urun: null }, queryParamsHandling: 'merge' });
+    this.router.navigate([], { relativeTo: this.route, queryParams: { product: null }, queryParamsHandling: 'merge' });
   }
 
   protected lastCheckedText(deal: Deal): string {
@@ -418,9 +400,9 @@ export class CategoryPage implements OnInit {
     return this.priceHistoryService.goToStoreUrl(deal.productId, deal.storeUrl);
   }
 
-  /** Mağaza tıklamasını sayar; bağlantı doğrudan mağazaya gittiği için
-   *  sayacı artık /go/{id} artıramıyor (bkz. PriceHistoryService). */
-  protected magazaTiklamasi(productId: number): void {
+  /** Counts the store click; the link goes straight to the store, so /go/{id}
+   *  can no longer count it (see PriceHistoryService). */
+  protected trackStoreClick(productId: number): void {
     this.priceHistoryService.trackStoreClick(productId);
   }
 }

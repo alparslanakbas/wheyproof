@@ -90,14 +90,15 @@ public static class DependencyInjection
 
         services.AddSingleton<AdminFailureRecorder>();
 
-        // ÜRÜN GÖRSELLERİ. Ayarlar POCO olarak kaydediliyor (IOptions değil),
-        // çünkü DealsQueryService istek başına yaratılıyor ve yalnızca taban
-        // adresi okuyor — araya bir IOptions katmanı koymanın karşılığı yok.
-        var gorselAyarlari = new ProductImageOptions();
-        configuration.GetSection("ProductImages").Bind(gorselAyarlari);
-        if (string.IsNullOrWhiteSpace(gorselAyarlari.TabanAdres))
-            gorselAyarlari.TabanAdres = (configuration["PublicBaseUrl"] ?? string.Empty).TrimEnd('/') + "/api/gorsel";
-        services.AddSingleton(gorselAyarlari);
+        // PRODUCT IMAGES. The options are registered as a POCO (not IOptions):
+        // DealsQueryService is created per request and only reads the base
+        // address, so an IOptions layer would buy nothing. The path must match
+        // the static file route in Program.cs (/api/images).
+        var imageOptions = new ProductImageOptions();
+        configuration.GetSection("ProductImages").Bind(imageOptions);
+        if (string.IsNullOrWhiteSpace(imageOptions.TabanAdres))
+            imageOptions.TabanAdres = (configuration["PublicBaseUrl"] ?? string.Empty).TrimEnd('/') + "/api/images";
+        services.AddSingleton(imageOptions);
         services.AddSingleton<ProductImageStore>();
         services.AddHostedService<ProductImageBackgroundService>();
 

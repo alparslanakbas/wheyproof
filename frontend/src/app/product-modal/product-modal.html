@@ -16,20 +16,20 @@
         }
         <div>
           <a
-            [routerLink]="['/marka', brandSlug(deal().brandName), 'indirim-kodu']"
+            [routerLink]="['/brand', brandSlug(deal().brandName)]"
             class="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--noc-accent)] hover:underline"
           >
             {{ deal().brandName }}
           </a>
           <h2 id="product-modal-title" class="text-[17px] font-bold leading-tight tracking-[-0.015em]">{{ displayName(deal().productName) }}</h2>
-          <p class="mt-0.5 text-[11px] text-[var(--noc-neutral-500)]">Fiyat kontrolü: {{ lastCheckedText() }}</p>
+          <p class="mt-0.5 text-[11px] text-[var(--noc-neutral-500)]">Price checked {{ lastCheckedText() }}</p>
         </div>
       </div>
       <div class="flex shrink-0 items-center gap-1">
         <app-share-button [title]="displayName(deal().productName)" [shareUrl]="shareUrl()" />
         <button
           type="button"
-          title="Kapat"
+          title="Close"
           class="flex h-8 w-8 items-center justify-center rounded-full text-[var(--noc-neutral-500)] hover:bg-[color-mix(in_srgb,var(--noc-text)_7%,transparent)] hover:text-[var(--noc-text)]"
           (click)="close()"
         >
@@ -40,8 +40,8 @@
 
     <div class="p-5">
       <div class="mb-4 flex flex-wrap items-end justify-between gap-2">
-        <div><span class="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--noc-accent)]">Gerçek fiyat geçmişi</span><h3 class="mt-1 text-xl font-bold tracking-[-0.025em]">Fiyat analizi</h3></div>
-        <div class="text-right"><div class="text-[26px] font-bold tracking-[-0.035em]">{{ deal().currentPrice | number:'1.2-2' }} ₺</div><div class="text-[11px] text-[var(--noc-neutral-500)]">Güncel fiyat</div></div>
+        <div><span class="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--noc-accent)]">Real price history</span><h3 class="mt-1 text-xl font-bold tracking-[-0.025em]">Price analysis</h3></div>
+        <div class="text-right"><div class="text-[26px] font-bold tracking-[-0.035em]">{{ deal().currentPrice | price }}</div><div class="text-[11px] text-[var(--noc-neutral-500)]">Current price</div></div>
       </div>
 
       <div class="mb-4 inline-flex overflow-hidden rounded-[8px] border border-[var(--noc-divider)]">
@@ -58,12 +58,12 @@
       </div>
 
       @if (!hasData() && loading()) {
-        <div class="flex h-[220px] items-center justify-center text-sm text-[var(--noc-neutral-500)]">Yükleniyor...</div>
+        <div class="flex h-[220px] items-center justify-center text-sm text-[var(--noc-neutral-500)]">Loading...</div>
       } @else if (error()) {
         <div class="flex h-[220px] items-center justify-center text-sm text-red-500 dark:text-red-400">{{ error() }}</div>
       } @else if (points().length === 0) {
         <div class="flex h-[220px] items-center justify-center px-4 text-center text-sm text-[var(--noc-neutral-500)]">
-          Bu dönem için henüz fiyat verisi birikmedi.
+          No price data has built up for this period yet.
         </div>
       } @else {
         <div class="transition-opacity" [class.opacity-50]="loading()">
@@ -83,7 +83,7 @@
                   <stop offset="100%" stop-color="var(--noc-accent)" stop-opacity="0" />
                 </linearGradient>
               </defs>
-              <!-- Izgara çizgileri: veri az/düz olsa bile alanın bir grafik olduğu belli olsun. -->
+              <!-- Grid lines: the area reads as a chart even with little or flat data. -->
               @for (gridY of [16, 71, 126, 181, 204]; track gridY) {
                 <line x1="0" [attr.y1]="gridY" x2="600" [attr.y2]="gridY" stroke="var(--noc-divider)" stroke-width="1" />
               }
@@ -104,7 +104,7 @@
                 [style.top.%]="(hover.y / 220) * 100"
               >
                 <div class="text-[10px] text-[var(--noc-neutral-500)]">{{ hover.dateLabel }}</div>
-                <div class="text-xs font-medium">{{ hover.price | number:'1.2-2' }} ₺</div>
+                <div class="text-xs font-medium">{{ hover.price | price }}</div>
               </div>
             }
           </div>
@@ -117,35 +117,35 @@
 
         <div class="mt-3 grid grid-cols-3 gap-2 text-center">
           <div class="rounded-[8px] bg-[color-mix(in_srgb,var(--noc-text)_5%,transparent)] px-2 py-2">
-            <div class="text-[11px] text-[var(--noc-neutral-500)]">Dönem En Düşük</div>
-            <div class="text-sm font-medium">{{ minPrice() | number:'1.2-2' }} ₺</div>
+            <div class="text-[11px] text-[var(--noc-neutral-500)]">Period low</div>
+            <div class="text-sm font-medium">{{ minPrice() | price }}</div>
           </div>
           <div class="rounded-[8px] px-2 py-2" style="background: var(--noc-accent-800)">
-            <div class="text-[11px] text-[var(--noc-accent-300)]">Şu Anki Fiyat</div>
-            <div class="text-sm font-medium text-[var(--noc-accent-100)]">{{ currentPrice() | number:'1.2-2' }} ₺</div>
+            <div class="text-[11px] text-[var(--noc-accent-300)]">Current price</div>
+            <div class="text-sm font-medium text-[var(--noc-accent-100)]">{{ currentPrice() | price }}</div>
           </div>
           <div class="rounded-[8px] bg-[color-mix(in_srgb,var(--noc-text)_5%,transparent)] px-2 py-2">
-            <div class="text-[11px] text-[var(--noc-neutral-500)]">Dönem En Yüksek</div>
-            <div class="text-sm font-medium">{{ maxPrice() | number:'1.2-2' }} ₺</div>
+            <div class="text-[11px] text-[var(--noc-neutral-500)]">Period high</div>
+            <div class="text-sm font-medium">{{ maxPrice() | price }}</div>
           </div>
         </div>
 
         @if (savingsText(); as savings) {
           <p class="mt-3 rounded-[8px] border border-[var(--noc-accent)] px-3 py-2 text-center text-xs font-medium text-[var(--noc-accent)]">
-            Şu anki fiyat {{ savings.periodName }} en yüksek fiyatına göre {{ savings.diff | number:'1.2-2' }} ₺ (%{{ savings.percent }}) daha ucuz.
+            The current price is {{ savings.diff | price }} ({{ savings.percent }}%) below the highest price of {{ savings.periodName }}.
           </p>
         }
 
         @if (discountEventCount(); as count) {
           <p class="mt-2 rounded-[8px] bg-[color-mix(in_srgb,var(--noc-text)_5%,transparent)] px-3 py-2 text-center text-xs text-[var(--noc-neutral-500)]">
-            Bu ürün {{ selectedRange().periodName }} içinde {{ count }} kez indirime girdi.
+            This product's price dropped {{ count === 1 ? 'once' : count + ' times' }} in {{ selectedRange().periodName }}.
           </p>
         }
       }
 
       @if (narrative().length > 0) {
         <div class="mt-5 border-t border-[var(--noc-divider)] pt-4">
-          <h3 class="mb-2 text-sm font-medium">Fiyat Analizi</h3>
+          <h3 class="mb-2 text-sm font-medium">Price analysis</h3>
           @for (paragraph of narrative(); track paragraph) {
             <p class="mb-2 text-xs leading-relaxed text-[var(--noc-neutral-300)] last:mb-0">{{ paragraph }}</p>
           }
@@ -154,7 +154,7 @@
 
       @if (productFacts().length > 0) {
         <div class="mt-5 border-t border-[var(--noc-divider)] pt-4">
-          <h3 class="mb-3 text-sm font-medium">Bu Ürün Hakkında Ne Ölçtük?</h3>
+          <h3 class="mb-3 text-sm font-medium">What we measured about this product</h3>
           <dl class="grid gap-1.5">
             @for (fact of productFacts(); track fact.label) {
               <div class="flex justify-between gap-4 text-xs">
@@ -167,12 +167,12 @@
       }
 
       <a
-        [href]="goToStoreUrl()" (click)="magazaTiklamasi()"
+        [href]="goToStoreUrl()" (click)="trackStoreClick()"
         target="_blank"
         rel="noopener nofollow sponsored"
         class="pa-primary-button mt-5 flex w-full items-center justify-center gap-2 px-4 py-3 text-sm"
       >
-        Mağazaya Git
+        Go to store
         <i class="ph ph-arrow-square-out text-lg" aria-hidden="true"></i>
       </a>
 
@@ -180,7 +180,7 @@
         [routerLink]="reviewLink()"
         class="mt-2 block w-full text-center text-xs font-medium text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]"
       >
-        Bu ürünün incelemesini oku →
+        Read the full review of this product →
       </a>
 
       <button
@@ -191,7 +191,7 @@
         [class]="favorited() ? 'border-[var(--noc-accent)] text-[var(--noc-accent)]' : 'border-[var(--noc-divider)] text-[var(--noc-neutral-500)] hover:text-[var(--noc-text)]'"
       >
         <i [class]="favorited() ? 'ph-fill ph-bookmark-simple' : 'ph ph-bookmark-simple'" aria-hidden="true"></i>
-        {{ favorited() ? 'Favorilere Eklendi' : 'Favorilere Ekle' }}
+        {{ favorited() ? 'On your watchlist' : 'Add to watchlist' }}
       </button>
 
       @if (favoriteFormOpen() && !favorited()) {
@@ -200,7 +200,7 @@
             type="email"
             name="favoriteEmail"
             required
-            placeholder="E-posta adresin"
+            placeholder="Your email address"
             [ngModel]="favoriteEmail()"
             (ngModelChange)="favoriteEmail.set($event)"
             class="min-w-0 flex-1 rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-3 py-1.5 text-xs text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none"
@@ -210,7 +210,7 @@
             [disabled]="favoriteSubmitting()"
             class="shrink-0 rounded-[8px] border border-[var(--noc-accent)] px-4 py-1.5 text-xs font-medium text-[var(--noc-accent)] transition-colors hover:bg-[color-mix(in_srgb,var(--noc-accent)_12%,transparent)] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Kaydet
+            Save
           </button>
         </form>
       }
@@ -230,7 +230,7 @@
           class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[8px] border border-[var(--noc-divider)] px-4 py-2.5 text-xs font-medium text-[var(--noc-neutral-500)] transition-colors hover:text-[var(--noc-text)]"
         >
           <i class="ph ph-bell-ringing text-base" aria-hidden="true"></i>
-          Fiyat Düşünce Haber Ver
+          Notify me when the price drops
         </button>
       }
 
@@ -240,7 +240,7 @@
             type="email"
             name="watchEmail"
             required
-            placeholder="E-posta adresin"
+            placeholder="Your email address"
             [ngModel]="watchEmail()"
             (ngModelChange)="watchEmail.set($event)"
             class="min-w-0 flex-1 rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-3 py-1.5 text-xs text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none"
@@ -250,7 +250,7 @@
             [disabled]="watchSubmitting()"
             class="shrink-0 rounded-[8px] border border-[var(--noc-accent)] px-4 py-1.5 text-xs font-medium text-[var(--noc-accent)] transition-colors hover:bg-[color-mix(in_srgb,var(--noc-accent)_12%,transparent)] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Gönder
+            Send
           </button>
         </form>
       }
@@ -261,10 +261,10 @@
 
       <div class="mt-5 flex items-center justify-center gap-2 border-t border-[var(--noc-divider)] pt-4">
         @if (votedHelpful() === null) {
-          <span class="text-xs text-[var(--noc-neutral-500)]">Bu bilgi faydalı mıydı?</span>
+          <span class="text-xs text-[var(--noc-neutral-500)]">Was this helpful?</span>
           <button
             type="button"
-            title="Faydalı"
+            title="Helpful"
             (click)="vote(true)"
             class="flex h-9 w-9 items-center justify-center rounded-full text-[var(--noc-neutral-500)] transition-colors hover:bg-[color-mix(in_srgb,var(--noc-accent)_12%,transparent)] hover:text-[var(--noc-accent)]"
           >
@@ -274,7 +274,7 @@
           </button>
           <button
             type="button"
-            title="Faydalı değil"
+            title="Not helpful"
             (click)="vote(false)"
             class="flex h-9 w-9 items-center justify-center rounded-full text-[var(--noc-neutral-500)] transition-colors hover:bg-[color-mix(in_srgb,var(--noc-text)_7%,transparent)] hover:text-[var(--noc-text)]"
           >
@@ -283,7 +283,7 @@
             </svg>
           </button>
         } @else {
-          <span class="text-xs text-[var(--noc-neutral-500)]">Geri bildirimin için teşekkürler!</span>
+          <span class="text-xs text-[var(--noc-neutral-500)]">Thanks for your feedback!</span>
         }
       </div>
     </div>

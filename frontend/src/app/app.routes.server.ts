@@ -2,18 +2,18 @@ import { RenderMode, ServerRoute } from '@angular/ssr';
 
 export const serverRoutes: ServerRoute[] = [
   {
-    // YONETIM PANELI SUNUCUDA RENDER EDILMIYOR.
+    // THE ADMIN PANEL IS NOT SERVER-RENDERED.
     //
-    // SSR sunucusu ziyaretcinin oturum cerezini tasimiyor; sunucuda render
-    // edilseydi paneldeki her istek 401 doner ve panel HER ACILISTA "yetkisiz"
-    // ekraniyla gelirdi. Ayrica burasi arama motoruna hic gorunmemesi gereken
-    // bir arac ekrani - sunucuda uretilmis HTML'e ihtiyaci yok.
-    path: 'yonetim',
+    // The SSR server does not carry the visitor's session cookie; rendered
+    // there, every panel request would return 401 and the panel would open
+    // on an "unauthorized" screen every time. It is also a tool screen that
+    // search engines should never see, so it needs no server HTML.
+    path: 'admin',
     renderMode: RenderMode.Client,
   },
   {
-    // Fiyatlar sık değiştiği için build-anında statik prerender yerine
-    // her istekte taze veriyle sunucu tarafında render ediyoruz.
+    // Prices change often, so pages render on the server with fresh data on
+    // every request instead of being prerendered at build time.
     path: '**',
     renderMode: RenderMode.Server,
   },

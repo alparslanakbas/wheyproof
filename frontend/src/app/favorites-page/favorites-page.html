@@ -4,17 +4,17 @@
   <main class="mx-auto max-w-[1228px] px-6 py-[66px] max-sm:py-[46px]">
     <header class="flex flex-wrap items-end justify-between gap-6">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--noc-accent)]">Fırsat akışı</p>
-        <h1 class="mt-4 text-[38px] font-semibold leading-[1.08] tracking-[-0.04em] sm:text-[52px]">Takip listem</h1>
-        <p class="mt-4 max-w-xl text-base leading-7 text-[var(--noc-neutral-300)]">Kaydettiğin ürünlerdeki güncel fiyat sinyalleri.</p>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--noc-accent)]">Deal feed</p>
+        <h1 class="mt-4 text-[38px] font-semibold leading-[1.08] tracking-[-0.04em] sm:text-[52px]">My watchlist</h1>
+        <p class="mt-4 max-w-xl text-base leading-7 text-[var(--noc-neutral-300)]">Current price signals for the products you saved.</p>
       </div>
       @if (!loading() && hasToken() && favorites().length > 0) {
-        <span class="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--pa-positive)_45%,transparent)] px-3 py-2 text-[11px] font-semibold text-[var(--pa-positive)]"><i class="ph ph-broadcast" aria-hidden="true"></i> {{ opportunityCount() }} üründe fiyat sinyali</span>
+        <span class="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--pa-positive)_45%,transparent)] px-3 py-2 text-[11px] font-semibold text-[var(--pa-positive)]"><i class="ph ph-broadcast" aria-hidden="true"></i> Price signal on {{ opportunityCount() }} {{ opportunityCount() === 1 ? 'product' : 'products' }}</span>
       }
     </header>
 
     @if (loading()) {
-      <section class="mt-9 grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]" aria-label="Takip listesi yükleniyor" aria-busy="true">
+      <section class="mt-9 grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]" aria-label="Loading your watchlist" aria-busy="true">
         <div class="h-[220px] animate-pulse rounded-[18px] bg-[var(--noc-surface)] lg:h-[360px]"></div>
         <div class="h-[430px] animate-pulse rounded-[18px] bg-[var(--noc-surface)]"></div>
       </section>
@@ -24,31 +24,31 @@
         <p class="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--noc-neutral-500)]">{{ err.label }}</p>
         <h2 class="mt-2 text-[21px] font-semibold tracking-[-0.02em]">{{ err.title }}</h2>
         <p class="mt-2 text-[13px] leading-6 text-[var(--noc-neutral-500)]">{{ err.message }}</p>
-        <button type="button" class="pa-favorites-primary mx-auto" (click)="retryLoad()"><i class="ph ph-arrow-clockwise" aria-hidden="true"></i> Yeniden dene</button>
+        <button type="button" class="pa-favorites-primary mx-auto" (click)="retryLoad()"><i class="ph ph-arrow-clockwise" aria-hidden="true"></i> Try again</button>
         @if (err.code) {
-          <p class="mt-4 text-[10.5px] text-[var(--noc-neutral-500)] opacity-70">Sorun devam ederse bize şu kodu iletebilirsin: {{ err.code }}</p>
+          <p class="mt-4 text-[10.5px] text-[var(--noc-neutral-500)] opacity-70">If it keeps happening, you can send us this code: {{ err.code }}</p>
         }
       </section>
     } @else if (!hasToken()) {
       <section class="mt-9 grid gap-4 md:grid-cols-2">
         <article class="rounded-[18px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] p-8 max-sm:p-6">
           <span class="grid h-11 w-11 place-items-center rounded-[13px] bg-[color-mix(in_srgb,var(--noc-accent)_16%,transparent)] text-xl text-[var(--noc-accent)]" aria-hidden="true"><i class="ph ph-bookmark-simple"></i></span>
-          <p class="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--noc-neutral-500)]">Listen henüz boş</p>
-          <h2 class="mt-2 text-[21px] font-semibold tracking-[-0.02em]">Takip etmek istediğin ürünleri kaydet</h2>
-          <p class="mt-2 text-[13px] leading-6 text-[var(--noc-neutral-500)]">Bir ürünün detayını açıp “Favorilere Ekle”ye dokunduğunda güncel fiyatını burada izleyebilirsin.</p>
-          <a href="/" class="pa-favorites-primary"><i class="ph ph-plus" aria-hidden="true"></i> Ürünlere göz at</a>
+          <p class="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--noc-neutral-500)]">Your list is empty</p>
+          <h2 class="mt-2 text-[21px] font-semibold tracking-[-0.02em]">Save the products you want to track</h2>
+          <p class="mt-2 text-[13px] leading-6 text-[var(--noc-neutral-500)]">Open a product and tap "Add to watchlist" to follow its current price here.</p>
+          <a href="/" class="pa-favorites-primary"><i class="ph ph-plus" aria-hidden="true"></i> Browse products</a>
         </article>
 
         <article class="rounded-[18px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] p-8 max-sm:p-6">
           <span class="grid h-11 w-11 place-items-center rounded-[13px] bg-[color-mix(in_srgb,var(--noc-accent)_16%,transparent)] text-xl text-[var(--noc-accent)]" aria-hidden="true"><i class="ph ph-envelope-simple"></i></span>
-          <p class="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--noc-neutral-500)]">Daha önce liste oluşturdun mu?</p>
-          <h2 class="mt-2 text-[21px] font-semibold tracking-[-0.02em]">Listeni bu cihazda aç</h2>
-          <p class="mt-2 text-[13px] leading-6 text-[var(--noc-neutral-500)]">E-postana güvenli bir bağlantı gönderelim. Birden fazla tarayıcı kullanıyorsan bağlantıyı her birinde ayrı açmalısın.</p>
+          <p class="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--noc-neutral-500)]">Already have a list?</p>
+          <h2 class="mt-2 text-[21px] font-semibold tracking-[-0.02em]">Open your list on this device</h2>
+          <p class="mt-2 text-[13px] leading-6 text-[var(--noc-neutral-500)]">We'll email you a secure link. If you use more than one browser, open the link in each of them.</p>
           <form (ngSubmit)="submitRecover()" class="mt-5">
-            <label for="recover-email" class="mb-2 block text-[11px] font-semibold">E-posta adresin</label>
+            <label for="recover-email" class="mb-2 block text-[11px] font-semibold">Your email address</label>
             <div class="flex gap-2 max-sm:grid">
-              <input class="h-10 min-w-0 flex-1 rounded-[9px] border border-[var(--noc-divider)] bg-[var(--noc-bg)] px-3 text-xs text-[var(--noc-text)] outline-none focus:border-[var(--noc-accent)]" id="recover-email" type="email" name="recoverEmail" required autocomplete="email" placeholder="ornek&#64;eposta.com" [ngModel]="recoverEmail()" (ngModelChange)="recoverEmail.set($event)" />
-              <button class="h-10 rounded-[9px] bg-[var(--noc-accent)] px-4 text-[11px] font-semibold text-white disabled:opacity-60" type="submit" [disabled]="recoverSubmitting()">{{ recoverSubmitting() ? 'Gönderiliyor...' : 'Bağlantı gönder' }}</button>
+              <input class="h-10 min-w-0 flex-1 rounded-[9px] border border-[var(--noc-divider)] bg-[var(--noc-bg)] px-3 text-xs text-[var(--noc-text)] outline-none focus:border-[var(--noc-accent)]" id="recover-email" type="email" name="recoverEmail" required autocomplete="email" placeholder="you&#64;example.com" [ngModel]="recoverEmail()" (ngModelChange)="recoverEmail.set($event)" />
+              <button class="h-10 rounded-[9px] bg-[var(--noc-accent)] px-4 text-[11px] font-semibold text-white disabled:opacity-60" type="submit" [disabled]="recoverSubmitting()">{{ recoverSubmitting() ? 'Sending...' : 'Send link' }}</button>
             </div>
           </form>
           @if (recoverStatusMessage(); as message) {
@@ -59,37 +59,37 @@
     } @else if (favorites().length === 0) {
       <section class="mx-auto mt-9 max-w-[560px] rounded-[18px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-8 py-9 text-center max-sm:px-5">
         <span class="mx-auto grid h-11 w-11 place-items-center rounded-[13px] bg-[color-mix(in_srgb,var(--noc-accent)_16%,transparent)] text-xl text-[var(--noc-accent)]" aria-hidden="true"><i class="ph ph-bookmark-simple"></i></span>
-        <p class="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--noc-neutral-500)]">Bu cihazdaki listen</p>
-        <h2 class="mt-2 text-[21px] font-semibold tracking-[-0.02em]">Henüz takip edilen ürün yok</h2>
-        <p class="mt-2 text-[13px] leading-6 text-[var(--noc-neutral-500)]">Beğendiğin bir ürünü kaydet; güncel fiyatı ve fırsat sinyalleri burada görünmeye başlasın.</p>
-        <a href="/" class="pa-favorites-primary mx-auto"><i class="ph ph-plus" aria-hidden="true"></i> Ürün takip et</a>
-        <button type="button" class="mt-4 text-[11px] text-[var(--noc-neutral-500)] underline" (click)="signOut()">Bu cihazdan çıkış yap</button>
+        <p class="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--noc-neutral-500)]">Your list on this device</p>
+        <h2 class="mt-2 text-[21px] font-semibold tracking-[-0.02em]">You're not tracking any products yet</h2>
+        <p class="mt-2 text-[13px] leading-6 text-[var(--noc-neutral-500)]">Save a product you like, and its current price and deal signals will start showing here.</p>
+        <a href="/" class="pa-favorites-primary mx-auto"><i class="ph ph-plus" aria-hidden="true"></i> Track a product</a>
+        <button type="button" class="mt-4 text-[11px] text-[var(--noc-neutral-500)] underline" (click)="signOut()">Sign out on this device</button>
       </section>
     } @else {
       <section class="mt-9 grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside class="self-start rounded-[18px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] p-6">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--noc-neutral-500)]">Bugünkü görünüm</p>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--noc-neutral-500)]">Today's view</p>
           <div class="mt-3 text-[38px] font-bold tracking-[-0.05em]">{{ opportunityCount() }} / {{ favorites().length }}</div>
           <p class="mt-2 text-xs leading-5 text-[var(--noc-neutral-500)]">
-            {{ opportunityCount() }} ürün indirimde veya 30 günlük en düşük fiyatında.
+            {{ opportunityCount() }} {{ opportunityCount() === 1 ? 'product is' : 'products are' }} on sale or at their 30-day low.
           </p>
-          <div class="mt-5 h-[7px] overflow-hidden rounded-full bg-[var(--noc-divider)]" role="img" [attr.aria-label]="'Takip edilen ürünlerin yüzde ' + opportunityRate() + ' kadarı fiyat sinyali taşıyor'">
+          <div class="mt-5 h-[7px] overflow-hidden rounded-full bg-[var(--noc-divider)]" role="img" [attr.aria-label]="opportunityRate() + '% of tracked products have a price signal'">
             <span class="block h-full rounded-full bg-[linear-gradient(90deg,var(--noc-accent),#42d593)]" [style.width.%]="opportunityRate()"></span>
           </div>
           <dl class="mt-5 border-t border-[var(--noc-divider)] pt-3 text-[11px]">
-            <div class="my-2 flex justify-between text-[var(--noc-neutral-500)]"><dt>İndirimde</dt><dd class="font-semibold text-[var(--noc-text)]">{{ discountedCount() }} ürün</dd></div>
-            <div class="my-2 flex justify-between text-[var(--noc-neutral-500)]"><dt>30 günün dibi</dt><dd class="font-semibold text-[var(--noc-text)]">{{ lowCount() }} ürün</dd></div>
-            <div class="my-2 flex justify-between text-[var(--noc-neutral-500)]"><dt>Normal fiyat</dt><dd class="font-semibold text-[var(--noc-text)]">{{ normalCount() }} ürün</dd></div>
+            <div class="my-2 flex justify-between text-[var(--noc-neutral-500)]"><dt>On sale</dt><dd class="font-semibold text-[var(--noc-text)]">{{ discountedCount() }}</dd></div>
+            <div class="my-2 flex justify-between text-[var(--noc-neutral-500)]"><dt>At 30-day low</dt><dd class="font-semibold text-[var(--noc-text)]">{{ lowCount() }}</dd></div>
+            <div class="my-2 flex justify-between text-[var(--noc-neutral-500)]"><dt>Regular price</dt><dd class="font-semibold text-[var(--noc-text)]">{{ normalCount() }}</dd></div>
           </dl>
-          <a href="/" class="pa-favorites-primary"><i class="ph ph-plus" aria-hidden="true"></i> Yeni ürün takip et</a>
-          <button type="button" class="pa-favorites-secondary" (click)="signOut()"><i class="ph ph-sign-out" aria-hidden="true"></i> Bu cihazdan çık</button>
+          <a href="/" class="pa-favorites-primary"><i class="ph ph-plus" aria-hidden="true"></i> Track a new product</a>
+          <button type="button" class="pa-favorites-secondary" (click)="signOut()"><i class="ph ph-sign-out" aria-hidden="true"></i> Sign out on this device</button>
         </aside>
 
         <div class="min-w-0">
-          <section class="overflow-hidden rounded-[18px] border border-[var(--noc-divider)] bg-[var(--noc-surface)]" aria-label="Takip edilen ürünlerin güncel fiyatları">
+          <section class="overflow-hidden rounded-[18px] border border-[var(--noc-divider)] bg-[var(--noc-surface)]" aria-label="Current prices of tracked products">
             <header class="flex items-center justify-between border-b border-[var(--noc-divider)] px-5 py-[19px]">
-              <h2 class="text-base font-semibold">Güncel fiyat sinyalleri</h2>
-              <span class="text-[11px] text-[var(--noc-neutral-500)]">{{ favorites().length }} ürün</span>
+              <h2 class="text-base font-semibold">Current price signals</h2>
+              <span class="text-[11px] text-[var(--noc-neutral-500)]">{{ favorites().length }} {{ favorites().length === 1 ? 'product' : 'products' }}</span>
             </header>
             @for (deal of favorites(); track deal.productId) {
               <article class="pa-favorites-row">
@@ -105,22 +105,22 @@
                   <h3>{{ displayName(deal.productName) }}</h3>
                   <p>{{ deal.brandName }} · {{ lastCheckedText(deal) }}</p>
                   @if (deal.isAtThirtyDayLow) {
-                    <span>30 günün en düşük fiyatı</span>
+                    <span>Lowest price in 30 days</span>
                   } @else if (deal.discountPercent > 0) {
-                    <span>İndirimde</span>
+                    <span>On sale</span>
                   }
                 </a>
                 <div class="pa-favorites-price">
-                  <strong>{{ deal.currentPrice | number: '1.2-2' }} ₺</strong>
+                  <strong>{{ deal.currentPrice | price }}</strong>
                   @if (deal.discountPercent > 0) {
-                    <span>-%{{ deal.discountPercent }}</span>
+                    <span>-{{ deal.discountPercent }}%</span>
                   } @else {
-                    <span class="pa-favorites-price-neutral">Güncel fiyat</span>
+                    <span class="pa-favorites-price-neutral">Current price</span>
                   }
                 </div>
                 <div class="pa-favorites-row-actions">
-                  <a [href]="goToStoreUrl(deal)" (click)="magazaTiklamasi(deal.productId)" target="_blank" rel="nofollow sponsored noopener">Mağazaya git</a>
-                  <button type="button" title="Favorilerden çıkar" [attr.aria-label]="displayName(deal.productName) + ' ürününü favorilerden çıkar'" (click)="removeFavorite(deal)">
+                  <a [href]="goToStoreUrl(deal)" (click)="trackStoreClick(deal.productId)" target="_blank" rel="nofollow sponsored noopener">Go to store</a>
+                  <button type="button" title="Remove from watchlist" [attr.aria-label]="'Remove ' + displayName(deal.productName) + ' from your watchlist'" (click)="removeFavorite(deal)">
                     <i class="ph ph-x" aria-hidden="true"></i>
                   </button>
                 </div>
@@ -130,14 +130,14 @@
 
           <div class="mt-3 flex items-center gap-2 rounded-[13px] border border-[color-mix(in_srgb,var(--noc-accent)_35%,var(--noc-divider))] bg-[color-mix(in_srgb,var(--noc-accent)_7%,transparent)] px-4 py-3 text-[11px] leading-5 text-[var(--noc-neutral-500)] max-sm:items-start">
             <i class="ph ph-info text-[var(--noc-accent)]" aria-hidden="true"></i>
-            <p>Liste bu tarayıcıya bağlıdır. Ortak cihazdaysan çıkış yapabilir, e-posta bağlantısıyla daha sonra geri dönebilirsin.</p>
+            <p>The list is tied to this browser. On a shared device you can sign out and come back later with the email link.</p>
           </div>
         </div>
       </section>
     }
 
     <div class="mt-10 text-center">
-      <a routerLink="/" class="text-sm font-medium text-[var(--noc-accent)] hover:underline">← Ana sayfaya dön</a>
+      <a routerLink="/" class="text-sm font-medium text-[var(--noc-accent)] hover:underline">← Back to the home page</a>
     </div>
 
     @if (selectedDeal(); as deal) {

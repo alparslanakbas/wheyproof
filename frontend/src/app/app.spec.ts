@@ -12,9 +12,8 @@ describe('App', () => {
       providers: [
         provideRouter(routes),
         provideHttpClient(),
-        // AppUpdateService, SwUpdate'e bağımlı — gerçek app.config.ts'teki
-        // gibi burada da sağlanmalı, yoksa NG0201. enabled:false olduğu için
-        // gerçekten bir service worker kaydı denemiyor.
+        // AppUpdateService depends on SwUpdate; provide it as app.config.ts
+        // does, or NG0201. With enabled:false no service worker is registered.
         provideServiceWorker('ngsw-worker.js', { enabled: false }),
       ],
     }).compileComponents();

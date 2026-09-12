@@ -1,5 +1,6 @@
 import { Deal } from './deal.model';
 import { displayName } from './display-name';
+import { MARKET, formatPrice } from './market';
 import {
   PROTEIN_REFERENCE_GRAMS,
   pricePerServing,
@@ -9,79 +10,70 @@ import {
 } from './value-metrics';
 
 /**
- * Ürün sayfasının kendi ölçümlerimizden üretilen anlatı bölümü.
+ * The product page narrative, written from our own measurements.
  *
- * NEDEN VAR: Search Console, taradığı ürün sayfalarının bir kısmını dizine
- * eklemiyordu ("Tarandı - şu anda dizine eklenmiş değil"). Ölçtük: ürün
- * sayfaları birbirine %47,7 benziyor ve ~300 kelimeydi. Sebebi, markanın
- * tanıtım metnini (kopya içerik olduğu için) kaldırdıktan sonra geriye
- * yalnızca şablon bir etiket-değer listesi kalmasıydı — sayfalarda değişen
- * tek şey sayılardı.
+ * WHY: on the Turkish site Search Console left part of the product pages out
+ * of the index ("Crawled - currently not indexed"). Measured: the pages were
+ * 47.7% alike at ~300 words. Once the store's copy was removed (duplicate
+ * content), only a templated label/value list was left and the numbers were
+ * the only thing that changed.
  *
- * Buradaki cümleler yalnızca sayıları değil, YAPILARI da veriye göre
- * değiştiriyor: fiyatı hiç oynamamış bir ürünle 30 günün dibindeki bir ürün
- * tamamen farklı cümleler alıyor. Böylece her sayfa gerçekten farklılaşıyor.
+ * These sentences change their STRUCTURE with the data, not just the
+ * numbers: a product whose price never moved and one at its 30-day low get
+ * entirely different sentences, so every page really differs.
  *
- * Tamamı kendi ölçümümüz — markadan kopyalanan tek kelime yok, ve
- * hesaplanamayan hiçbir şey için cümle kurulmuyor (uydurma yok).
+ * Everything is our own measurement; no word is copied from the store, and
+ * no sentence is written for anything we can't calculate.
  */
 
-const priceFormatter = new Intl.NumberFormat('tr-TR', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const ratingFormatter = new Intl.NumberFormat('tr-TR', {
+const ratingFormatter = new Intl.NumberFormat(MARKET.locale, {
   minimumFractionDigits: 1,
   maximumFractionDigits: 2,
 });
 
-function price(value: number): string {
-  return `${priceFormatter.format(value)} ₺`;
-}
-
-/** Fiyat hikâyesi — ürünün geçmişine göre tamamen farklı cümleler. */
+/** The price story; entirely different sentences depending on the history. */
 function priceParagraph(deal: Deal, discountEventCount?: number): string {
   const name = displayName(deal.productName);
   const sentences: string[] = [];
 
   if (deal.isAtThirtyDayLow) {
     sentences.push(
-      `${name}, şu anda ${price(deal.currentPrice)} ile son 30 günde ölçtüğümüz en düşük seviyede.`,
+      `${name} is ${formatPrice(deal.currentPrice)} right now, the lowest price we measured in the last 30 days.`,
     );
     sentences.push(
-      `Aynı dönemde ${price(deal.referencePrice)} seviyesini de gördük; bugünkü fiyat bunun %${deal.discountPercent} altında.`,
+      `In the same period we also saw ${formatPrice(deal.referencePrice)}; today's price is ${deal.discountPercent}% below that.`,
     );
   } else if (deal.discountPercent > 0) {
     sentences.push(
-      `${name} şu anda ${price(deal.currentPrice)}. Son 30 günde ölçtüğümüz en yüksek fiyat ${price(deal.referencePrice)} olduğu için bu, referansın %${deal.discountPercent} altında bir seviye.`,
+      `${name} is ${formatPrice(deal.currentPrice)} right now. The highest price we measured in the last 30 days was ${formatPrice(deal.referencePrice)}, so this is ${deal.discountPercent}% below the reference.`,
     );
   } else {
     sentences.push(
-      `${name} şu anda ${price(deal.currentPrice)} ve bu, son 30 günde ölçtüğümüz referans fiyatla aynı seviyede — yani şu an bir düşüş yok.`,
+      `${name} is ${formatPrice(deal.currentPrice)} right now, the same as the reference price we measured over the last 30 days, so there is no drop at the moment.`,
     );
   }
 
   if (discountEventCount !== undefined && discountEventCount > 0) {
     sentences.push(
       discountEventCount === 1
-        ? 'Takip ettiğimiz dönemde fiyatı bir kez düştü.'
-        : `Takip ettiğimiz dönemde fiyatı ${discountEventCount} kez düştü.`,
+        ? 'Its price dropped once in the period we tracked.'
+        : `Its price dropped ${discountEventCount} times in the period we tracked.`,
     );
   }
 
-  // Markanın kendi "eski fiyat" etiketi bizim ölçümümüzden ayrı tutuluyor:
-  // sitenin bütün değer önerisi bu ayrımın üstüne kurulu.
+  // The store's own "was" label is kept apart from our measurement: the
+  // site's whole value rests on that distinction.
+  const store = deal.seller ?? deal.brandName;
   if (deal.storeOldPrice !== null && deal.storeDiscountPercent !== null) {
     sentences.push(
-      `${deal.brandName} kendi sitesinde eski fiyatı ${price(deal.storeOldPrice)} olarak gösteriyor (%${deal.storeDiscountPercent} indirim); bu markanın beyanı, bizim doğruladığımız düşüş yukarıdaki referansa dayanıyor.`,
+      `${store} shows a "was" price of ${formatPrice(deal.storeOldPrice)} on its own site (${deal.storeDiscountPercent}% off). That is the store's claim; the drop we verify is based on the reference above.`,
     );
   }
 
   return sentences.join(' ');
 }
 
-/** Paket ekonomisi — yalnızca gerçek porsiyon verisi varsa. */
+/** Package economics, only with real serving data. */
 function economicsParagraph(deal: Deal): string | null {
   const servings = servingsInPackage(deal);
   const perServing = pricePerServing(deal);
@@ -90,19 +82,19 @@ function economicsParagraph(deal: Deal): string | null {
   const sentences: string[] = [];
   const source =
     deal.servingsPerPackage !== null
-      ? `${deal.brandName} paketten ${Math.round(servings)} servis çıktığını belirtiyor`
-      : `${deal.size} paket ve ${deal.servingSizeGrams} g porsiyona göre paketten yaklaşık ${Math.round(servings)} servis çıkıyor`;
-  sentences.push(`${source}, yani servis başına ${price(perServing)} düşüyor.`);
+      ? `${deal.brandName} states ${Math.round(servings)} servings per package`
+      : `A ${deal.size} package with ${deal.servingSizeGrams} g servings gives about ${Math.round(servings)} servings`;
+  sentences.push(`${source}, which works out to ${formatPrice(perServing)} per serving.`);
 
   const ratio = proteinRatioPercent(deal);
   const refCost = proteinReferenceCost(deal);
   if (deal.proteinPerServingGrams !== null && ratio !== null) {
     sentences.push(
-      `Porsiyon başına ${deal.proteinPerServingGrams} g protein var; bu, porsiyonun %${ratio}'inin protein olduğu anlamına geliyor.`,
+      `Each serving has ${deal.proteinPerServingGrams} g of protein, meaning ${ratio}% of the serving is protein.`,
     );
     if (refCost !== null) {
       sentences.push(
-        `${PROTEIN_REFERENCE_GRAMS} g proteine ulaşmanın maliyeti bu üründe ${price(refCost)}.`,
+        `Getting ${PROTEIN_REFERENCE_GRAMS} g of protein from this product costs ${formatPrice(refCost)}.`,
       );
     }
   }
@@ -110,38 +102,36 @@ function economicsParagraph(deal: Deal): string | null {
   return sentences.join(' ');
 }
 
-/** Markanın kendi müşteri puanı — bizim değerlendirmemiz olmadığı açıkça yazılı. */
+/** The store's own customer rating, stated plainly as not ours. */
 function ratingParagraph(deal: Deal): string | null {
   if (deal.ratingValue === null || deal.ratingCount === null) return null;
-  // Uzun bir sorumluluk cümlesi her üründe birebir tekrarlanıyordu ve
-  // sayfaları birbirine benzetiyordu; açıklamanın tamamı zaten
-  // /nasil-calisiyoruz sayfasında. Burada yalnızca kaynağı belirtiyoruz.
+  // A long disclaimer repeated word for word on every product made pages
+  // alike; the full explanation is on /how-it-works. Here only the source.
   return (
-    `${deal.brandName} kendi sitesinde bu ürüne ${deal.ratingCount} değerlendirme ile ` +
-    `5 üzerinden ${ratingFormatter.format(deal.ratingValue)} ortalama veriyor (markanın müşteri puanı, bizim değil).`
+    `On its own site, ${deal.seller ?? deal.brandName} shows an average of ` +
+    `${ratingFormatter.format(deal.ratingValue)} out of 5 from ${deal.ratingCount} reviews (the store's customer rating, not ours).`
   );
 }
 
-/** Neyi ölçemediğimizi de söylüyoruz — eksik veriyi sessizce gizlemiyoruz. */
+/** We also say what we could not measure; missing data is not hidden. */
 function limitationsParagraph(deal: Deal): string | null {
   const missing: string[] = [];
   if (deal.servingSizeGrams === null && deal.servingsPerPackage === null) {
-    missing.push('porsiyon büyüklüğü');
+    missing.push('the serving size');
   }
-  if (!deal.nutritionJson) missing.push('besin değeri tablosu');
+  if (!deal.nutritionJson) missing.push('a nutrition facts table');
   if (missing.length === 0) return null;
 
   return (
-    `${deal.brandName}, bu ürün için ${missing.join(' ve ')} paylaşmıyor. ` +
-    'Bu yüzden ilgili hesaplamaları burada göremiyorsun — tahmini bir değer üretmek yerine ' +
-    'alanı boş bırakmayı tercih ediyoruz.'
+    `${deal.brandName} doesn't publish ${missing.join(' or ')} for this product in a form we can read. ` +
+    "That's why the related calculations are missing here: we leave the field empty rather than estimate it."
   );
 }
 
 /**
- * Besin değeri tablosundan üretilen cümle. Ürünler arasında en çok değişen
- * veri bu (her ürünün tablosu farklı satırlar taşıyor), bu yüzden sayfayı
- * ayırt etmekte en güçlü katkıyı sağlıyor.
+ * A sentence built from the nutrition table. It is the data that varies most
+ * between products (every table has different rows), so it does the most to
+ * tell pages apart.
  */
 function nutritionParagraph(deal: Deal): string | null {
   if (!deal.nutritionJson) return null;
@@ -157,10 +147,10 @@ function nutritionParagraph(deal: Deal): string | null {
   if (entries.length === 0) return null;
 
   const listed = entries.slice(0, 6).map(([k, v]) => `${k.toLowerCase()} ${v}`);
-  const portion = deal.servingSizeGrams !== null ? `${deal.servingSizeGrams} g porsiyonda` : 'Porsiyon başına';
-  const extra = entries.length > 6 ? ` Tabloda toplam ${entries.length} satır var.` : '';
+  const portion = deal.servingSizeGrams !== null ? `a ${deal.servingSizeGrams} g serving` : 'each serving';
+  const extra = entries.length > 6 ? ` The table has ${entries.length} rows in total.` : '';
 
-  return `${deal.brandName} etiketine göre ${portion} ${listed.join(', ')} bulunuyor.${extra}`;
+  return `According to the ${deal.brandName} label, ${portion} contains ${listed.join(', ')}.${extra}`;
 }
 
 export function buildProductNarrative(deal: Deal, discountEventCount?: number): string[] {
@@ -170,8 +160,8 @@ export function buildProductNarrative(deal: Deal, discountEventCount?: number): 
     nutritionParagraph(deal),
     ratingParagraph(deal),
     limitationsParagraph(deal),
-    // Jenerik bir kapanış cümlesi bilinçli olarak YOK: her üründe birebir
-    // aynı olduğu için sayfaları birbirine benzetmekten başka işe yaramıyordu.
+    // No generic closing sentence on purpose: identical on every product, it
+    // only made pages look alike.
   ];
 
   return paragraphs.filter((p): p is string => p !== null);

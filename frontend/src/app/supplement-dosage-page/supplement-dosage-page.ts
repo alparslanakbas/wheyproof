@@ -7,7 +7,11 @@ import { ComparisonService } from '../core/comparison.service';
 import { Deal } from '../core/deal.model';
 import { DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
+import { MARKET } from '../core/market';
+import { showNotFound } from '../core/not-found-navigation';
+import { packageGrams } from '../core/package-size';
 import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
+import { PricePipe } from '../core/price.pipe';
 import { slugify } from '../core/slugify';
 import { SupplementDosage, findSupplementDosage } from '../core/supplement-dosages';
 import { SiteHeader } from '../site-header/site-header';
@@ -25,24 +29,23 @@ interface ExamplePair {
   slug: string;
 }
 
-// Ana sayfa/protein hesaplayıcısındaki aynı desen — tablo satır listesi
-// olduğu için 12 makul bir sayfa boyutu.
+// The same pattern as the home page and protein calculator; the table is a
+// row list, so 12 is a sensible page size.
 const PAGE_SIZE = 12;
 const SEARCH_DEBOUNCE_MS = 350;
 
-// Kreatin/beta-alanine/sitrülin/betain/EAA için TEK bileşen, konfigürasyonla
-// (supplement-dosages.ts) beş ayrı sayfa üretiyor. Her birine ayrı bileşen
-// yazmak yüzlerce satır kod tekrarı olurdu; BrandPage'in iki modlu
-// çalışmasıyla aynı yaklaşım.
+// ONE component, driven by configuration (supplement-dosages.ts), produces
+// the creatine/beta-alanine/citrulline/betaine/EAA pages. A component per
+// supplement would repeat hundreds of lines.
 //
-// ÖNEMLİ TASARIM KARARI: bu takviyelerin dozu KİLOYA GÖRE ÖLÇEKLENMEZ —
-// literatürde ve pratikte sabit aralıklar kullanılır. "Kilonu gir, dozunu
-// hesaplayalım" tarzı bir araç uydurma olurdu. Bunun yerine dürüst bir doz
-// aralığı gösterilip, asıl hesap bizim gerçek veri avantajımız üzerinden
-// yapılıyor: seçilen paket kaç gün yeter, günlük maliyeti ne kadar.
+// KEY DESIGN DECISION: these supplements' doses do NOT scale with body
+// weight; fixed ranges are used in the literature and in practice. An
+// "enter your weight, we'll calculate your dose" tool would be invented. An
+// honest range is shown instead, and the real calculation uses our data
+// advantage: how many days a package lasts and what it costs per day.
 @Component({
   selector: 'app-supplement-dosage-page',
-  imports: [DecimalPipe, FormsModule, RouterLink, SiteHeader],
+  imports: [PricePipe, DecimalPipe, FormsModule, RouterLink, SiteHeader],
   templateUrl: './supplement-dosage-page.html',
 })
 export class SupplementDosagePage implements OnInit {
@@ -60,33 +63,29 @@ export class SupplementDosagePage implements OnInit {
   protected readonly loadError = signal(false);
   private readonly products = signal<Deal[]>([]);
 
-  // Protein hesaplayıcısındaki aynı desen — kategori zaten tek bir istekte
-  // (≤100 ürün) tamamen çekildiği için arama/marka filtresi CLIENT-SIDE
-  // yapılıyor, ekstra bir ağ isteği gerekmiyor. Sayfalama da öyle (dailyGrams
-  // değişince maliyet/sıralama anında yeniden hesaplanıyor, sunucuya gitmeden).
+  // The whole category arrives in one request (≤100 products), so search,
+  // brand filter and pagination run CLIENT-SIDE with no extra network call;
+  // changing the daily dose re-sorts instantly.
   protected readonly searchQuery = signal('');
   protected readonly selectedBrands = signal<Set<string>>(new Set());
   protected readonly currentPage = signal(1);
   private searchDebounceHandle: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly availableBrands = computed(() =>
-    [...new Set(this.products().map((p) => p.brandName))].sort(),
+    [...new Set(this.products().map((p) => p.brandName))].sort((a, b) => a.localeCompare(b, MARKET.locale)),
   );
 
   protected readonly hasActiveFilters = computed(
     () => this.searchQuery().trim().length > 0 || this.selectedBrands().size > 0,
   );
 
-  // Örnek karşılaştırma çiftleri — aynı kategoriden, sayfa yüklenince BİR
-  // KEZ rastgele seçiliyor (loadProducts'ta), sonraki her render'da aynı
-  // kalıyor. "Alakalı" şartı zaten sağlanıyor çünkü products() bu sayfanın
-  // kategorisine scope'lu.
+  // Example comparison pairs from the same category, picked at random ONCE
+  // when the page loads and stable across renders after that.
   protected readonly examplePairs = signal<ExamplePair[]>([]);
 
-  // Seçilen günlük doza göre: her ürün kaç gün yeter, günlük maliyeti ne.
-  // Yalnızca paket gramajı BİLİNEN ürünler listeleniyor — bilinmeyen için
-  // tahmin yürütmüyoruz. Arama/marka filtresi burada, sıralamadan ÖNCE
-  // uygulanıyor.
+  // For the chosen daily dose: how many days each product lasts and what it
+  // costs per day. Only products with a KNOWN package weight are listed; no
+  // guessing for the rest. Search and brand filters apply BEFORE sorting.
   protected readonly dosageProducts = computed<DosageProduct[]>(() => {
     const grams = this.dailyGrams();
     if (!grams || grams <= 0) return [];
@@ -98,7 +97,7 @@ export class SupplementDosagePage implements OnInit {
       .filter((deal) => !query || deal.productName.toLowerCase().includes(query))
       .filter((deal) => brands.size === 0 || brands.has(deal.brandName))
       .map((deal) => {
-        const totalGrams = this.packageGrams(deal);
+        const totalGrams = this.totalPackageGrams(deal);
         if (!totalGrams) return null;
 
         const daysSupply = totalGrams / grams;
@@ -149,18 +148,16 @@ export class SupplementDosagePage implements OnInit {
   }
 
   protected productLink(deal: Deal): string[] {
-    return ['/urun', String(deal.productId), slugify(deal.productName)];
+    return ['/product', String(deal.productId), slugify(deal.productName)];
   }
 
-  // Paketteki toplam gram. İki kaynak var:
-  // (1) Size alanı ("300 Gr" / "2 Kg") — üç markada bu geliyor;
-  // (2) paket servis sayısı × servis gramajı — ProteinOcean'da Size hiç
-  //     gelmiyor ama ikisi de markanın kendi verisinden geldiği için bu
-  //     çarpım türetilmiş bir tahmin değil.
-  // Bu ikinci yol olmadan ProteinOcean ürünleri tabloya hiç giremiyordu —
-  // protein tozu tablosunda çözülen aynı sorun (bkz. CalculateServings).
-  private packageGrams(deal: Deal): number | null {
-    const fromSize = this.parsePackageGrams(deal.size);
+  // Total grams in the package, from two sources:
+  // (1) the size field ("300 g", "2.2 lb", "10.6 oz");
+  // (2) servings per package × serving size, when the size is missing. Both
+  //     come from the brand's own data, so the product is derived, not guessed.
+  // Capsule counts ("120 Capsules") have no weight and stay out.
+  private totalPackageGrams(deal: Deal): number | null {
+    const fromSize = packageGrams(deal.size);
     if (fromSize) return fromSize;
 
     if (deal.servingsPerPackage && deal.servingsPerPackage > 0 && deal.servingSizeGrams && deal.servingSizeGrams > 0) {
@@ -170,33 +167,21 @@ export class SupplementDosagePage implements OnInit {
     return null;
   }
 
-  private parsePackageGrams(size: string | null): number | null {
-    if (!size) return null;
-    const match = /^(\d+(?:[.,]\d+)?)\s*(Gr|Kg)$/i.exec(size.trim());
-    if (!match) return null;
-
-    const value = Number(match[1].replace(',', '.'));
-    if (!value) return null;
-
-    return match[2].toLowerCase() === 'kg' ? value * 1000 : value;
-  }
-
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
       const slug = params.get('slug') ?? '';
       const config = findSupplementDosage(slug);
 
       if (!config) {
-        // Soft-404 yerine gerçek yönlendirme — projedeki yerleşik desen.
-        this.router.navigate(['/hesaplama']);
+        showNotFound(this.router);
         return;
       }
 
       this.config.set(config);
       this.dailyGrams.set(config.defaultDailyGrams);
-      // Bileşen aynı örnek üzerinden bir doz sayfasından diğerine (ör.
-      // kreatin-dozu → beta-alanine-dozu) yeniden kullanılıyor — eski
-      // sayfanın filtre/sayfa durumu yeni sayfaya sızmasın.
+      // The component instance is reused from one dosage page to another
+      // (creatine → beta-alanine); the previous page's filters and page
+      // must not leak into the new one.
       this.searchQuery.set('');
       this.selectedBrands.set(new Set());
       this.currentPage.set(1);
@@ -209,7 +194,7 @@ export class SupplementDosagePage implements OnInit {
     this.pageMeta.set({
       title: config.title,
       description: config.description,
-      canonicalPath: `/hesaplama/${config.slug}`,
+      canonicalPath: `/calculators/${config.slug}`,
     });
 
     this.structuredDataEl = upsertJsonLdScript(this.document, this.structuredDataEl, {
@@ -218,7 +203,7 @@ export class SupplementDosagePage implements OnInit {
       name: config.h1,
       applicationCategory: 'HealthApplication',
       operatingSystem: 'Web',
-      offers: { '@type': 'Offer', price: '0', priceCurrency: 'TRY' },
+      offers: { '@type': 'Offer', price: '0', priceCurrency: MARKET.currency },
     });
   }
 
@@ -227,10 +212,9 @@ export class SupplementDosagePage implements OnInit {
     this.loadError.set(false);
 
     this.dealsService
-      // expandSynonyms: false — "alanine" araması, o kelime amino-asitler
-      // kategorisinin anahtar kelimelerinden biri olduğu için kategorinin
-      // TAMAMINI getiriyordu (arginin ürünleri beta-alanine sayfasında
-      // listeleniyordu). Burada tam da o tek bileşeni arıyoruz.
+      // expandSynonyms: false. With synonyms, an "alanine" search pulled in
+      // the whole amino acid category (arginine products showed up on the
+      // beta-alanine page). Here we want exactly that one ingredient.
       .getAllProducts({
         categories: config.category ? [config.category] : [],
         search: config.searchTerm ?? undefined,
@@ -250,9 +234,8 @@ export class SupplementDosagePage implements OnInit {
       });
   }
 
-  // 3 rastgele, birbirinden farklı ürün çifti — hepsi aynı kategoriden
-  // olduğu için zaten "alakalı". Fisher-Yates'e gerek yok, sadece birkaç
-  // çift seçtiğimiz için basit bir rastgele karıştırma yeterli.
+  // Three random, distinct pairs; all from the same category, so they're
+  // relevant by construction. A simple shuffle is enough for a few pairs.
   private pickExamplePairs(list: Deal[]): ExamplePair[] {
     if (list.length < 2) return [];
 

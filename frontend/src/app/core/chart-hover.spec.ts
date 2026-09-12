@@ -1,33 +1,33 @@
 import { dedupeSameDaySamePrice, hoverAlign, nearestPointIndex, tooltipDateLabel } from './chart-hover';
 
-// Bu hesaplar ürün modalında ÜÇ ayrı üretim hatası vermişti: aynı gün tekrar
-// eden eksen etiketleri, kenardaki tooltip'in kırpılması ve aynı gün/aynı
-// fiyat noktalarının hover'da tekrar tekrar görünmesi. İnceleme sayfasına da
-// grafik eklenirken mantık kopyalanmadı, buraya taşındı — testler de bileşen
-// yerine burada duruyor: saf fonksiyon oldukları için TestBed gerekmiyor.
+// These calculations caused THREE production bugs in the product modal:
+// repeated same-day axis labels, a clipped tooltip at the edge, and
+// same-day/same-price points repeating on hover. The review page's chart
+// reuses this module rather than a copy, and the tests live here: pure
+// functions, no TestBed needed.
 describe('chart-hover', () => {
   describe('dedupeSameDaySamePrice', () => {
-    it('aynı gün + aynı fiyatlı ardışık noktaları tek noktaya indirir', () => {
+    it('collapses consecutive same-day, same-price points into one', () => {
       const points = [
-        { price: 339.15, scrapedAt: '2026-08-10T08:00:00Z' },
-        { price: 339.15, scrapedAt: '2026-08-10T14:00:00Z' },
-        { price: 399.0, scrapedAt: '2026-08-11T08:00:00Z' },
-        { price: 399.0, scrapedAt: '2026-08-12T08:00:00Z' },
+        { price: 39.99, scrapedAt: '2026-08-10T14:00:00Z' },
+        { price: 39.99, scrapedAt: '2026-08-10T20:00:00Z' },
+        { price: 44.99, scrapedAt: '2026-08-11T14:00:00Z' },
+        { price: 44.99, scrapedAt: '2026-08-12T14:00:00Z' },
       ];
 
       const result = dedupeSameDaySamePrice(points);
 
       expect(result).toEqual([
-        { price: 339.15, scrapedAt: '2026-08-10T14:00:00Z' },
-        { price: 399.0, scrapedAt: '2026-08-11T08:00:00Z' },
-        { price: 399.0, scrapedAt: '2026-08-12T08:00:00Z' },
+        { price: 39.99, scrapedAt: '2026-08-10T20:00:00Z' },
+        { price: 44.99, scrapedAt: '2026-08-11T14:00:00Z' },
+        { price: 44.99, scrapedAt: '2026-08-12T14:00:00Z' },
       ]);
     });
 
-    it('aynı gün ama farklı fiyatlı noktaları koruyor (gerçek bir gün-içi değişiklik)', () => {
+    it('keeps same-day points with different prices (a real change within the day)', () => {
       const points = [
-        { price: 100, scrapedAt: '2026-08-10T08:00:00Z' },
-        { price: 90, scrapedAt: '2026-08-10T14:00:00Z' },
+        { price: 100, scrapedAt: '2026-08-10T14:00:00Z' },
+        { price: 90, scrapedAt: '2026-08-10T20:00:00Z' },
       ];
 
       const result = dedupeSameDaySamePrice(points);
@@ -37,46 +37,47 @@ describe('chart-hover', () => {
   });
 
   describe('tooltipDateLabel', () => {
-    it('aynı gün tek nokta varsa sadece tarih gösterir (saat yok)', () => {
-      const points = [{ price: 100, scrapedAt: '2026-08-11T08:00:00Z' }];
+    it('shows only the date when the day has one point (no time)', () => {
+      const points = [{ price: 100, scrapedAt: '2026-08-11T14:00:00Z' }];
 
       const label = tooltipDateLabel(points, 0);
 
-      expect(label).not.toMatch(/\d{2}:\d{2}$/);
+      expect(label).not.toMatch(/\d{1,2}:\d{2}/);
     });
 
-    it('aynı gün birden fazla nokta varsa hangi an değiştiği belli olsun diye saat ekler', () => {
+    it('adds the time when the day has several points, so the moment of change is clear', () => {
+      // 12:00Z and 20:00Z are 8 AM and 4 PM the same day in New York.
       const points = [
-        { price: 100, scrapedAt: '2026-08-11T08:00:00Z' },
+        { price: 100, scrapedAt: '2026-08-11T12:00:00Z' },
         { price: 90, scrapedAt: '2026-08-11T20:00:00Z' },
       ];
 
       const label = tooltipDateLabel(points, 1);
 
-      expect(label).toMatch(/\d{2}:\d{2}$/);
+      expect(label).toMatch(/\d{1,2}:\d{2}\s[AP]M$/);
     });
   });
 
   describe('hoverAlign', () => {
-    // Kenara yakınken ortalı hizalama tooltip'in yarısını konteynerin dışına
-    // taşırıp kırpılmasına yol açıyordu (mobilde belirgindi).
-    it('sol kenara yakın noktayı sola yaslar', () => {
+    // Centered near an edge, half the tooltip overflowed the container and
+    // got clipped (clearly visible on mobile).
+    it('leans a point near the left edge to the left', () => {
       expect(hoverAlign(10, 600)).toBe('left');
     });
 
-    it('sağ kenara yakın noktayı sağa yaslar', () => {
+    it('leans a point near the right edge to the right', () => {
       expect(hoverAlign(590, 600)).toBe('right');
     });
 
-    it('ortadaki noktayı ortalar', () => {
+    it('centers a point in the middle', () => {
       expect(hoverAlign(300, 600)).toBe('center');
     });
   });
 
   describe('nearestPointIndex', () => {
-    // SVG preserveAspectRatio="none" ile esniyor: ekran genişliği viewBox
-    // genişliğinden farklı olabilir, ölçekleme yapılmazsa imleç yanlış
-    // noktaya yapışır.
+    // The SVG stretches with preserveAspectRatio="none": the screen width can
+    // differ from the viewBox width, and without scaling the cursor snaps to
+    // the wrong point.
     const fakeSvg = (left: number, width: number) =>
       ({ getBoundingClientRect: () => ({ left, width }) }) as unknown as SVGSVGElement;
 
@@ -86,21 +87,21 @@ describe('chart-hover', () => {
       [600, 30],
     ];
 
-    it('ekran genişliği viewBox genişliğinden farklıyken doğru ölçekler', () => {
-      // 300px genişliğinde çizilmiş 600 birimlik viewBox: ekranda 150px,
-      // viewBox'ta 300 birime denk gelir — yani ortadaki nokta.
+    it('scales correctly when the screen width differs from the viewBox width', () => {
+      // A 600-unit viewBox drawn 300px wide: 150px on screen is 300 units in
+      // the viewBox, i.e. the middle point.
       expect(nearestPointIndex(fakeSvg(0, 300), 150, coords, 600)).toBe(1);
     });
 
-    it('konteynerin sol ofsetini hesaba katar', () => {
+    it("accounts for the container's left offset", () => {
       expect(nearestPointIndex(fakeSvg(100, 600), 105, coords, 600)).toBe(0);
     });
 
-    it('nokta yoksa null döner', () => {
+    it('returns null when there are no points', () => {
       expect(nearestPointIndex(fakeSvg(0, 600), 100, [], 600)).toBeNull();
     });
 
-    it('henüz ölçülmemiş (genişliği 0) SVG için null döner, sıfıra bölmez', () => {
+    it("returns null for an SVG not measured yet (width 0) instead of dividing by zero", () => {
       expect(nearestPointIndex(fakeSvg(0, 0), 100, coords, 600)).toBeNull();
     });
   });

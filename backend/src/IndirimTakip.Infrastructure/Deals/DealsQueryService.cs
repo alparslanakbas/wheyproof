@@ -46,24 +46,23 @@ public partial class DealsQueryService(
     private static readonly TimeSpan StaleThreshold = TimeSpan.FromHours(48);
 
     /// <summary>
-    /// Satıcı filtresinde "markanın kendi sitesinden satılanlar" seçeneğini
-    /// temsil eden etiket. Veritabanında bu durum Seller = NULL ile tutuluyor;
-    /// null bir filtre değeri olarak taşınamadığı için adlandırılmış bir
-    /// etikete çevriliyor. Hem filtre listesinde hem sorguda aynı sabit
-    /// kullanılıyor ki ikisi birbirinden kaymasın.
+    /// The seller filter label for "sold on the brand's own site". In the
+    /// database that is Seller = NULL; a null can't travel as a filter value,
+    /// so it becomes a named label. The filter list and the query share this
+    /// constant so the two never drift apart.
     /// </summary>
-    public const string BrandDirectSellerLabel = "Markanın kendi sitesi";
+    public const string BrandDirectSellerLabel = "Brand's own store";
 
     /// <summary>
-    /// Bayilerin TAMAMI için tek etiket.
+    /// One label for ALL retailers.
     ///
-    /// Filtre bilinçli olarak satıcı satıcı listelenmiyor: kullanıcının sorduğu
-    /// soru "bu ürünü markadan mı bayiden mi alıyorum" — hangi bayi olduğu
-    /// ürünün kendi satırında zaten yazıyor. Her bayi ayrı seçenek olsaydı
-    /// kaynak ekledikçe liste uzayacak ve seçim bir tercihten çok bir envanter
-    /// taramasına dönüşecekti.
+    /// Retailers are deliberately not listed one by one: the question people
+    /// ask is "am I buying from the brand or a retailer", and which retailer
+    /// is already written on the product's own row. One option per retailer
+    /// would grow with every source and turn a choice into an inventory scan.
+    /// The frontend's brand page sends this exact text (RETAILER_LABEL).
     /// </summary>
-    public const string DealerSellerLabel = "Bayiden satılanlar";
+    public const string DealerSellerLabel = "Retailers";
 
     // Vitrine girmek için gereken en düşük ortalama. Amaç "beğenilen ürünler"
     // göstermek; 3,2 ortalamalı bir ürünü öne çıkarmak bandın anlamını bozardı.

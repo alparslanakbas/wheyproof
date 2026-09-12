@@ -1,10 +1,10 @@
 import { ActivatedRouteSnapshot, DetachedRouteHandle, RouteReuseStrategy } from '@angular/router';
 
-// DealsList bileşeni hem '' hem 'urun/:id' route'unda kullanılıyor (ürün
-// modalı artık URL'e bağlı). Angular'ın varsayılan stratejisi farklı
-// route config'lere geçişte bileşeni yok edip yeniden kurar — bu da filtre/
-// sayfa/arama durumunu sıfırlardı. Aynı bileşene işaret eden route'lar
-// arasında geçişte örneği koruyoruz, sadece route param'ları güncellenir.
+// DealsList serves both '' and 'product/:id' (the product modal is bound to
+// the URL). Angular's default strategy destroys and rebuilds the component
+// when moving between route configs, which would reset filters, page and
+// search. Between routes pointing at the same component, the instance is
+// kept and only the route params update.
 export class DealsRouteReuseStrategy implements RouteReuseStrategy {
   shouldDetach(): boolean {
     return false;

@@ -17,6 +17,7 @@ import { Deal } from '../core/deal.model';
 import { displayName } from '../core/display-name';
 import { productPath } from '../core/product-link';
 
+import { PricePipe } from '../core/price.pipe';
 type PreferenceGroup = 'all' | 'performance' | 'nutrition' | 'weight';
 
 interface PreferenceTab {
@@ -26,15 +27,15 @@ interface PreferenceTab {
 }
 
 const PREFERENCE_TABS: readonly PreferenceTab[] = [
-  { id: 'all', label: 'Tümü', categories: [] },
-  { id: 'performance', label: 'Performans', categories: ['amino-asitler', 'kreatin', 'pre-workout'] },
-  { id: 'nutrition', label: 'Beslenme', categories: ['protein-tozu', 'vitamin', 'saglikli-atistirmaliklar'] },
-  { id: 'weight', label: 'Kilo Kontrolü', categories: ['yag-yakici', 'l-carnitine-cla', 'kilo-hacim'] },
+  { id: 'all', label: 'All', categories: [] },
+  { id: 'performance', label: 'Performance', categories: ['amino-acids', 'creatine', 'pre-workout', 'hydration'] },
+  { id: 'nutrition', label: 'Nutrition', categories: ['protein-powder', 'vitamins', 'protein-snacks'] },
+  { id: 'weight', label: 'Weight', categories: ['fat-burners', 'mass-gainers'] },
 ];
 
 @Component({
   selector: 'app-preferred-products',
-  imports: [DecimalPipe, RouterLink],
+  imports: [PricePipe, DecimalPipe, RouterLink],
   templateUrl: './preferred-products.html',
 })
 export class PreferredProducts {
@@ -51,9 +52,9 @@ export class PreferredProducts {
   private autoSlideHandle: ReturnType<typeof setInterval> | null = null;
   private paused = false;
 
-  // Sunucudan gelen sıra ZATEN tercih sıralaması (favori sayısı, sonra
-  // mağazaya gitme tıklaması — bkz. DealsQueryService.GetPreferredProductsAsync).
-  // Burada yeniden sıralamıyoruz; sekme yalnızca kategoriye göre daraltıyor.
+  // The server order IS the preference ranking (watchlist count, then store
+  // clicks; see DealsQueryService.GetPreferredProductsAsync). No re-sorting
+  // here; a tab only narrows by category.
   protected readonly visibleProducts = computed(() => {
     const activeTab = PREFERENCE_TABS.find((tab) => tab.id === this.selectedGroup()) ?? PREFERENCE_TABS[0];
     const candidates = activeTab.categories.length === 0

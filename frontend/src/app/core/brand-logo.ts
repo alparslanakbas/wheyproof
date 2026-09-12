@@ -1,108 +1,65 @@
 import { brandSlug } from './brand-slug';
 
 /**
- * Logosu indirilip `frontend/public/marka-logo/` altına konmuş markalar.
+ * Brands whose logo has been downloaded to `frontend/public/brand-logos/`.
  *
- * <b>NEDEN KENDİ SUNUCUMUZDAN:</b> logolar önce markaların KENDİ CDN'lerinden
- * hotlink'leniyordu. Bunun iki sorunu var:
- * 1. Erişilemeyen bir host `onerror` TETİKLEMİYOR — istek asılı kalıyor ve
- *    yedek ikon hiç devreye girmiyor, kart süresiz boş duruyor. 3 Eylül
- *    gecesi Muscle Pump'ın sunucusu tam bunu yaptı (o gün 502 de verdi).
- * 2. Marka logosunu değiştirdiğinde/taşıdığında kart sessizce boşalıyor.
+ * <b>WHY SELF-HOSTED:</b> hotlinking a brand's own CDN has two problems:
+ * 1. An unreachable host does NOT fire `onerror`; the request hangs, the
+ *    fallback never appears and the card stays empty indefinitely.
+ * 2. When a brand changes or moves its logo, the card empties silently.
+ * Files are 128px WebP.
  *
- * Dosyalar 128px WebP'ye indirildi: 584 kB -> 54 kB.
+ * <b>THE LIST IS KEPT BY HAND, NOT GENERATED:</b> only brands whose own
+ * address really is theirs get a logo. Brands that reach us only through a
+ * retailer carry the retailer's address; pulling a favicon from there would
+ * put the retailer's logo on them. Those brands get a monogram, never an
+ * invented logo.
  *
- * <b>LİSTE ELLE TUTULUYOR, ÜRETİLMİYOR:</b> yalnızca adresi GERÇEKTEN
- * kendisine ait olan markaların logosu var. Katalogdaki 89 markanın 66'sı
- * yalnızca bir bayiden geliyor ve veritabanındaki `BaseUrl`'leri bayinin
- * adresi (Olimp -> protein7.com); oradan favicon çekmek onlarca markaya
- * protein7'nin logosunu koyardı. O markalarda logo UYDURULMUYOR, monogram
- * gösteriliyor.
+ * Empty until US brand logos are added; every brand shows its monogram.
  */
-const YEREL_LOGOLU_MARKALAR: ReadonlySet<string> = new Set([
-  'bahs',
-  'bigjoy',
-  'biofit',
-  'commander-nutrition',
-  'dr-supplement',
-  'fellas',
-  'gigi-s',
-  'gnc',
-  'grizzone',
-  'hardline',
-  'heyday',
-  'hiq',
-  'imperium-supplements',
-  'kiperin',
-  'mla-protein',
-  'nois-nutrition',
-  'prime-nutrition',
-  'proteinocean',
-  's4u-nutrition',
-  'space-gym-supplements',
-  'ssn',
-  'supplement-factory',
-  'supra-protein',
-  'swiss-nutrition',
-  'think-nutrition',
-  'torq-nutrition',
-  'vitabear',
-  'west-nutrition',
-  'yesilmarka',
-]);
+const BRANDS_WITH_LOCAL_LOGO: ReadonlySet<string> = new Set<string>([]);
 
 /**
- * Şeffaf zeminli, AÇIK RENK logolar. Kartın açık gri dairesinde (#f7f7fa)
- * bunlar tamamen kayboluyor — Prime Nutrition kartı bomboş görünüyordu.
- *
- * Liste tahminle değil ÖLÇÜLEREK çıkarıldı: her dosyanın saydam olmayan
- * pikselleri üzerinden ortalama parlaklık ve saydamlık oranı hesaplandı,
- * "parlaklık > 200 ve saydamlık > %20" olanlar alındı. Saydam olmayan açık
- * logolar (GNC, Think Nutrition, Imperium) listede YOK — onların kendi açık
- * zemini var, dairede zaten düzgün görünüyorlar.
+ * Light logos on a transparent background, which vanish on the card's light
+ * grey circle. Chosen by MEASURING each file (mean brightness of opaque
+ * pixels > 200 and transparency > 20%), not by eye.
  */
-const KOYU_ZEMIN_ISTEYEN: ReadonlySet<string> = new Set([
-  'prime-nutrition',
-  'space-gym-supplements',
-  'supplement-factory',
-]);
+const NEEDS_DARK_BACKDROP: ReadonlySet<string> = new Set<string>([]);
 
-/** Logo dosyası varsa yolu, yoksa null. */
+/** Path to the logo file, or null. */
 export function brandLogoUrl(brandName: string): string | null {
   const slug = brandSlug(brandName);
-  return YEREL_LOGOLU_MARKALAR.has(slug) ? `/marka-logo/${slug}.webp` : null;
+  return BRANDS_WITH_LOCAL_LOGO.has(slug) ? `/brand-logos/${slug}.webp` : null;
 }
 
-/** Logo açık renk + şeffaf zeminliyse kart dairesi koyulaştırılmalı. */
+/** A light, transparent logo needs a darker circle behind it. */
 export function brandLogoNeedsDarkBackdrop(brandName: string): boolean {
-  return KOYU_ZEMIN_ISTEYEN.has(brandSlug(brandName));
+  return NEEDS_DARK_BACKDROP.has(brandSlug(brandName));
 }
 
 /**
- * Logosu olmayan markalar için monogram harfleri.
+ * Monogram letters for brands without a logo.
  *
- * Genel bir mağaza ikonu yerine monogram kullanılıyor: 89 markanın 66'sında
- * aynı ikon tekrarlanınca dizin "eksik" görünüyordu ve markalar birbirinden
- * ayırt edilemiyordu. Monogram uydurma bilgi DEĞİL — markanın kendi adından
- * türüyor.
- *
- * İki kelimeli adlarda iki kelimenin baş harfi ("Nuclear Nutrition" -> "NN"),
- * tek kelimede ilk iki harf ("Olimp" -> "OL").
+ * A generic store icon repeated on most brands made the directory look
+ * incomplete and the brands indistinguishable. A monogram is not invented
+ * information: it comes from the brand's own name. Two words give their
+ * initials ("Transparent Labs" -> "TL"), one word its first two letters
+ * ("Kaged" -> "KA").
  */
 export function brandMonogram(brandName: string): string {
-  const kelimeler = brandName
+  const words = brandName
     .split(/[\s.&-]+/)
-    .filter((k) => /[a-zA-ZçğıöşüÇĞİÖŞÜ0-9]/.test(k));
+    .filter((w) => /[\p{L}0-9]/u.test(w));
 
-  if (kelimeler.length === 0) return '?';
-  if (kelimeler.length === 1) return kelimeler[0].slice(0, 2).toLocaleUpperCase('tr-TR');
+  if (words.length === 0) return '?';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
 
-  return (kelimeler[0][0] + kelimeler[1][0]).toLocaleUpperCase('tr-TR');
+  return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-// Monogram zeminleri — Nocturne paletiyle uyumlu, okunabilirliği test edilmiş
-// koyu tonlar (üzerine beyaz yazı geliyor).
-const MONOGRAM_RENKLERI = [
+// Monogram backgrounds: dark tones from the site palette, checked for
+// contrast with white text.
+const MONOGRAM_COLORS = [
   '#4c4bb8',
   '#2f6f5e',
   '#8a4b7d',
@@ -114,13 +71,13 @@ const MONOGRAM_RENKLERI = [
 ];
 
 /**
- * Marka adından SABİT bir zemin rengi. Aynı marka her zaman aynı rengi alır
- * (rastgele değil), böylece kullanıcı markayı renginden de tanıyabiliyor.
+ * A FIXED background color from the brand name: the same brand always gets
+ * the same color (not random), so people can recognise it by color too.
  */
 export function brandMonogramColor(brandName: string): string {
-  let toplam = 0;
+  let hash = 0;
   for (let i = 0; i < brandName.length; i++) {
-    toplam = (toplam * 31 + brandName.charCodeAt(i)) >>> 0;
+    hash = (hash * 31 + brandName.charCodeAt(i)) >>> 0;
   }
-  return MONOGRAM_RENKLERI[toplam % MONOGRAM_RENKLERI.length];
+  return MONOGRAM_COLORS[hash % MONOGRAM_COLORS.length];
 }

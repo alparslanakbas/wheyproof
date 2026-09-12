@@ -14,8 +14,7 @@ export class NewsletterSignup {
 
   protected readonly email = signal('');
 
-  /** Bal küpü — şablonda gizli, gerçek kullanıcı doldurmaz. */
-
+  /** Honeypot: hidden in the template, a real visitor never fills it. */
   protected readonly website = signal('');
   protected readonly submitting = signal(false);
   protected readonly statusMessage = signal<string | null>(null);
@@ -36,7 +35,7 @@ export class NewsletterSignup {
         this.submitting.set(false);
       },
       error: (err) => {
-        this.statusMessage.set(friendlyErrorMessage(err, 'Bir şeyler ters gitti, birazdan tekrar dener misin?'));
+        this.statusMessage.set(friendlyErrorMessage(err, 'Something went wrong. Please try again in a moment.'));
         this.statusIsError.set(true);
         this.submitting.set(false);
       },

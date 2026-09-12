@@ -3,9 +3,9 @@ import { Router } from '@angular/router';
 
 import { ComparisonService } from '../core/comparison.service';
 
-// Karşılaştırmaya ürün eklendiğinde ekranın altında beliren sabit çubuk.
-// app.html'de site geneli duruyor — seçim hangi sayfada yapılırsa yapılsın
-// (ana sayfa, kategori, marka) aynı çubuk görünüyor.
+// Fixed bar that appears at the bottom once a product is added to the
+// comparison. It lives in app.html, so the same bar shows whichever page the
+// products were picked on (home, category, brand).
 @Component({
   selector: 'app-comparison-bar',
   imports: [],

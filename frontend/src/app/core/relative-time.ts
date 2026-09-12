@@ -1,23 +1,27 @@
-// timeZone sabit Europe/Istanbul — bkz. product-modal.ts'teki aynı gerekçe.
-const ABSOLUTE_DATE_FORMATTER = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', timeZone: 'Europe/Istanbul' });
+import { MARKET } from './market';
 
-// Sunucu/istemci farkı yok — sadece Date matematiği, SSR'da da güvenli.
-// Sekmede uzun süre açık kalan bir sayfada metin bayatlayabilir (canlı
-// güncellenmiyor) ama "son kontrol ne zamandı" bilgisi için bu kadarı
-// MVP'de yeterli, saniyede bir tekrar hesaplayan bir zamanlayıcıya gerek yok.
+const ABSOLUTE_DATE_FORMATTER = new Intl.DateTimeFormat(MARKET.locale, { month: 'short', day: 'numeric', timeZone: MARKET.timeZone });
+
+function plural(count: number, unit: string): string {
+  return `${count} ${unit}${count === 1 ? '' : 's'} ago`;
+}
+
+// Plain Date arithmetic, identical on server and client, so safe in SSR. A
+// tab left open for a long time shows a stale text (it does not tick), which
+// is fine for "when was this last checked".
 export function formatRelativeTime(isoDate: string): string {
   const diffMs = Date.now() - new Date(isoDate).getTime();
   const diffMin = Math.floor(diffMs / 60_000);
 
-  if (diffMin < 1) return 'az önce';
-  if (diffMin < 60) return `${diffMin} dakika önce`;
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return plural(diffMin, 'minute');
 
   const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour} saat önce`;
+  if (diffHour < 24) return plural(diffHour, 'hour');
 
   const diffDay = Math.floor(diffHour / 24);
-  if (diffDay === 1) return 'dün';
-  if (diffDay < 7) return `${diffDay} gün önce`;
+  if (diffDay === 1) return 'yesterday';
+  if (diffDay < 7) return plural(diffDay, 'day');
 
   return ABSOLUTE_DATE_FORMATTER.format(new Date(isoDate));
 }

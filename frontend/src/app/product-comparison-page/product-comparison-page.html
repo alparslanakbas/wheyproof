@@ -4,14 +4,14 @@
   <main class="mx-auto max-w-[1280px] px-[28px] py-[22px] pb-[120px]">
     @if (loadError()) {
       <div class="mx-auto max-w-md rounded-[8px] bg-[var(--noc-surface)] px-6 py-8 text-center">
-        Ürün bilgileri şu anda yüklenemedi. Lütfen birazdan tekrar dene.
-        <a routerLink="/" class="mt-2 block w-full text-sm font-medium text-[var(--noc-accent)]">Ana sayfaya dön</a>
+        We couldn't load these products right now. Please try again in a moment.
+        <a routerLink="/" class="mt-2 block w-full text-sm font-medium text-[var(--noc-accent)]">Back to the home page</a>
       </div>
     } @else if (loading()) {
-      <div class="mx-auto max-w-md px-6 py-10 text-center text-sm text-[var(--noc-neutral-500)]">Yükleniyor…</div>
+      <div class="mx-auto max-w-md px-6 py-10 text-center text-sm text-[var(--noc-neutral-500)]">Loading…</div>
     } @else if (products().length === 2) {
       <nav class="mb-2 text-xs text-[var(--noc-neutral-500)]">
-        <a routerLink="/" class="hover:text-[var(--noc-accent)]">Ana Sayfa</a> / Ürün Karşılaştırma
+        <a routerLink="/" class="hover:text-[var(--noc-accent)]">Home</a> / Product Comparison
       </nav>
       <h1 class="text-[28px] font-medium leading-tight tracking-[-0.03em] sm:text-[34px]">
         {{ displayName(products()[0].deal.productName) }}
@@ -19,11 +19,11 @@
         {{ displayName(products()[1].deal.productName) }}
       </h1>
       <p class="mt-2 max-w-2xl text-[15px] text-[var(--noc-neutral-300)]">
-        Güncel fiyatlar, servis başı maliyet ve son {{ historyDays }} günün fiyat geçmişi yan yana. Fiyatlar günde
-        4 kez taranıyor; indirim etiketleri markanın beyanına değil, kendi topladığımız geçmişe dayanıyor.
+        Current prices, cost per serving and the last {{ historyDays }} days of price history, side by side. Prices are
+        checked several times a day; discount badges rest on the history we collect, not on the brand's own claim.
       </p>
 
-      <!-- Ürün başlıkları + görselleri -->
+      <!-- Product headers and images -->
       <div class="mt-[22px] grid grid-cols-2 gap-3">
         @for (item of products(); track item.deal.productId) {
           <div class="rounded-[14px] bg-[var(--noc-card)] p-4 shadow-[var(--noc-shadow-sm)]">
@@ -38,34 +38,34 @@
         }
       </div>
 
-      <!-- Karşılaştırma tablosu -->
+      <!-- Comparison table -->
       <div class="mt-3 overflow-hidden rounded-[14px] bg-[var(--noc-card)] shadow-[var(--noc-shadow-sm)]">
         <table class="w-full text-sm">
           <tbody>
             <tr class="border-b border-[var(--noc-divider)]">
-              <th class="w-[110px] px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:w-[160px] sm:px-4">Güncel fiyat</th>
+              <th class="w-[110px] px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:w-[160px] sm:px-4">Current price</th>
               @for (item of products(); track item.deal.productId; let i = $index) {
                 <td class="px-3 py-3 sm:px-4">
                   <span class="font-medium" [class.text-[var(--noc-accent)]]="cheaperIndex() === i">
-                    {{ item.deal.currentPrice | number: '1.2-2' }} ₺
+                    {{ item.deal.currentPrice | price }}
                   </span>
                   @if (cheaperIndex() === i) {
-                    <span class="ml-1 text-[11px] text-[var(--noc-accent)]">daha ucuz</span>
+                    <span class="ml-1 text-[11px] text-[var(--noc-accent)]">cheaper</span>
                   }
                 </td>
               }
             </tr>
 
             <tr class="border-b border-[var(--noc-divider)]">
-              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Servis başı</th>
+              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Per serving</th>
               @for (item of products(); track item.deal.productId; let i = $index) {
                 <td class="px-3 py-3 sm:px-4">
                   @if (item.pricePerServing) {
                     <span class="font-medium" [class.text-[var(--noc-accent)]]="cheaperPerServingIndex() === i">
-                      {{ item.pricePerServing | number: '1.2-2' }} ₺
+                      {{ item.pricePerServing | price }}
                     </span>
                     @if (cheaperPerServingIndex() === i) {
-                      <span class="ml-1 text-[11px] text-[var(--noc-accent)]">daha uygun</span>
+                      <span class="ml-1 text-[11px] text-[var(--noc-accent)]">better value</span>
                     }
                   } @else {
                     <span class="text-[var(--noc-neutral-500)]">—</span>
@@ -74,21 +74,21 @@
               }
             </tr>
 
-            <!-- Paket boyutundan ve porsiyon farkından arındırılmış iki ölçü:
-                 asıl "hangisi daha iyi değer" sorusunu bunlar cevaplıyor.
-                 Marka besin değeri paylaşmıyorsa "—" kalıyor, tahmin yok. -->
+            <!-- Two measures free of package size and serving size: these
+                 answer the real "which is better value" question. Without
+                 nutrition data from the brand they stay "—", no estimate. -->
             <tr class="border-b border-[var(--noc-divider)]">
               <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">
-                {{ proteinReferenceGrams }} g protein maliyeti
+                Cost of {{ proteinReferenceGrams }} g protein
               </th>
               @for (item of products(); track item.deal.productId; let i = $index) {
                 <td class="px-3 py-3 sm:px-4">
                   @if (item.proteinCost) {
                     <span class="font-medium" [class.text-[var(--noc-accent)]]="cheaperProteinIndex() === i">
-                      {{ item.proteinCost | number: '1.2-2' }} ₺
+                      {{ item.proteinCost | price }}
                     </span>
                     @if (cheaperProteinIndex() === i) {
-                      <span class="ml-1 text-[11px] text-[var(--noc-accent)]">daha uygun</span>
+                      <span class="ml-1 text-[11px] text-[var(--noc-accent)]">better value</span>
                     }
                   } @else {
                     <span class="text-[var(--noc-neutral-500)]">—</span>
@@ -98,11 +98,11 @@
             </tr>
 
             <tr class="border-b border-[var(--noc-divider)]">
-              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Porsiyonun protein oranı</th>
+              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Protein per serving</th>
               @for (item of products(); track item.deal.productId; let i = $index) {
                 <td class="px-3 py-3 sm:px-4">
                   @if (item.proteinRatio) {
-                    <span [class.text-[var(--noc-accent)]]="denserProteinIndex() === i">%{{ item.proteinRatio }}</span>
+                    <span [class.text-[var(--noc-accent)]]="denserProteinIndex() === i">{{ item.proteinRatio }}%</span>
                     <span class="ml-1 text-[11px] text-[var(--noc-neutral-500)]">
                       ({{ item.deal.proteinPerServingGrams }} g / {{ item.deal.servingSizeGrams }} g)
                     </span>
@@ -114,19 +114,19 @@
             </tr>
 
             <tr class="border-b border-[var(--noc-divider)]">
-              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Paket</th>
+              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Package</th>
               @for (item of products(); track item.deal.productId) {
                 <td class="px-3 py-3 text-[var(--noc-neutral-300)] sm:px-4">{{ item.deal.size || '—' }}</td>
               }
             </tr>
 
             <tr class="border-b border-[var(--noc-divider)]">
-              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Servis sayısı</th>
+              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Servings</th>
               @for (item of products(); track item.deal.productId; let i = $index) {
                 <td class="px-3 py-3 sm:px-4">
                   @if (item.servings) {
                     <span [class.text-[var(--noc-accent)]]="biggerPackageIndex() === i">
-                      {{ item.servings | number: '1.0-0' }} servis
+                      {{ item.servings | number: '1.0-0' }} servings
                     </span>
                   } @else {
                     <span class="text-[var(--noc-neutral-500)]">—</span>
@@ -136,7 +136,7 @@
             </tr>
 
             <tr class="border-b border-[var(--noc-divider)]">
-              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Porsiyon</th>
+              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Serving size</th>
               @for (item of products(); track item.deal.productId) {
                 <td class="px-3 py-3 text-[var(--noc-neutral-300)] sm:px-4">
                   {{ item.deal.servingSizeGrams ? (item.deal.servingSizeGrams + ' g') : '—' }}
@@ -145,16 +145,16 @@
             </tr>
 
             <tr class="border-b border-[var(--noc-divider)]">
-              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">İndirim</th>
+              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Discount</th>
               @for (item of products(); track item.deal.productId) {
                 <td class="px-3 py-3 sm:px-4">
                   @if (item.deal.discountPercent > 0) {
                     <span class="rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-[var(--noc-accent-100)]" style="background: var(--noc-accent-800)">
-                      Doğrulanmış -%{{ item.deal.discountPercent }}
+                      Verified -{{ item.deal.discountPercent }}%
                     </span>
                   } @else if (item.deal.storeDiscountPercent) {
-                    <span class="rounded-[4px] border border-[var(--noc-divider)] px-1.5 py-0.5 text-[11px] text-[var(--noc-neutral-500)]" title="Markanın kendi beyanı, tarafımızdan doğrulanmadı">
-                      Mağaza -%{{ item.deal.storeDiscountPercent }}
+                    <span class="rounded-[4px] border border-[var(--noc-divider)] px-1.5 py-0.5 text-[11px] text-[var(--noc-neutral-500)]" title="The brand's own claim, not verified by us">
+                      Store claims -{{ item.deal.storeDiscountPercent }}%
                     </span>
                   } @else {
                     <span class="text-[var(--noc-neutral-500)]">—</span>
@@ -164,34 +164,34 @@
             </tr>
 
             <tr class="border-b border-[var(--noc-divider)]">
-              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">30 günün dibi</th>
+              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">30-day low</th>
               @for (item of products(); track item.deal.productId) {
                 <td class="px-3 py-3 sm:px-4">
                   @if (item.deal.isAtThirtyDayLow) {
-                    <span class="text-[var(--noc-accent)]">Evet</span>
+                    <span class="text-[var(--noc-accent)]">Yes</span>
                   } @else {
-                    <span class="text-[var(--noc-neutral-500)]">Hayır</span>
+                    <span class="text-[var(--noc-neutral-500)]">No</span>
                   }
                 </td>
               }
             </tr>
 
             <tr class="border-b border-[var(--noc-divider)]">
-              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Kategori</th>
+              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Category</th>
               @for (item of products(); track item.deal.productId) {
                 <td class="px-3 py-3 text-[var(--noc-neutral-300)] sm:px-4">{{ categoryLabel(item.deal.category) }}</td>
               }
             </tr>
 
             <tr class="border-b border-[var(--noc-divider)]">
-              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Aroma</th>
+              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Flavor</th>
               @for (item of products(); track item.deal.productId) {
                 <td class="px-3 py-3 text-[var(--noc-neutral-300)] sm:px-4">{{ item.deal.flavor || '—' }}</td>
               }
             </tr>
 
             <tr>
-              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Son kontrol</th>
+              <th class="px-3 py-3 text-left text-xs font-normal text-[var(--noc-neutral-500)] sm:px-4">Last checked</th>
               @for (item of products(); track item.deal.productId) {
                 <td class="px-3 py-3 text-[var(--noc-neutral-300)] sm:px-4">{{ lastChecked(item.deal) }}</td>
               }
@@ -200,11 +200,11 @@
         </table>
       </div>
 
-      <!-- Fiyat geçmişi: iki grafik yan yana -->
-      <h2 class="mt-[45px] text-[20px] font-medium">Son {{ historyDays }} günün fiyat geçmişi</h2>
+      <!-- Price history: two charts side by side -->
+      <h2 class="mt-[45px] text-[20px] font-medium">Price history, last {{ historyDays }} days</h2>
       <p class="mt-1 text-sm text-[var(--noc-neutral-300)]">
-        Her grafik kendi fiyat aralığına göre ölçekleniyor — eğimler değişimi gösterir, iki grafiğin yüksekliği
-        birbiriyle kıyaslanamaz.
+        Each chart is scaled to its own price range: the slopes show the change, but the heights of the two charts
+        can't be compared with each other.
       </p>
       <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         @for (item of products(); track item.deal.productId) {
@@ -217,16 +217,16 @@
               </svg>
             } @else {
               <div class="py-8 text-center text-xs text-[var(--noc-neutral-500)]">
-                Bu ürün için henüz yeterli fiyat geçmişi birikmedi.
+                Not enough price history has built up for this product yet.
               </div>
             }
           </div>
         }
       </div>
 
-      <!-- Açıklamalar (varsa) -->
+      <!-- Descriptions (when present) -->
       @if (products()[0].deal.description || products()[1].deal.description) {
-        <h2 class="mt-[45px] text-[20px] font-medium">Ürün açıklamaları</h2>
+        <h2 class="mt-[45px] text-[20px] font-medium">Product descriptions</h2>
         <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           @for (item of products(); track item.deal.productId) {
             <div class="rounded-[14px] bg-[var(--noc-card)] p-4 shadow-[var(--noc-shadow-sm)]">
@@ -236,19 +236,18 @@
                   <p class="mb-2 text-xs leading-relaxed text-[var(--noc-neutral-500)] last:mb-0">{{ paragraph }}</p>
                 }
               } @else {
-                <p class="text-xs text-[var(--noc-neutral-500)]">Bu ürün için marka açıklaması bulunmuyor.</p>
+                <p class="text-xs text-[var(--noc-neutral-500)]">The brand doesn't provide a description for this product.</p>
               }
             </div>
           }
         </div>
       }
 
-      <!-- Besin değerleri (varsa) -->
+      <!-- Nutrition facts (when present) -->
       @if (nutritionRows().length > 0) {
-        <h2 class="mt-[45px] text-[20px] font-medium">Besin Değerleri</h2>
+        <h2 class="mt-[45px] text-[20px] font-medium">Nutrition Facts</h2>
         <p class="mt-1 text-sm text-[var(--noc-neutral-300)]">
-          Markanın kendi besin değeri tablosundan, porsiyon başına. Bir markanın vermediği satır "—" gösteriliyor,
-          tahmini bir değer değil.
+          From each brand's own nutrition table, per serving. A row a brand doesn't provide shows "—", not an estimate.
         </p>
         <div class="mt-3 overflow-hidden rounded-[14px] bg-[var(--noc-card)] shadow-[var(--noc-shadow-sm)]">
           <table class="w-full text-sm">
@@ -268,25 +267,25 @@
         </div>
       }
 
-      <!-- Mağazaya git -->
+      <!-- Go to store -->
       <div class="mt-[45px] grid grid-cols-2 gap-3">
         @for (item of products(); track item.deal.productId) {
           <a
-            [href]="storeUrl(item.deal)" (click)="magazaTiklamasi(item.deal.productId)"
+            [href]="storeUrl(item.deal)" (click)="trackStoreClick(item.deal.productId)"
             target="_blank"
             rel="noopener nofollow sponsored"
             class="rounded-[8px] py-2.5 text-center text-sm font-medium text-[var(--noc-accent-100)]"
             style="background: var(--noc-accent-800)"
           >
-            <span class="block truncate px-2 text-[11px] opacity-80">{{ magazaButonEtiketi(item.deal) }}</span>
-            <span class="block">{{ item.deal.brandName }} mağazasına git</span>
+            <span class="block truncate px-2 text-[11px] opacity-80">{{ storeButtonLabel(item.deal) }}</span>
+            <span class="block">Go to {{ item.deal.seller ?? item.deal.brandName }}</span>
           </a>
         }
       </div>
 
       <div class="mt-6 text-center">
-        <button type="button" class="text-xs text-[var(--noc-neutral-500)] underline hover:text-[var(--noc-accent)]" (click)="karsilastirmayiTemizle()">
-          Karşılaştırmayı temizle
+        <button type="button" class="text-xs text-[var(--noc-neutral-500)] underline hover:text-[var(--noc-accent)]" (click)="clearComparison()">
+          Clear comparison
         </button>
       </div>
     }

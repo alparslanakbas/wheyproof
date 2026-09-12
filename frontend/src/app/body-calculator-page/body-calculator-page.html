@@ -4,8 +4,8 @@
 
     <main class="mx-auto max-w-[1280px] px-[28px] py-[22px]">
       <nav class="mb-2 text-xs text-[var(--noc-neutral-500)]">
-        <a routerLink="/" class="hover:text-[var(--noc-accent)]">Ana Sayfa</a> /
-        <a routerLink="/hesaplama" class="hover:text-[var(--noc-accent)]">Hesaplama</a> /
+        <a routerLink="/" class="hover:text-[var(--noc-accent)]">Home</a> /
+        <a routerLink="/calculators" class="hover:text-[var(--noc-accent)]">Calculators</a> /
         {{ cfg.name }}
       </nav>
       <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">{{ cfg.h1 }}</h1>
@@ -14,9 +14,28 @@
       <div class="mt-[22px] grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr]">
         <!-- Form -->
         <section class="rounded-[14px] bg-[var(--noc-card)] p-5 shadow-[var(--noc-shadow-sm)]">
+          @if (showsField('height') || showsField('weight')) {
+            <div class="mb-4 inline-flex rounded-[8px] border border-[var(--noc-divider)] p-0.5 text-xs" role="group" aria-label="Units">
+              <button
+                type="button"
+                class="rounded-[6px] px-2.5 py-1"
+                [class]="units() === 'us' ? 'bg-[var(--noc-accent)] text-white' : 'text-[var(--noc-neutral-300)]'"
+                [attr.aria-pressed]="units() === 'us'"
+                (click)="setUnits('us')"
+              >ft / lb</button>
+              <button
+                type="button"
+                class="rounded-[6px] px-2.5 py-1"
+                [class]="units() === 'metric' ? 'bg-[var(--noc-accent)] text-white' : 'text-[var(--noc-neutral-300)]'"
+                [attr.aria-pressed]="units() === 'metric'"
+                (click)="setUnits('metric')"
+              >cm / kg</button>
+            </div>
+          }
+
           @if (showsField('gender')) {
             <fieldset>
-              <legend class="text-sm font-medium">Cinsiyet</legend>
+              <legend class="text-sm font-medium">Sex</legend>
               <div class="mt-2 inline-flex overflow-hidden rounded-[8px] border border-[var(--noc-divider)]">
                 <button
                   type="button"
@@ -24,7 +43,7 @@
                   [class]="gender() === 'male' ? 'text-[var(--noc-accent)] shadow-[inset_0_0_0_1px_var(--noc-accent)]' : 'hover:bg-[color-mix(in_srgb,var(--noc-text)_7%,transparent)]'"
                   (click)="gender.set('male')"
                 >
-                  Erkek
+                  Male
                 </button>
                 <button
                   type="button"
@@ -32,7 +51,7 @@
                   [class]="gender() === 'female' ? 'text-[var(--noc-accent)] shadow-[inset_0_0_0_1px_var(--noc-accent)]' : 'hover:bg-[color-mix(in_srgb,var(--noc-text)_7%,transparent)]'"
                   (click)="gender.set('female')"
                 >
-                  Kadın
+                  Female
                 </button>
               </div>
             </fieldset>
@@ -40,43 +59,58 @@
 
           @if (showsField('age')) {
             <label class="mt-4 block">
-              <span class="text-sm font-medium">Yaş</span>
+              <span class="text-sm font-medium">Age</span>
               <div class="mt-2 flex items-center gap-2">
-                <input type="number" inputmode="numeric" min="10" max="100" placeholder="örn. 28"
+                <input type="number" inputmode="numeric" min="10" max="100" placeholder="e.g. 28"
                   [ngModel]="age()" (ngModelChange)="age.set($event)"
                   class="w-full rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-3 py-2 text-[15px] text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none" />
-                <span class="text-sm text-[var(--noc-neutral-500)]">yaş</span>
+                <span class="text-sm text-[var(--noc-neutral-500)]">years</span>
               </div>
             </label>
           }
 
           @if (showsField('height')) {
-            <label class="mt-4 block">
-              <span class="text-sm font-medium">Boy</span>
-              <div class="mt-2 flex items-center gap-2">
-                <input type="number" inputmode="numeric" min="100" max="250" placeholder="örn. 178"
-                  [ngModel]="height()" (ngModelChange)="height.set($event)"
-                  class="w-full rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-3 py-2 text-[15px] text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none" />
-                <span class="text-sm text-[var(--noc-neutral-500)]">cm</span>
-              </div>
-            </label>
+            <div class="mt-4">
+              <span class="text-sm font-medium">Height</span>
+              @if (units() === 'us') {
+                <div class="mt-2 flex items-center gap-2">
+                  <input type="number" inputmode="numeric" min="3" max="8" placeholder="5" aria-label="Height, feet"
+                    [ngModel]="heightFt()" (ngModelChange)="heightFt.set($event)"
+                    class="w-full rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-3 py-2 text-[15px] text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none" />
+                  <span class="text-sm text-[var(--noc-neutral-500)]">ft</span>
+                  <input type="number" inputmode="numeric" min="0" max="11" placeholder="10" aria-label="Height, inches"
+                    [ngModel]="heightIn()" (ngModelChange)="heightIn.set($event)"
+                    class="w-full rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-3 py-2 text-[15px] text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none" />
+                  <span class="text-sm text-[var(--noc-neutral-500)]">in</span>
+                </div>
+              } @else {
+                <div class="mt-2 flex items-center gap-2">
+                  <input type="number" inputmode="numeric" min="100" max="250" placeholder="e.g. 178" aria-label="Height, centimeters"
+                    [ngModel]="heightCm()" (ngModelChange)="heightCm.set($event)"
+                    class="w-full rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-3 py-2 text-[15px] text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none" />
+                  <span class="text-sm text-[var(--noc-neutral-500)]">cm</span>
+                </div>
+              }
+            </div>
           }
 
           @if (showsField('weight')) {
             <label class="mt-4 block">
-              <span class="text-sm font-medium">Kilo</span>
+              <span class="text-sm font-medium">Weight</span>
               <div class="mt-2 flex items-center gap-2">
-                <input type="number" inputmode="numeric" min="30" max="300" placeholder="örn. 75"
+                <input type="number" inputmode="decimal"
+                  [attr.min]="units() === 'us' ? 66 : 30" [attr.max]="units() === 'us' ? 660 : 300"
+                  [placeholder]="units() === 'us' ? 'e.g. 165' : 'e.g. 75'"
                   [ngModel]="weight()" (ngModelChange)="weight.set($event)"
                   class="w-full rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-3 py-2 text-[15px] text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none" />
-                <span class="text-sm text-[var(--noc-neutral-500)]">kg</span>
+                <span class="text-sm text-[var(--noc-neutral-500)]">{{ units() === 'us' ? 'lb' : 'kg' }}</span>
               </div>
             </label>
           }
 
           @if (showsField('activity')) {
             <fieldset class="mt-5">
-              <legend class="text-sm font-medium">Aktivite seviyen</legend>
+              <legend class="text-sm font-medium">Your activity level</legend>
               <div class="mt-2 space-y-2">
                 @for (level of activityOptions; track level.id) {
                   <label
@@ -103,7 +137,7 @@
           </p>
         </section>
 
-        <!-- Sonuç -->
+        <!-- Result -->
         <section>
           @if (result(); as res) {
             <div class="rounded-[14px] border border-[var(--noc-accent)] bg-[color-mix(in_srgb,var(--noc-accent)_8%,transparent)] p-5">
@@ -132,19 +166,19 @@
             </div>
           } @else {
             <div class="rounded-[14px] bg-[var(--noc-card)] px-6 py-10 text-center text-sm text-[var(--noc-neutral-500)]">
-              Sonucu görmek için soldaki alanları doldur.
+              Fill in the fields to see your result.
             </div>
           }
 
           <div class="mt-4 flex flex-wrap gap-2">
-            <a routerLink="/hesaplama/protein-ihtiyaci" class="rounded-[6px] border border-[var(--noc-accent)] px-3 py-1.5 text-xs text-[var(--noc-accent)]">
-              Protein ihtiyacını da hesapla
+            <a routerLink="/calculators/protein" class="rounded-[6px] border border-[var(--noc-accent)] px-3 py-1.5 text-xs text-[var(--noc-accent)]">
+              Calculate your protein needs too
             </a>
-            <a routerLink="/hesaplama" class="rounded-[6px] border border-[var(--noc-divider)] px-3 py-1.5 text-xs text-[var(--noc-neutral-300)] hover:text-[var(--noc-accent)]">
-              Diğer hesaplama araçları
+            <a routerLink="/calculators" class="rounded-[6px] border border-[var(--noc-divider)] px-3 py-1.5 text-xs text-[var(--noc-neutral-300)] hover:text-[var(--noc-accent)]">
+              More calculators
             </a>
-            <a routerLink="/kategori/protein-tozu" class="rounded-[6px] border border-[var(--noc-divider)] px-3 py-1.5 text-xs text-[var(--noc-neutral-300)] hover:text-[var(--noc-accent)]">
-              Protein tozu fiyatları
+            <a routerLink="/category/protein-powder" class="rounded-[6px] border border-[var(--noc-divider)] px-3 py-1.5 text-xs text-[var(--noc-neutral-300)] hover:text-[var(--noc-accent)]">
+              Protein powder prices
             </a>
           </div>
         </section>

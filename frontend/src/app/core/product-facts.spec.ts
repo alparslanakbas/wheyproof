@@ -1,18 +1,17 @@
 import { Deal } from './deal.model';
 import { buildProductFacts } from './product-facts';
 
-// Stok rozetindeki asıl incelik null ile false ayrımı: sekiz kaynaktan
-// yalnızca üçü stok bilgisi veriyor, diğerlerinde alan null geliyor.
-// Truthy kontrolü kullanılsaydı o beş markanın TÜM ürünlerinde "tükendi"
-// yazardı — uydurma veri.
-function deal(ustuneYaz: Partial<Deal> = {}): Deal {
+// The real subtlety in the stock row is null vs false: many sources don't
+// report stock and send null. A truthy check would print "out of stock" on
+// every product from those sources: invented data.
+function deal(overrides: Partial<Deal> = {}): Deal {
   return {
     productId: 1,
-    productName: 'Test Whey 1000g',
-    productUrl: 'https://example.com/urun',
+    productName: 'Test Whey 2 lb',
+    productUrl: 'https://example.com/product',
     imageUrl: null,
-    category: 'protein-tozu',
-    size: '1000 g',
+    category: 'protein-powder',
+    size: '2 lb',
     flavor: null,
     inStock: null,
     seller: null,
@@ -21,7 +20,7 @@ function deal(ustuneYaz: Partial<Deal> = {}): Deal {
     description: null,
     nutritionJson: null,
     proteinPerServingGrams: null,
-    brandName: 'TestMarka',
+    brandName: 'TestBrand',
     currentPrice: 100,
     referencePrice: 120,
     discountPercent: 16.7,
@@ -29,63 +28,61 @@ function deal(ustuneYaz: Partial<Deal> = {}): Deal {
     storeDiscountPercent: null,
     scrapedAt: new Date().toISOString(),
     isAtThirtyDayLow: false,
-    ...ustuneYaz,
+    ...overrides,
   } as Deal;
 }
 
-function stokSatiri(d: Deal) {
-  return buildProductFacts(d).find((f) => f.label === 'Stok durumu');
+function stockRow(d: Deal) {
+  return buildProductFacts(d).find((f) => f.label === 'Stock');
 }
 
-function saticiSatiri(d: Deal) {
-  return buildProductFacts(d).find((f) => f.label === 'Satıcı');
+function sellerRow(d: Deal) {
+  return buildProductFacts(d).find((f) => f.label === 'Seller');
 }
 
-describe('buildProductFacts — stok durumu', () => {
-  it('REGRESYON: stok bilgisi vermeyen kaynakta (null) satır GÖSTERMEZ', () => {
-    expect(stokSatiri(deal({ inStock: null }))).toBeUndefined();
+describe('buildProductFacts: stock', () => {
+  it("REGRESSION: shows NO row for a source that doesn't report stock (null)", () => {
+    expect(stockRow(deal({ inStock: null }))).toBeUndefined();
   });
 
-  it('stokta olan üründe satır göstermez', () => {
-    expect(stokSatiri(deal({ inStock: true }))).toBeUndefined();
+  it('shows no row for an in-stock product', () => {
+    expect(stockRow(deal({ inStock: true }))).toBeUndefined();
   });
 
-  it('stokta olmayan üründe satırı marka adıyla gösterir', () => {
-    const satir = stokSatiri(deal({ inStock: false, brandName: 'HIQ' }));
-    expect(satir).toBeDefined();
-    expect(satir!.value).toContain('HIQ');
-    // Ürünün takip edilmeye devam ettiği söylenmeli: kullanıcı kaydını
-    // kaybettiğini sanmamalı.
-    expect(satir!.value).toContain('izlemeye devam');
+  it('shows the row with the brand name for an out-of-stock product', () => {
+    const row = stockRow(deal({ inStock: false, brandName: 'Nutricost' }));
+    expect(row).toBeDefined();
+    expect(row!.value).toContain('Nutricost');
+    // It must say we keep tracking it, so nobody thinks the record is lost.
+    expect(row!.value).toContain('keep tracking');
   });
 });
 
-// Bayi kaynaklarında üretici ile satıcı farklı: ürün "BigJoy" markası
-// altında görünür ama protein7.com'dan satılır. Barkod olmadığı için
-// satıcılar arası eşleştirme yapılmıyor, bu yüzden kullanıcının kimden
-// aldığını görmesi daha da önemli.
-describe('buildProductFacts — satıcı', () => {
-  it('markanın kendi sitesinden gelen üründe satıcı satırı GÖSTERMEZ', () => {
-    expect(saticiSatiri(deal({ seller: null }))).toBeUndefined();
+// For retailer sources the maker and the seller differ: a product appears
+// under the brand but is sold by a retailer. With no barcode, listings aren't
+// matched across sellers, so showing who sells it matters even more.
+describe('buildProductFacts: seller', () => {
+  it("shows NO seller row for a product from the brand's own store", () => {
+    expect(sellerRow(deal({ seller: null }))).toBeUndefined();
   });
 
-  it('bayi ürününde hem markayı hem satıcıyı söyler', () => {
-    const satir = saticiSatiri(deal({ seller: 'protein7.com', brandName: 'BigJoy' }));
-    expect(satir).toBeDefined();
-    expect(satir!.value).toContain('BigJoy');
-    expect(satir!.value).toContain('protein7.com');
+  it('names both the brand and the seller for a retailer listing', () => {
+    const row = sellerRow(deal({ seller: 'store.example.com', brandName: 'Optimum Nutrition' }));
+    expect(row).toBeDefined();
+    expect(row!.value).toContain('Optimum Nutrition');
+    expect(row!.value).toContain('store.example.com');
   });
 
-  it('REGRESYON: tükendi mesajı SATICIYI söyler, markayı değil', () => {
-    // "BigJoy sitesinde tükenmişti" yanlış olurdu: ürün protein7'de
-    // tükenmiş olabilir ama BigJoy'un kendi sitesinde durabilir.
-    const satir = stokSatiri(deal({ inStock: false, seller: 'protein7.com', brandName: 'BigJoy' }));
-    expect(satir!.value).toContain('protein7.com');
-    expect(satir!.value).not.toContain('BigJoy');
+  it('REGRESSION: the out-of-stock message names the SELLER, not the brand', () => {
+    // "Out of stock on Optimum Nutrition" would be wrong: the retailer may be
+    // out while the brand's own store still has it.
+    const row = stockRow(deal({ inStock: false, seller: 'store.example.com', brandName: 'Optimum Nutrition' }));
+    expect(row!.value).toContain('store.example.com');
+    expect(row!.value).not.toContain('Optimum Nutrition');
   });
 
-  it('satıcısı olmayan üründe tükendi mesajı markayı söyler', () => {
-    const satir = stokSatiri(deal({ inStock: false, seller: null, brandName: 'HIQ' }));
-    expect(satir!.value).toContain('HIQ');
+  it('names the brand in the out-of-stock message when there is no seller', () => {
+    const row = stockRow(deal({ inStock: false, seller: null, brandName: 'Nutricost' }));
+    expect(row!.value).toContain('Nutricost');
   });
 });

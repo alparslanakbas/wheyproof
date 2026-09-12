@@ -3,19 +3,22 @@
 
   <main class="pa-method-main">
     <header class="pa-method-hero">
-      <p class="pa-method-eyebrow">Şeffaflık</p>
-      <h1>Nasıl Çalışıyoruz?</h1>
-      <p>Bir fiyatın fırsat sayılmasına kadar geçen yol.</p>
+      <p class="pa-method-eyebrow">Transparency</p>
+      <h1>How It Works</h1>
+      <p>The path from a price to a deal.</p>
     </header>
 
-    <ol class="pa-method-flow" aria-label="Fiyat takip süreci">
+    <!-- No brand count or exact interval here on purpose: both change as
+         sources are added, and a stale number on a transparency page is
+         exactly the kind of claim this site exists to avoid. -->
+    <ol class="pa-method-flow" aria-label="Price tracking process">
       <li class="pa-method-step">
         <span class="pa-method-step-icon" aria-hidden="true">
           <i class="ph ph-storefront"></i>
         </span>
         <span class="pa-method-step-index" aria-hidden="true">1</span>
-        <h2>Resmî marka siteleri</h2>
-        <p><strong>8 markadan</strong> güncel ürün fiyatlarını topluyoruz.</p>
+        <h2>Official stores</h2>
+        <p>We collect current prices from brands' own stores and from retailers.</p>
       </li>
 
       <li class="pa-method-step">
@@ -23,8 +26,8 @@
           <i class="ph ph-clock-counter-clockwise"></i>
         </span>
         <span class="pa-method-step-index" aria-hidden="true">2</span>
-        <h2>6 saatte bir toplama</h2>
-        <p>Fiyatları otomatik olarak yeniliyor ve geçmişe kaydediyoruz.</p>
+        <h2>Checked every day</h2>
+        <p>Prices are refreshed automatically and saved to each product's history.</p>
       </li>
 
       <li class="pa-method-step">
@@ -32,8 +35,8 @@
           <i class="ph ph-chart-line-up"></i>
         </span>
         <span class="pa-method-step-index" aria-hidden="true">3</span>
-        <h2>30 günlük fiyat geçmişi</h2>
-        <p>Son 30 gündeki en yüksek fiyatı referans olarak alıyoruz.</p>
+        <h2>30-day price history</h2>
+        <p>The highest price in the last 30 days becomes the reference.</p>
       </li>
 
       <li class="pa-method-step pa-method-step--active">
@@ -41,8 +44,8 @@
           <i class="ph ph-shield-check"></i>
         </span>
         <span class="pa-method-step-index" aria-hidden="true">4</span>
-        <h2>Karar</h2>
-        <p>Güncel fiyatı kendi geçmişiyle karşılaştırıyoruz.</p>
+        <h2>Verdict</h2>
+        <p>We compare today's price with the product's own history.</p>
       </li>
     </ol>
 
@@ -52,68 +55,68 @@
           <i class="ph ph-scales"></i>
         </span>
         <div>
-          <p class="pa-method-eyebrow">Karar noktası</p>
-          <h2 id="decision-title">Güncel fiyat referans fiyattan düşük mü?</h2>
+          <p class="pa-method-eyebrow">The decision</p>
+          <h2 id="decision-title">Is today's price below the reference price?</h2>
           <p>
-            Referans fiyat, ürünün son 30 gün içinde gördüğümüz en yüksek fiyatıdır. Markanın kendi indirim
-            etiketini bu hesaba katmayız.
+            The reference price is the highest price we've seen for the product in the last 30 days. The brand's own
+            "sale" label is not part of this calculation.
           </p>
         </div>
       </header>
 
       <div class="pa-method-outcomes">
         <article class="pa-method-outcome pa-method-outcome--yes">
-          <span class="pa-method-answer">Evet</span>
+          <span class="pa-method-answer">Yes</span>
           <i class="ph ph-tag" aria-hidden="true"></i>
-          <h3>Gerçek indirim</h3>
-          <p>Ürün, kendi fiyat geçmişine göre gerçekten ucuzladıysa “İndirimdekiler” listesine girer.</p>
+          <h3>Real discount</h3>
+          <p>If the product really got cheaper against its own price history, it joins the deals list.</p>
         </article>
 
         <article class="pa-method-outcome pa-method-outcome--no">
-          <span class="pa-method-answer">Hayır</span>
+          <span class="pa-method-answer">No</span>
           <i class="ph ph-minus-circle" aria-hidden="true"></i>
-          <h3>Gerçek indirim değil</h3>
-          <p>Marka sitesinde “indirim” yazsa bile referans fiyatın altına düşmeyen ürün bu listeye girmez.</p>
+          <h3>Not a real discount</h3>
+          <p>Even if the store says "sale", a product that isn't below its reference price stays off the list.</p>
         </article>
       </div>
 
       <aside class="pa-method-campaign-note">
         <i class="ph ph-megaphone-simple" aria-hidden="true"></i>
         <div>
-          <h3>Mağaza kampanyaları ayrı gösterilir</h3>
+          <h3>Store promotions are shown separately</h3>
           <p>
-            Markanın kendi sitesindeki eski/yeni fiyat farkı ayrı bir mağaza kampanyası olarak gösterilebilir;
-            bu beyanı <strong>doğrulanmamış</strong> etiketiyle gerçek indirimden ayırırız.
+            The old/new price gap on a brand's own site can be shown as a store promotion; we mark that claim
+            <strong>unverified</strong> and keep it apart from real discounts.
           </p>
         </div>
       </aside>
     </section>
 
     <section class="pa-method-principles" aria-labelledby="principles-title">
-      <h2 id="principles-title">Değişmeyen ilkeler</h2>
+      <h2 id="principles-title">Principles that don't change</h2>
 
       <div class="pa-method-principle-grid">
         <article>
           <span aria-hidden="true"><i class="ph ph-ticket"></i></span>
           <div>
-            <h3>Kuponlar elle doğrulanır</h3>
-            <p>Kuponları otomatik toplamıyor, yayınlamadan önce geçerliliğini kontrol ediyoruz.</p>
+            <h3>Coupons are checked by hand</h3>
+            <p>We don't scrape coupons automatically; we check each one works before publishing it.</p>
           </div>
         </article>
 
         <article>
           <span aria-hidden="true"><i class="ph ph-shield-check"></i></span>
           <div>
-            <h3>Sıralama ticari ilişkiden etkilenmez</h3>
-            <p>Affiliate veya komisyon anlaşmaları ürünlerin sırasını değiştirmez.</p>
+            <h3>Ranking isn't for sale</h3>
+            <p>Affiliate links and commissions never change the order products appear in.</p>
           </div>
         </article>
 
         <article>
           <span aria-hidden="true"><i class="ph ph-eye-slash"></i></span>
           <div>
-            <h3>Eksik bilgi tahmin edilmez</h3>
-            <p>Stok ve servis başı fiyat gibi alanları yalnız güvenilir kaynak varsa gösteririz.</p>
+            <h3>Missing data isn't guessed</h3>
+            <p>Fields like stock and price per serving only appear when a reliable source provides them.</p>
           </div>
         </article>
       </div>
@@ -122,7 +125,7 @@
     <div class="pa-method-cta">
       <a routerLink="/">
         <i class="ph ph-compass" aria-hidden="true"></i>
-        İndirimleri keşfet
+        Explore deals
         <i class="ph ph-arrow-right" aria-hidden="true"></i>
       </a>
     </div>

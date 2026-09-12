@@ -3,26 +3,26 @@
 
   <main class="pa-directory-main">
     <nav class="pa-directory-breadcrumb">
-      <a routerLink="/" class="hover:text-[var(--noc-accent)]">Ana Sayfa</a> / Kategoriler
+      <a routerLink="/" class="hover:text-[var(--noc-accent)]">Home</a> / Categories
     </nav>
-    <h1 class="pa-directory-title">Spor Takviyesi Kategorileri</h1>
+    <h1 class="pa-directory-title">Supplement Categories</h1>
     <p class="pa-directory-lead">
-      Takip ettiğimiz tüm spor takviyesi kategorileri, gerçek ürün sayılarıyla.
+      Every supplement category we track, with real product counts.
     </p>
 
-    <section class="pa-directory-toolbar" aria-label="Kategori arama ve filtreleme">
+    <section class="pa-directory-toolbar" aria-label="Search and filter categories">
       <label class="pa-directory-search">
         <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
-        <span class="sr-only">Kategori ara</span>
+        <span class="sr-only">Search categories</span>
         <input
           type="search"
-          placeholder="Kategori ara..."
+          placeholder="Search categories..."
           [value]="categorySearch()"
           (input)="setCategorySearch($any($event.target).value)"
         />
       </label>
 
-      <div class="pa-directory-filters" role="group" aria-label="Kategori türü">
+      <div class="pa-directory-filters" role="group" aria-label="Category type">
         @for (filter of categoryFilters; track filter.value) {
           <button
             type="button"
@@ -36,23 +36,23 @@
         }
       </div>
 
-      <div class="pa-directory-trust" aria-label="Sayfa özellikleri">
-        <span><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i> Gerçek ürün sayıları</span>
-        <span><i class="ph ph-tag" aria-hidden="true"></i> Güncel fiyatları karşılaştır</span>
+      <div class="pa-directory-trust" aria-label="About this page">
+        <span><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i> Real product counts</span>
+        <span><i class="ph ph-tag" aria-hidden="true"></i> Compare current prices</span>
       </div>
     </section>
 
     @if (loadError()) {
       <div class="pa-directory-state">
-        Kategoriler yüklenemedi. Lütfen daha sonra tekrar dene.
+        We couldn't load the categories. Please try again later.
       </div>
     } @else if (loading()) {
-      <div class="pa-directory-state">Yükleniyor...</div>
+      <div class="pa-directory-state">Loading...</div>
     } @else {
       <div class="pa-category-directory-grid">
         @for (category of filteredCategories(); track category.slug) {
           <a
-            [routerLink]="['/kategori', category.slug]"
+            [routerLink]="['/category', category.slug]"
             class="pa-category-directory-card"
             [attr.data-tone]="category.tone"
           >
@@ -63,7 +63,7 @@
               <div class="min-w-0 flex-1">
                 <div class="flex items-start justify-between gap-3">
                   <h2>{{ category.label }}</h2>
-                  <span class="pa-category-count">{{ category.productCount }} ürün</span>
+                  <span class="pa-category-count">{{ category.productCount.toLocaleString('en-US') }} {{ category.productCount === 1 ? 'product' : 'products' }}</span>
                 </div>
                 <p>{{ category.intro }}</p>
               </div>
@@ -73,7 +73,7 @@
         } @empty {
           <div class="pa-directory-state pa-directory-empty">
             <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
-            Bu aramayla eşleşen kategori bulunamadı.
+            No category matches that search.
           </div>
         }
       </div>

@@ -1,31 +1,31 @@
 import { showFooterBrandLinks } from './footer-brand-links';
 
 describe('showFooterBrandLinks', () => {
-  it('ÜRÜN sayfasında gösterilmez — sayfanın %39\'u bu listeydi', () => {
-    expect(showFooterBrandLinks('/urun/1126/hiq-bcaa-390g')).toBe(false);
+  it("isn't shown on PRODUCT pages, where the list was 39% of the page", () => {
+    expect(showFooterBrandLinks('/product/1126/kaged-creatine-hcl')).toBe(false);
   });
 
-  it('İNCELEME sayfasında da gösterilmez', () => {
-    expect(showFooterBrandLinks('/urun-inceleme/1126/hiq-bcaa-390g')).toBe(false);
+  it("isn't shown on REVIEW pages either", () => {
+    expect(showFooterBrandLinks('/review/1126/kaged-creatine-hcl')).toBe(false);
   });
 
-  it('ana sayfada GÖSTERİLİR — orası listenin asıl yeri', () => {
+  it('IS shown on the home page, its main place', () => {
     expect(showFooterBrandLinks('/')).toBe(true);
   });
 
-  it('marka ve kategori sayfalarında GÖSTERİLİR', () => {
-    // Google marka sayfalarını buradan bulmaya devam etmeli; ürün
-    // sayfalarından kaldırmak bir giriş noktası kaybettirmemeli.
-    expect(showFooterBrandLinks('/marka/hiq/protein-tozu')).toBe(true);
-    expect(showFooterBrandLinks('/kategori/kreatin')).toBe(true);
+  it('IS shown on brand and category pages', () => {
+    // Google should keep finding brand pages from here; removing the list
+    // from product pages mustn't cost an entry point.
+    expect(showFooterBrandLinks('/brand/kaged/protein-powder')).toBe(true);
+    expect(showFooterBrandLinks('/category/creatine')).toBe(true);
   });
 
-  it('markalar dizininde aynı listeyi footer\'da tekrarlamaz', () => {
-    expect(showFooterBrandLinks('/markalar')).toBe(false);
+  it("doesn't repeat the same list in the footer of the brand directory", () => {
+    expect(showFooterBrandLinks('/brands')).toBe(false);
   });
 
-  it('adı benzeyen ama farklı olan yollar etkilenmez', () => {
-    expect(showFooterBrandLinks('/urunler')).toBe(true);
-    expect(showFooterBrandLinks('/karsilastir-urun/263-1126')).toBe(true);
+  it('leaves similar-looking but different paths alone', () => {
+    expect(showFooterBrandLinks('/products')).toBe(true);
+    expect(showFooterBrandLinks('/compare-products/263-vs-1126')).toBe(true);
   });
 });

@@ -3,12 +3,11 @@ import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { filter } from 'rxjs';
 
-// Yeni bir deploy yayına girdiğinde, o anda sitede açık olan sekmeler
-// bunu kendiliğinden fark etmiyor — service worker arka planda yeni
-// versiyonu indirse bile kullanıcı elle "yenile" yapmadan eski JS ile
-// gezinmeye devam ediyordu (CLAUDE.md'de not edilen bir eksiklikti).
-// Bu servis `VERSION_READY` event'ini dinleyip basit bir signal'e
-// çeviriyor, banner bu signal'e bakıp "yenile" butonu gösteriyor.
+// When a new deploy goes live, tabs already open on the site don't notice:
+// even with the service worker downloading the new version in the
+// background, people kept browsing on the old JS until they reloaded. This
+// service turns the `VERSION_READY` event into a signal, and the banner shows
+// a "reload" button from it.
 @Injectable({ providedIn: 'root' })
 export class AppUpdateService {
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
@@ -23,35 +22,28 @@ export class AppUpdateService {
       .pipe(filter((event): event is VersionReadyEvent => event.type === 'VERSION_READY'))
       .subscribe(() => {
         this.updateAvailable.set(true);
-        // Kullanıcı banner'ı hiç görmese/tıklamasa bile — service worker'ı
-        // arka planda hemen aktive ediyoruz (sayfayı YENİLEMEDEN). Angular'ın
-        // service worker'ı bunu yapınca açık sekmeyi de devralıyor
-        // (clients.claim()), yani JS kodu güncellenmese bile SONRAKİ bir
-        // ağ isteği (ör. "Mağazaya Git" linki) artık düzeltilmiş service
-        // worker üzerinden geçiyor. Kritik bir düzeltmenin (ör. bozuk bir
-        // yönlendirme) sitede açık kalan sekmelere ulaşması için kullanıcı
-        // aksiyonuna bağımlı kalınmasın diye eklendi.
+        // Even if the banner is never seen or clicked, the new service worker
+        // is activated in the background right away (WITHOUT reloading). It
+        // then takes over the open tab (clients.claim()), so even with old JS
+        // the NEXT network request (e.g. a "Go to store" link) goes through
+        // the fixed service worker. A critical fix reaches open tabs without
+        // waiting for anyone to click.
         this.swUpdate.activateUpdate().catch(() => undefined);
       });
 
-    // registerWhenStable:30000 sadece İLK kaydı geciktiriyor, service
-    // worker'ın kendisi periyodik olarak yeni versiyon aramıyor — bu
-    // yüzden sekme uzun süre açık kalırsa hiç kontrol edilmez. Sayfa
-    // yüklenir yüklenmez bir kez, sonra her 10 dakikada bir elle kontrol
-    // tetikliyoruz (ağır bir işlem değil, sadece ngsw.json'un ETag'ini
-    // kontrol ediyor) — önceden 1 saatlik aralık, acil bir düzeltmenin
-    // yayılmasını gereksiz yere geciktiriyordu.
+    // registerWhenStable:30000 only delays the FIRST registration; the service
+    // worker doesn't look for new versions on its own, so a tab left open is
+    // never checked. Check once on load, then every 10 minutes (cheap: it only
+    // checks ngsw.json's ETag).
     this.swUpdate.checkForUpdate().catch(() => undefined);
     setInterval(() => this.swUpdate.checkForUpdate().catch(() => undefined), 10 * 60 * 1000);
   }
 
-  // Sadece location.reload() çağırmak yeterli DEĞİL — yeni service worker
-  // "waiting" durumunda kalmaya devam eder, sayfa hâlâ ESKİ (etkin) SW
-  // tarafından kontrol edilir. activateUpdate() yeni SW'ye "hemen etkinleş"
-  // sinyali gönderiyor (SKIP_WAITING), reload ondan SONRA yapılmalı —
-  // aksi halde kullanıcı "yenile"ye bassa bile hiçbir şey değişmiyordu
-  // (gerçek prod bug'ı, kullanıcı bildirdi: mağazaya git düzeltmesi deploy
-  // sonrası bile etkisiz kalıyordu).
+  // location.reload() alone is NOT enough: the new service worker stays
+  // "waiting" and the page is still controlled by the OLD one.
+  // activateUpdate() tells the new worker to take over (SKIP_WAITING), and
+  // the reload must come AFTER it; otherwise "reload" changed nothing (a real
+  // production bug).
   reload(): void {
     if (!this.isBrowser) return;
     this.swUpdate

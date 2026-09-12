@@ -3,7 +3,10 @@ import { RouterLink } from '@angular/router';
 
 import { ArticleSummary } from '../core/article.model';
 import { ArticlesService } from '../core/articles.service';
+import { MARKET } from '../core/market';
 import { PageMetaService } from '../core/page-meta.service';
+import { normalizeSearchText } from '../core/search-normalize';
+import { SITE_NAME } from '../core/site-identity';
 import { SiteHeader } from '../site-header/site-header';
 
 type GuideTone = 'violet' | 'blue' | 'mint' | 'rose' | 'orange';
@@ -20,27 +23,29 @@ interface LearningPath extends LearningPathConfig {
   articles: ArticleSummary[];
 }
 
+// A path only shows the articles that exist; one whose slugs are all
+// missing is dropped, so an unpublished guide never becomes a dead link.
 const LEARNING_PATH_CONFIGS: LearningPathConfig[] = [
   {
-    title: 'Yeni başlıyorum',
-    description: 'Temelleri öğren, doğru ürünleri seç.',
+    title: "I'm just starting out",
+    description: 'Learn the basics and pick the right products.',
     iconClass: 'ph-star',
     tone: 'violet',
-    articleSlugs: ['whey-protein-nasil-secilir', 'kreatin-nasil-kullanilir'],
+    articleSlugs: ['how-to-choose-whey-protein', 'creatine-what-to-know'],
   },
   {
-    title: 'Performansımı artırmak istiyorum',
-    description: 'Antrenman performansını destekle.',
+    title: 'I want to perform better',
+    description: 'Support your training performance.',
     iconClass: 'ph-lightning',
     tone: 'blue',
-    articleSlugs: ['pre-workout-nasil-secilir', 'bcaa-mi-eaa-mi-amino-asit-rehberi'],
+    articleSlugs: ['how-to-choose-a-pre-workout', 'bcaa-vs-eaa', 'electrolytes-explained'],
   },
   {
-    title: 'Kilo kontrolünü anlamak istiyorum',
-    description: 'Yağ yönetimi ve metabolizma desteği.',
+    title: 'I want to understand weight management',
+    description: 'Fat loss, gaining mass and what supplements can and can\'t do.',
     iconClass: 'ph-fire',
     tone: 'mint',
-    articleSlugs: ['l-karnitin-yag-yakiminda-ise-yarar-mi', 'yag-yakici-takviyeler-gercekten-ise-yarar-mi'],
+    articleSlugs: ['do-fat-burners-work', 'how-to-use-a-mass-gainer'],
   },
 ];
 
@@ -66,11 +71,11 @@ export class ArticleListPage implements OnInit {
     return [remaining.slice(0, middle), remaining.slice(middle)];
   });
   protected readonly filteredArticles = computed(() => {
-    const query = this.normalizeSearch(this.searchQuery());
+    const query = normalizeSearchText(this.searchQuery()).trim();
     if (!query) return this.articles();
 
     return this.articles().filter((article) =>
-      this.normalizeSearch(`${article.title} ${article.summary} ${article.slug}`).includes(query),
+      normalizeSearchText(`${article.title} ${article.summary} ${article.slug}`).includes(query),
     );
   });
   protected readonly learningPaths = computed<LearningPath[]>(() => {
@@ -86,11 +91,11 @@ export class ArticleListPage implements OnInit {
 
   ngOnInit(): void {
     this.pageMeta.set({
-      // "Rehber" tek başına hiçbir arama niyetiyle eşleşmiyordu — konuyu
-      // (spor takviyesi) taşıyan bir başlık hem title hem H1'de kullanılıyor.
-      title: 'Spor Takviyesi Rehberi | ProteinAvcısı',
-      description: 'Protein tozu, kreatin, pre-workout ve diğer spor takviyeleri hakkında bilgi amaçlı rehberler — hangi ürünü nasıl seçeceğine dair gerçek, tarafsız içerik.',
-      canonicalPath: '/rehber',
+      // "Guides" alone matches no search intent; the title and H1 both carry
+      // the topic.
+      title: `Supplement Guides | ${SITE_NAME}`,
+      description: 'Informational guides on protein powder, creatine, pre-workout and other supplements: honest, independent help choosing what to buy.',
+      canonicalPath: '/guides',
     });
 
     this.articlesService.getArticles().subscribe({
@@ -114,44 +119,35 @@ export class ArticleListPage implements OnInit {
   }
 
   protected formatArticleDate(value: string): string {
-    return new Intl.DateTimeFormat('tr-TR', {
+    return new Intl.DateTimeFormat(MARKET.locale, {
       day: 'numeric',
       month: 'long',
       year: 'numeric',
-      timeZone: 'Europe/Istanbul',
+      timeZone: MARKET.timeZone,
     }).format(new Date(value));
   }
 
   protected articleIconClass(article: ArticleSummary): string {
     const slug = article.slug;
-    if (slug.includes('kreatin-ve-protein')) return 'ph-file-text';
     if (slug.includes('pre-workout')) return 'ph-lightning';
-    if (slug.includes('protein') || slug.includes('whey')) return 'ph-jar';
-    if (slug.includes('kreatin')) return 'ph-barbell';
-    if (slug.includes('vitamin')) return 'ph-shield-plus';
-    if (slug.includes('atistirmalik')) return 'ph-cookie';
-    if (slug.includes('bcaa') || slug.includes('eaa')) return 'ph-share-network';
+    if (slug.includes('creatine')) return 'ph-barbell';
     if (slug.includes('gainer')) return 'ph-barbell';
-    if (slug.includes('yag') || slug.includes('karnitin')) return 'ph-fire';
+    if (slug.includes('protein-bar')) return 'ph-cookie';
+    if (slug.includes('protein') || slug.includes('whey')) return 'ph-jar';
+    if (slug.includes('vitamin')) return 'ph-shield-plus';
+    if (slug.includes('electrolyte')) return 'ph-drop';
+    if (slug.includes('bcaa') || slug.includes('eaa')) return 'ph-share-network';
+    if (slug.includes('fat-burner')) return 'ph-fire';
     return 'ph-book-open-text';
   }
 
   protected articleTone(article: ArticleSummary): GuideTone {
     const slug = article.slug;
-    if (slug.includes('kreatin-ve-protein')) return 'violet';
     if (slug.includes('pre-workout')) return 'rose';
+    if (slug.includes('protein-bar') || slug.includes('vitamin')) return 'orange';
     if (slug.includes('protein') || slug.includes('whey')) return 'mint';
-    if (slug.includes('vitamin') || slug.includes('atistirmalik')) return 'orange';
-    if (slug.includes('yag') || slug.includes('karnitin')) return 'mint';
-    if (slug.includes('bcaa') || slug.includes('eaa')) return 'blue';
+    if (slug.includes('fat-burner')) return 'mint';
+    if (slug.includes('bcaa') || slug.includes('eaa') || slug.includes('electrolyte')) return 'blue';
     return 'violet';
-  }
-
-  private normalizeSearch(value: string): string {
-    return value
-      .toLocaleLowerCase('tr-TR')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim();
   }
 }

@@ -11,8 +11,10 @@ import {
 import { brandSlug } from '../core/brand-slug';
 import { CATEGORY_LABELS } from '../core/category-labels';
 import { BrandCategoryPair, BrandProductCount, DealsService } from '../core/deals.service';
+import { MARKET } from '../core/market';
 import { PageMetaService } from '../core/page-meta.service';
 import { matchesSearch } from '../core/search-normalize';
+import { SITE_NAME } from '../core/site-identity';
 import { SiteHeader } from '../site-header/site-header';
 
 type BrandSortMode = 'product-count' | 'name';
@@ -36,6 +38,8 @@ interface BrandDirectoryItem {
 
 const PAGE_SIZE = 12;
 
+const byName = (a: BrandDirectoryItem, b: BrandDirectoryItem) => a.name.localeCompare(b.name, MARKET.locale);
+
 @Component({
   selector: 'app-brand-list-page',
   imports: [RouterLink, SiteHeader],
@@ -58,15 +62,15 @@ export class BrandListPage implements OnInit {
   protected readonly filteredBrands = computed(() => {
     const query = this.searchQuery();
     const result = this.brands().filter((brand) => {
-      // Eşleştirme kuralı (kelime kelime + boşluksuz) ve gerekçesi
-      // `core/search-normalize.ts` içinde, testleriyle birlikte.
+      // The matching rule (word by word, plus a spaceless comparison) and its
+      // reasoning live in `core/search-normalize.ts`, with tests.
       const searchable = `${brand.name} ${brand.categories.map((category) => category.label).join(' ')}`;
       return matchesSearch(searchable, query);
     });
 
     return [...result].sort((a, b) => {
-      if (this.sortMode() === 'name') return a.name.localeCompare(b.name, 'tr-TR');
-      return b.productCount - a.productCount || a.name.localeCompare(b.name, 'tr-TR');
+      if (this.sortMode() === 'name') return byName(a, b);
+      return b.productCount - a.productCount || byName(a, b);
     });
   });
 
@@ -92,10 +96,10 @@ export class BrandListPage implements OnInit {
 
   ngOnInit(): void {
     this.pageMeta.set({
-      title: 'Spor Takviyesi Markaları ve Güncel Fiyatları | ProteinAvcısı',
+      title: `Supplement Brands and Current Prices | ${SITE_NAME}`,
       description:
-        'Protein tozu, kreatin ve sporcu gıdası markalarını gerçek ürün sayıları, güncel fiyatları ve fiyat geçmişleriyle keşfet.',
-      canonicalPath: '/markalar',
+        'Browse protein powder, creatine and sports nutrition brands with real product counts, current prices and price history.',
+      canonicalPath: '/brands',
     });
 
     forkJoin({
@@ -106,8 +110,7 @@ export class BrandListPage implements OnInit {
       next: ({ filters, pairs, counts }) => {
         const items = this.buildBrandItems(filters.brands, pairs, counts);
         this.brands.set(items);
-        const preferred = items.find((brand) => brand.name === 'ProteinOcean') ?? items[0];
-        this.selectedSlug.set(preferred?.slug ?? '');
+        this.selectedSlug.set(items[0]?.slug ?? '');
         this.loading.set(false);
       },
       error: () => {
@@ -142,7 +145,8 @@ export class BrandListPage implements OnInit {
   }
 
   protected selectedBrandDescription(brand: BrandDirectoryItem): string {
-    return `${brand.name} markasının takip ettiğimiz ${brand.productCount} ürünü için güncel fiyatları, doğrulanmış indirimleri ve fiyat geçmişini tek yerde incele.`;
+    const products = brand.productCount === 1 ? 'product' : 'products';
+    return `See current prices, verified discounts and price history for the ${brand.productCount.toLocaleString(MARKET.locale)} ${brand.name} ${products} we track, all in one place.`;
   }
 
   protected markLogoFailed(slug: string): void {
@@ -162,10 +166,9 @@ export class BrandListPage implements OnInit {
       categoriesByBrand.set(pair.brandName, categories);
     }
 
-    // Ürün sayısı kategori çiftlerinden TOPLANMIYOR: o liste yalnızca
-    // kategorisi olan ürünleri sayıyor ve marka sayfasındaki rakamdan
-    // sapıyordu (HIQ dizinde 85, kendi sayfasında 113). Kategori çiftleri
-    // yalnızca kategori çipleri için kullanılıyor.
+    // The product count is NOT summed from category pairs: that list only
+    // counts products that have a category and drifted from the number on
+    // the brand's own page. Category pairs only feed the category chips.
     const countByBrand = new Map(counts.map((row) => [row.brandName, row.productCount]));
 
     return brandNames
@@ -189,7 +192,7 @@ export class BrandListPage implements OnInit {
           monogramColor: brandMonogramColor(name),
         };
       })
-      .sort((a, b) => b.productCount - a.productCount || a.name.localeCompare(b.name, 'tr-TR'));
+      .sort((a, b) => b.productCount - a.productCount || byName(a, b));
   }
 
   private selectFirstVisibleBrand(): void {

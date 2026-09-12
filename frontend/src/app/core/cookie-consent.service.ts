@@ -5,12 +5,10 @@ export type CookieConsentStatus = 'accepted' | 'rejected' | null;
 
 const STORAGE_KEY = 'cookie-consent';
 
-// Şu an sitede reklam/analitik çerezi yok, bu yüzden bu tercihin henüz
-// gerçekte hiçbir şeyi engellemesi/izin vermesi gerekmiyor — AdSense/
-// Analytics eklenmeden ÖNCE altyapı hazır olsun diye kuruldu (bkz.
-// CLAUDE.md). İleride bir script eklenirse yükleme kararı
-// `status() === 'accepted'` kontrolüne bağlanacak, banner'a hiç
-// dokunulmayacak.
+// The site sets no advertising or analytics cookies today, so this choice
+// doesn't block or allow anything yet; the plumbing is in place BEFORE any ad
+// or analytics script. When one is added, loading it will depend on
+// `status() === 'accepted'` without touching the banner.
 @Injectable({ providedIn: 'root' })
 export class CookieConsentService {
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));

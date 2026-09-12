@@ -1,4 +1,5 @@
 import { FaqItem } from './category-faqs';
+import { formatPrice } from './market';
 
 export interface BrandFaqInput {
   brandName: string;
@@ -8,18 +9,16 @@ export interface BrandFaqInput {
   topCategoryLabel: string | null;
 }
 
-// "{marka} indirim kodu" araması, marka sayfalarımıza gelen en yüksek hacimli
-// sorgu grubu (28 Ağustos GSC analizi: 14 sorgu, 62 gösterim, çoğu 10-11.
-// sırada). Ama sayfa o güne kadar aslında bir ürün listesiydi — gövde metninde
-// "kupon" kelimesi yalnızca üç kez geçiyordu ve kupona dair tek bir başlık
-// yoktu. Arama sonucundan gelen kişi aradığını bulamıyor, arama motoru da
-// sayfayı sorguya zayıf eşleştiriyordu.
+// "{brand} coupon code" searches were the largest query group landing on the
+// Turkish site's brand pages, yet the page was a product list: the body said
+// "coupon" three times and had no heading about coupons. Visitors didn't find
+// what they searched for, and search engines matched the page weakly.
 //
-// Buradaki sorular o boşluğu kapatıyor. İki kural:
-// 1. Uydurma kupon YOK. Kod bulamadığımızda bunu açıkça söylüyoruz — süresi
-//    geçmiş bir kodla ödeme sayfasında karşılaşmak, hiç kod olmamasından kötü.
-// 2. Cevaplar markanın kendisi hakkında spekülasyon yapmıyor (kampanya
-//    takvimini bilmiyoruz), yalnızca KENDİ verimize dayanıyor.
+// These questions fill that gap. Two rules:
+// 1. NO invented coupons. When we have no code, we say so: meeting an expired
+//    code at checkout is worse than having no code at all.
+// 2. Answers don't speculate about the brand (we don't know its sale
+//    calendar); they rest ONLY on our own data.
 export interface BrandCategoryFaqInput {
   brandName: string;
   categoryLabel: string;
@@ -29,51 +28,50 @@ export interface BrandCategoryFaqInput {
   averageDiscountPercent: number | null;
 }
 
-// Marka × kategori sayfaları ("hardline creatine", "proteinocean kreatin"
-// gibi sorgular — 28 Ağustos GSC analizinde 21 sorgu, 60 gösterim, 17-18.
-// sıra). O sayfalar 150-270 kelimeydi, yani neredeyse yalnızca ürün
-// listesiydi; sıralamanın düşük kalmasının sebebi buydu.
+// Brand x category pages ("transparent labs creatine"). These pages were
+// 150-270 words, almost only a product list, which kept them ranking low.
 //
-// Sorular kategori sayfasındakilerden AYRI tutuluyor (aynı metni iki sayfada
-// tekrarlamak ikisini de zayıflatırdı) ve tamamı kesişime özgü: markanın o
-// kategorideki fiyat konumu, ürün sayısı, indirim derinliği. Hepsi kendi
-// verimizden geliyor — marka hakkında hiçbir varsayım yok.
+// The questions are SEPARATE from the category page's (the same text on two
+// pages weakens both) and specific to the intersection: the brand's price
+// position in that category, product count and discount depth. All from our
+// own data, no assumptions about the brand.
 export function buildBrandCategoryFaqs(input: BrandCategoryFaqInput): FaqItem[] {
   const { brandName, categoryLabel, productCount, averagePrice, categoryAveragePrice, averageDiscountPercent } = input;
-  const lower = categoryLabel.toLocaleLowerCase('tr');
+  const lower = categoryLabel.toLowerCase();
   const faqs: FaqItem[] = [];
 
-  // Sayfanın en özgün içeriği: markanın o kategorideki fiyat konumu.
+  // The page's most original content: the brand's price position in the category.
   if (averagePrice && categoryAveragePrice) {
     const diff = Math.round(Math.abs(averagePrice - categoryAveragePrice) / categoryAveragePrice * 100);
     const cheaper = averagePrice < categoryAveragePrice;
-    const priceText = (v: number) => v.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const caveat =
+      'An average alone isn\'t a complete measure: package sizes differ, so the cost per serving gives a more accurate comparison.';
     faqs.push({
-      question: `${brandName} ${lower} ürünleri pahalı mı?`,
+      question: `Is ${brandName} ${lower} expensive?`,
       answer: diff < 3
-        ? `${brandName} markasının takip ettiğimiz ${lower} ürünlerinin ortalama fiyatı ${priceText(averagePrice)} TL; kategorinin geneli ise ${priceText(categoryAveragePrice)} TL. Yani marka bu kategoride ortalamaya çok yakın konumlanıyor. Ortalama tek başına yeterli bir ölçüt değil: paket boyutları farklı olduğu için servis başına düşen maliyete bakmak daha doğru sonuç verir.`
-        : `${brandName} markasının takip ettiğimiz ${lower} ürünlerinin ortalama fiyatı ${priceText(averagePrice)} TL; kategorinin geneli ise ${priceText(categoryAveragePrice)} TL — yani ortalamadan yaklaşık %${diff} daha ${cheaper ? 'uygun' : 'yüksek'}. Ortalama tek başına yeterli bir ölçüt değil: paket boyutları farklı olduğu için servis başına düşen maliyete bakmak daha doğru sonuç verir.`,
+        ? `The ${brandName} ${lower} products we track average ${formatPrice(averagePrice)}; the category as a whole averages ${formatPrice(categoryAveragePrice)}. So the brand sits very close to the average here. ${caveat}`
+        : `The ${brandName} ${lower} products we track average ${formatPrice(averagePrice)}; the category as a whole averages ${formatPrice(categoryAveragePrice)}, so the brand is about ${diff}% ${cheaper ? 'cheaper' : 'more expensive'} than average. ${caveat}`,
     });
   }
 
   if (productCount) {
     faqs.push({
-      question: `${brandName} markasının kaç ${lower} ürünü takip ediliyor?`,
-      answer: `Şu anda ${brandName} kataloğundan ${productCount} ${lower} ürününü takip ediyoruz ve her birinin fiyatını günde dört kez kaydediyoruz. Marka kataloğundan bir ürünü kaldırdığında biz de listelemeyi bırakıyoruz, ama o ürünün birikmiş fiyat geçmişini siliyor değiliz.`,
+      question: `How many ${brandName} ${lower} products do you track?`,
+      answer: `We currently track ${productCount} ${lower} products from ${brandName} and record each price four times a day. When the brand removes a product from its catalog we stop listing it, but we keep the price history it built up.`,
     });
   }
 
   faqs.push({
-    question: `${brandName} ${lower} ürünlerinde indirim ne sıklıkla oluyor?`,
+    question: `How often does ${brandName} ${lower} go on sale?`,
     answer: averageDiscountPercent
-      ? `Şu an bu kategoride doğruladığımız indirimlerin ortalama derinliği %${averageDiscountPercent}. Bu oran sabit bir kampanya vaadi değil, her taramada yeniden hesaplanan anlık durum — fiyatlar değiştikçe değişiyor.`
-      : `Şu anda bu kategoride doğrulanmış bir fiyat düşüşü görünmüyor. Bu, markanın kampanya yapmadığı anlamına gelmiyor; yalnızca bizim topladığımız fiyat geçmişinde henüz gerçek bir düşüş oluşmadı demek. Sayfayı takip listene ekleyerek fiyat düştüğünde haberdar olabilirsin.`,
+      ? `The price drops we currently verify in this category average ${averageDiscountPercent}%. That isn't a fixed promotion but a snapshot recalculated on every check; it changes as prices change.`
+      : 'We don\'t see a verified price drop in this category right now. That doesn\'t mean the brand never runs sales, only that no real drop has formed in the price history we collect yet. Add products to your watchlist to hear when the price falls.',
   });
 
   faqs.push({
-    question: `Buradaki ${lower} fiyatları güncel mi?`,
+    question: `Are these ${lower} prices up to date?`,
     answer:
-      'Fiyatları markanın kendi sitesinden günde dört kez topluyoruz; her ürün kartında son kontrolün ne zaman yapıldığı yazıyor. Yine de nihai fiyat markanın ödeme sayfasında geçerlidir — kargo, kampanya koşulu veya sepet indirimi gibi ayrıntılar orada değişebilir.',
+      'We collect prices from the store\'s own site four times a day, and every product card shows when it was last checked. The final price is the one at the store\'s checkout, where shipping, promotion terms or cart discounts can change the details.',
   });
 
   return faqs;
@@ -84,44 +82,45 @@ export function buildBrandFaqs(input: BrandFaqInput): FaqItem[] {
   const hasCoupon = couponCodes.length > 0;
 
   const couponAnswer = hasCoupon
-    ? `Evet. Şu anda ${brandName} için doğruladığımız ${couponCodes.length === 1 ? 'bir kod' : `${couponCodes.length} kod`} var: ${couponCodes.join(', ')}. Kodları otomatik toplamıyoruz — her birini elle kontrol edip ekliyoruz ve süresi dolduğunda kaldırıyoruz. Yine de markanın kampanya koşulları ödeme sayfasında değişebilir.`
-    : `Şu anda ${brandName} için doğruladığımız aktif bir indirim kodu yok. Bulamadığımızda uydurma kod listelemiyoruz: süresi geçmiş bir kodu ödeme sayfasında denemek, hiç kod olmamasından daha can sıkıcı. Kod yerine bu sayfada markanın gerçek fiyat düşüşlerini takip edebilirsin — çoğu zaman iyi zamanlanmış bir alım, kodun sağladığı indirimden daha fazlasını kazandırıyor.`;
+    ? `Yes. We currently have ${couponCodes.length === 1 ? 'one verified code' : `${couponCodes.length} verified codes`} for ${brandName}: ${couponCodes.join(', ')}. Codes aren't collected automatically; we check each one by hand and remove it when it expires. The brand's terms can still change at checkout.`
+    : `We don't have an active, verified coupon code for ${brandName} right now. When we can't find one, we don't list made-up codes: trying an expired code at checkout is more annoying than having none. Instead, you can follow the brand's real price drops on this page; a well-timed purchase often saves more than a code would.`;
 
   const trackingAnswer = totalProducts
-    ? `${brandName} kataloğundan ${totalProducts} ürünü günde dört kez tarıyoruz ve her taramada fiyatı kaydediyoruz. Bir ürünün fiyatı düştüğünde bunu markanın duyurmasını beklemeden görüyoruz.`
-    : `${brandName} ürünlerini günde dört kez tarıyor ve her taramada fiyatı kaydediyoruz. Bir ürünün fiyatı düştüğünde bunu markanın duyurmasını beklemeden görüyoruz.`;
+    ? `We check ${totalProducts} products from ${brandName} four times a day and record the price on every check, so we see a price drop without waiting for the brand to announce it.`
+    : `We check ${brandName} products four times a day and record the price on every check, so we see a price drop without waiting for the brand to announce it.`;
 
+  const topCategory = topCategoryLabel ? `The category where we track the most ${brandName} products is ${topCategoryLabel.toLowerCase()}.` : '';
   const depthAnswer = averageDiscountPercent
-    ? `Şu an ${brandName} tarafında doğruladığımız indirimlerin ortalama derinliği %${averageDiscountPercent}. ${topCategoryLabel ? `Markanın bizde en çok ürünü olan kategorisi ${topCategoryLabel}.` : ''} Bu oran her taramada yeniden hesaplanıyor; sabit bir kampanya vaadi değil, o anki gerçek durum.`.trim()
-    : `Şu anda ${brandName} tarafında doğrulanmış bir fiyat düşüşü görünmüyor. Bu, markanın kampanya yapmadığı anlamına gelmiyor — yalnızca bizim topladığımız fiyat geçmişinde henüz gerçek bir düşüş oluşmadı demek. ${topCategoryLabel ? `Markanın bizde en çok ürünü olan kategorisi ${topCategoryLabel}.` : ''}`.trim();
+    ? `The price drops we currently verify for ${brandName} average ${averageDiscountPercent}%. ${topCategory} This is recalculated on every check; it is the real situation at that moment, not a fixed promotion.`.replace(/\s+/g, ' ').trim()
+    : `We don't see a verified price drop for ${brandName} right now. That doesn't mean the brand never runs sales, only that no real drop has formed in the price history we collect yet. ${topCategory}`.trim();
 
   return [
     {
-      question: `${brandName} indirim kodu var mı?`,
+      question: `Is there a ${brandName} coupon code?`,
       answer: couponAnswer,
     },
     {
-      question: `İndirim kodu olmadan ${brandName} ürünlerini uygun fiyata nasıl alırım?`,
+      question: `How can I buy ${brandName} for less without a coupon code?`,
       answer:
-        'Bir ürünün fiyatı yıl boyunca sabit kalmaz. Sayfadaki "30 günün en düşüğü" etiketi, o ürünün son bir aydaki en ucuz haline şu anda ulaşabildiğini gösterir — alım için en mantıklı an genellikle burasıdır. Acele etmiyorsan ürünü takip listene ekleyip fiyat düştüğünde haber almayı da seçebilirsin.',
+        'A product\'s price doesn\'t stay fixed all year. The "Lowest in 30 days" label shows the product is at its cheapest point of the last month right now, usually the most sensible moment to buy. If you are not in a hurry, add it to your watchlist and get notified when the price drops.',
     },
     {
-      question: 'Buradaki indirimler markanın kendi kampanyası mı?',
+      question: 'Are the discounts here the brand\'s own sales?',
       answer:
-        '"Gerçek indirim" sekmesindeki oranlar bizim kendi topladığımız fiyat geçmişinden hesaplanıyor: ürünün şu anki fiyatı, son 30 günde gördüğümüz en yüksek fiyattan düşükse indirim sayılıyor. "Mağaza kampanyası" sekmesi ise markanın kendi sitesinde gösterdiği eski/yeni fiyat farkı — onu doğrulamıyoruz, ayrı etiketliyoruz. İkisini bilinçli olarak karıştırmıyoruz.',
+        'The "Real price drops" figures come from the price history we collect: a product counts as discounted when its current price is below the highest price we saw in the last 30 days. "Store sales" show the old and new prices the store displays on its own site; we don\'t verify those and label them separately. We keep the two apart on purpose.',
     },
     {
-      question: `${brandName} fiyatları ne sıklıkla güncelleniyor?`,
+      question: `How often are ${brandName} prices updated?`,
       answer: trackingAnswer,
     },
     {
-      question: `${brandName} ürünlerinde indirimler ne kadar derin oluyor?`,
+      question: `How deep do ${brandName} discounts go?`,
       answer: depthAnswer,
     },
     {
-      question: 'İndirim kodları neden her sitede farklı görünüyor?',
+      question: 'Why do coupon codes look different on every site?',
       answer:
-        'Kupon sitelerinin çoğu kodları otomatik topluyor ve süresi dolanları kaldırmıyor; bu yüzden aynı marka için birbiriyle çelişen onlarca "kod" görebiliyorsun. Biz yalnızca elle kontrol ettiğimiz kodları listeliyoruz ve doğrulayamadığımızda sayfayı kodla doldurmak yerine boş bırakmayı tercih ediyoruz.',
+        'Most coupon sites collect codes automatically and never remove expired ones, so you see dozens of conflicting "codes" for the same brand. We only list codes we have checked by hand, and when we can\'t verify one we leave the page without a code rather than fill it.',
     },
   ];
 }

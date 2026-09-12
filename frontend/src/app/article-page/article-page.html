@@ -3,12 +3,12 @@
 
   <main class="mx-auto max-w-[720px] px-[28px] py-[22px]">
     @if (loading()) {
-      <div class="py-24 text-center text-[var(--noc-neutral-500)]">Yükleniyor...</div>
+      <div class="py-24 text-center text-[var(--noc-neutral-500)]">Loading...</div>
     } @else if (article(); as a) {
-      <a routerLink="/rehber" class="mb-4 inline-block text-xs font-medium text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]">← Rehber</a>
+      <a routerLink="/guides" class="mb-4 inline-block text-xs font-medium text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]">← Guides</a>
 
       <h1 class="text-[32px] font-medium tracking-[-0.03em] sm:text-[36px]">{{ a.title }}</h1>
-      <p class="mt-2 text-xs text-[var(--noc-neutral-500)]">{{ a.publishedAt | date:'d MMMM yyyy':'':'tr' }}</p>
+      <p class="mt-2 text-xs text-[var(--noc-neutral-500)]">{{ a.publishedAt | date: 'MMMM d, y' : timeZone }}</p>
 
       @if (a.coverImageUrl) {
         <div class="mt-6 aspect-[2/1] overflow-hidden rounded-[14px] bg-[color-mix(in_srgb,var(--noc-text)_5%,transparent)]">
@@ -21,8 +21,13 @@
         [innerHTML]="a.body"
       ></article>
 
+      <p class="mt-8 rounded-[10px] border border-[var(--noc-divider)] px-4 py-3 text-xs leading-relaxed text-[var(--noc-neutral-500)]">
+        This guide is general information, not medical advice. These statements have not been evaluated by the Food and
+        Drug Administration. Supplements are not intended to diagnose, treat, cure or prevent any disease.
+      </p>
+
       <div class="mt-10 border-t border-[var(--noc-divider)] pt-6 text-center">
-        <a routerLink="/" class="text-sm font-medium text-[var(--noc-accent)]">Tüm indirimleri gör →</a>
+        <a routerLink="/" class="text-sm font-medium text-[var(--noc-accent)]">See all deals →</a>
       </div>
     }
   </main>

@@ -17,10 +17,9 @@ import {
 import { SUPPLEMENT_DOSAGES } from '../core/supplement-dosages';
 import { ThemePreference, ThemeService } from '../core/theme.service';
 
-// Ana sayfa (deals-list) dışındaki tüm sayfalarda (kategori, marka, takip
-// listem, karşılaştırma, rehber) kullanılan paylaşılan nav — logo, tema
-// toggle'ı ve takip listesi rozetini tek yerde tutuyor. Ana sayfa kendi
-// nav'ını koruyor (bu bileşeni kullanmıyor).
+// Shared nav for every page except the home page (category, brand,
+// watchlist, comparison, guides): logo, theme toggle and watchlist badge in
+// one place. The home page keeps its own nav because it holds the search box.
 @Component({
   selector: 'app-site-header',
   imports: [FormsModule, RouterLink, RouterLinkActive],
@@ -32,52 +31,45 @@ export class SiteHeader implements OnInit {
   private readonly router = inject(Router);
   protected readonly theme = inject(ThemeService);
 
-  // Üstteki arama alanı. Bu sayfalarda ürün listesi olmadığı için arama,
-  // sonucu gösterebilen ana sayfaya taşınıyor.
+  // Search field. These pages have no product list, so the search is sent to
+  // the home page, which can show the results.
   protected readonly searchQuery = signal('');
 
   protected submitSearch(): void {
     const term = this.searchQuery().trim();
-    // Boş aramada ana sayfaya atıp kullanıcının bulunduğu sayfadan
-    // koparmıyoruz — eski davranışın asıl sorunu buydu.
+    // An empty search does not pull the visitor away from the page they are on.
     if (!term) return;
     this.router.navigate(['/'], { queryParams: { search: term } });
   }
 
-  // Kullanıcı geri bildirimi: kategori sayfalarına footer'dan başka
-  // erişimi olmayan biri onları neredeyse hiç görmüyordu — nav'a
-  // gerçek bir "Kategoriler" açılır menüsü eklendi (ayrı bir index
-  // sayfası kurmaya gerek kalmadan, /api/filters'tan gelen gerçek
-  // kategori listesiyle).
+  // Category dropdown built from the real category list in /api/filters.
+  // Without it, category pages were reachable only from the footer.
   protected readonly categories = signal<{ slug: string; label: string; iconPath: string; iconClass: string }[]>([]);
   protected readonly categoriesOpen = signal(false);
 
-  // Araç sayısı birden fazlaya çıkınca "Hesaplama" da düz link olmaktan
-  // çıkıp Kategoriler'le aynı dropdown desenine geçti. İkonlar kullanıcı
-  // geri bildirimiyle eklendi: dropdown'lar sadece düz metindi.
   protected readonly calculatorsOpen = signal(false);
   protected readonly calculators = [
     {
-      path: '/hesaplama/protein-ihtiyaci',
-      label: 'Günlük Protein İhtiyacı',
+      path: '/calculators/protein',
+      label: 'Daily Protein Needs',
       iconPath: CALCULATOR_ICON_PATHS.plate,
-      iconClass: calculatorPhosphorIcon('protein-ihtiyaci'),
+      iconClass: calculatorPhosphorIcon('protein'),
     },
     ...BODY_CALCULATORS.map((c) => ({
-      path: `/hesaplama/${c.slug}`,
+      path: `/calculators/${c.slug}`,
       label: c.name,
       iconPath: calculatorIconPath(c.slug),
       iconClass: calculatorPhosphorIcon(c.slug),
     })),
     ...SUPPLEMENT_DOSAGES.map((s) => ({
-      path: `/hesaplama/${s.slug}`,
-      label: `${s.name} Dozu`,
+      path: `/calculators/${s.slug}`,
+      label: `${s.name} Dosage`,
       iconPath: CALCULATOR_ICON_PATHS.capsule,
       iconClass: calculatorPhosphorIcon(s.slug),
     })),
   ];
-  // Servisteki paylaşılan signal'e doğrudan referans — favori eklenince/
-  // çıkarılınca (bu sayfadan ya da başka bir sayfadan) otomatik güncellenir.
+  // The service's shared signal: adding or removing a watchlist item on any
+  // page updates the badge.
   protected readonly favoritesCount = this.favoritesService.count;
 
   ngOnInit(): void {

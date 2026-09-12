@@ -4,11 +4,11 @@
   <main class="pa-about-main">
     <section class="pa-about-hero" aria-labelledby="about-title">
       <div class="pa-about-copy">
-        <p class="pa-about-pill"><span aria-hidden="true"></span>Bağımsız fiyat takibi</p>
-        <h1 id="about-title">İndirimi etiketten değil, geçmişten okuyoruz.</h1>
+        <p class="pa-about-pill"><span aria-hidden="true"></span>Independent price tracking</p>
+        <h1 id="about-title">We read discounts from history, not from the label.</h1>
         <p class="pa-about-lead">
-          ProteinAvcısı; spor takviyesi fiyatlarını düzenli izleyen, gerçek düşüşleri kendi fiyat geçmişine göre
-          ayıran bağımsız bir platformdur.
+          {{ siteName }} is an independent platform that tracks supplement prices regularly and separates real price
+          drops from marketing, using each product's own price history.
         </p>
       </div>
 
@@ -24,45 +24,45 @@
         </div>
 
         <h2 id="founder-title">{{ founder.name }}</h2>
-        <p class="pa-about-role">Kurucu ve geliştirici</p>
+        <p class="pa-about-role">Founder and developer</p>
         <p class="pa-about-founder-story">
-          “İndirim” etiketine güvenmek yerine fiyatın geçmişine bakabilmek için ProteinAvcısı'nı kurdu.
+          Built {{ siteName }} to look at a price's history instead of trusting a "sale" badge.
         </p>
 
-        <nav class="pa-about-profile-links" aria-label="Kurucu bağlantıları">
+        <nav class="pa-about-profile-links" aria-label="Founder links">
           <a [href]="founder.linkedInUrl" target="_blank" rel="noopener nofollow">
             LinkedIn <span aria-hidden="true">↗</span>
           </a>
           <a [href]="founder.blogUrl" target="_blank" rel="noopener nofollow">
-            Kişisel blog <span aria-hidden="true">↗</span>
+            Personal blog <span aria-hidden="true">↗</span>
           </a>
         </nav>
       </aside>
     </section>
 
-    <section class="pa-about-principles" aria-label="ProteinAvcısı'nın amacı ve ilkeleri">
+    <section class="pa-about-principles" aria-label="What we're for and what we promise">
       <article>
         <span class="pa-about-icon" aria-hidden="true"><i class="ph ph-scales"></i></span>
-        <h2>Neden buradayız?</h2>
-        <p>Pazarlama etiketleri ile gerçek fiyat düşüşlerini birbirinden ayırmayı kolaylaştırmak için.</p>
+        <h2>Why we're here</h2>
+        <p>To make it easy to tell marketing labels apart from real price drops.</p>
       </article>
 
       <article>
         <span class="pa-about-icon" aria-hidden="true"><i class="ph ph-chart-line-up"></i></span>
-        <h2>Nasıl karar veriyoruz?</h2>
-        <p>Güncel fiyatı, ürünün düzenli olarak kaydettiğimiz fiyat geçmişiyle karşılaştırarak.</p>
+        <h2>How we decide</h2>
+        <p>By comparing today's price with the price history we record for each product.</p>
       </article>
 
       <article>
         <span class="pa-about-icon" aria-hidden="true"><i class="ph ph-shield-check"></i></span>
-        <h2>Neye söz veriyoruz?</h2>
-        <p>Ticari ilişkilerin sıralamayı etkilememesine ve eksik bilginin tahmin edilmemesine.</p>
+        <h2>What we promise</h2>
+        <p>Commercial relationships never affect the ranking, and missing information is never guessed.</p>
       </article>
     </section>
 
     <div class="pa-about-cta">
-      <a routerLink="/nasil-calisiyoruz">
-        Nasıl çalıştığımızı gör
+      <a routerLink="/how-it-works">
+        See how it works
         <i class="ph ph-arrow-right" aria-hidden="true"></i>
       </a>
     </div>

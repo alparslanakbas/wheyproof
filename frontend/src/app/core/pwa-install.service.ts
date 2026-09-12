@@ -3,21 +3,19 @@ import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
 
 const DISMISS_KEY = 'pwa-install-dismissed';
 
-// Standart DOM tipleri BeforeInstallPromptEvent'i tanımıyor (henüz tüm
-// tarayıcılarda desteklenmiyor, sadece Chromium tabanlılarda) — kendimiz
-// dar bir arayüz tanımlıyoruz.
+// The standard DOM types don't know BeforeInstallPromptEvent (Chromium only
+// for now), so a narrow interface is declared here.
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-// "Ana ekrana ekle" ipucu için — tarayıcının kendi otomatik mini-infobar'ı
-// yerine site tasarımına uyan bir şerit gösterebilelim diye `beforeinstallprompt`
-// event'ini yakalayıp saklıyoruz. Bu event SADECE Chromium tabanlı tarayıcılarda
-// (Android Chrome dahil) ve site zaten PWA kriterlerini (manifest + service
-// worker) sağladığında ateşleniyor — iOS Safari hiç ateşlemiyor, bu yüzden
-// ekstra bir platform kontrolüne gerek kalmadan doğal olarak sadece
-// desteklenen ortamlarda `canInstall` true oluyor.
+// "Add to home screen" hint. The `beforeinstallprompt` event is captured and
+// kept so the site can show its own strip instead of the browser's mini
+// infobar. The event ONLY fires in Chromium browsers (Android Chrome
+// included) once the site meets PWA criteria (manifest + service worker); iOS
+// Safari never fires it, so `canInstall` is only true where it is supported,
+// with no platform check needed.
 @Injectable({ providedIn: 'root' })
 export class PwaInstallService {
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));

@@ -3,366 +3,365 @@ export interface FaqItem {
   answer: string;
 }
 
-// Her kategori sayfasına O KATEGORİYE ÖZEL sorular. Ana sayfadaki SSS
-// platformu anlatıyor ("fiyatlar ne sıklıkla güncelleniyor" gibi); buradaki
-// sorular ise ürünün kendisiyle ilgili ve insanların Google'a gerçekten
-// yazdığı ifadeleri hedefliyor ("kreatin saç döker mi" gibi). İki fayda:
-// (1) uzun kuyruk arama trafiği doğrudan ürün listeleme sayfasına geliyor,
-// (2) kategori sayfası "sadece ürün listesi" olmaktan çıkıyor — GSC'de
-// "Tarandı ama dizine eklenmedi" sorununun asıl sebebi buydu.
+// Questions SPECIFIC to each category page. The home page FAQ explains the
+// platform ("how often are prices updated"); these are about the product
+// itself and target what people really type into Google ("does creatine cause
+// hair loss"). Two gains: (1) long-tail search traffic lands directly on the
+// listing page, (2) the category page stops being "just a product list",
+// which was the root cause of "Crawled - currently not indexed".
 //
-// TON: rehber yazılarımızla aynı — dürüst, abartısız, kesin tıbbi iddia yok.
-// Bilinmeyen bir şey varsa "değişir/danış" demek, uydurmaktan iyidir.
+// TONE: honest, no hype, no firm medical claims. Saying "it depends, ask a
+// doctor" beats making something up.
 export const CATEGORY_FAQS: Record<string, FaqItem[]> = {
-  'protein-tozu': [
+  'protein-powder': [
     {
-      question: 'Protein tozu seçerken neye bakmalı?',
+      question: 'What should I look for when choosing a protein powder?',
       answer:
-        'Paket fiyatına değil, bir servisin maliyetine ve o serviste kaç gram protein olduğuna bakmak daha doğru sonuç verir. Aynı fiyattaki iki üründen biri porsiyon başına belirgin şekilde daha az protein içerebilir. Etiketteki porsiyon büyüklüğü ve porsiyon sayısı bu karşılaştırmanın temelidir.',
+        'Look at the cost of a serving and how many grams of protein that serving has, not the tub price. Of two products at the same price, one can have noticeably less protein per serving. The serving size and number of servings on the label are the basis for this comparison.',
     },
     {
-      question: 'İzole mi konsantre mi daha iyi?',
+      question: 'Is whey isolate better than concentrate?',
       answer:
-        'İkisi de whey proteinidir, fark işlenme derecesindedir. İzole daha çok filtrelendiği için protein oranı yüksek, laktoz ve yağ oranı düşüktür — laktoza duyarlıysan avantaj sağlar. Konsantre daha uygun fiyatlıdır ve çoğu kişi için yeterlidir. "Daha pahalı olan herkes için daha iyidir" demek doğru olmaz.',
+        'Both are whey; the difference is processing. Isolate is filtered more, so it is higher in protein and lower in lactose and fat, an advantage if you are lactose sensitive. Concentrate is cheaper and enough for most people. "More expensive is better for everyone" isn\'t true.',
     },
     {
-      question: 'Protein tozu ne zaman içilmeli?',
+      question: 'When should I drink a protein shake?',
       answer:
-        'Antrenmandan hemen sonraki 30 dakikanın kritik olduğu görüşü eskisi kadar güçlü değil. Güncel yaklaşım, günlük toplam protein alımının zamanlamadan çok daha belirleyici olduğu yönünde. Antrenman sonrası içmek yine de pratik bir alışkanlıktır.',
+        'The idea of a critical 30-minute window after training is not as strongly supported as it once was. Current thinking is that total daily protein matters far more than timing. Drinking one after training is still a practical habit.',
     },
     {
-      question: 'Günde kaç ölçek protein tozu içilir?',
+      question: 'How many scoops of protein powder a day?',
       answer:
-        'Bu, günlük protein hedefine ve öğünlerden ne kadar aldığına bağlı. Çoğu kişi için günde 1-2 ölçek, katı gıdadan kalan açığı kapatmaya yeter. Protein tozunu ana kaynak değil, tamamlayıcı olarak düşünmek daha doğru.',
+        'It depends on your daily protein target and how much you get from meals. For most people, 1-2 scoops a day cover the gap left by food. Think of protein powder as a supplement to meals, not the main source.',
     },
     {
-      question: 'Protein tozu böbreklere zarar verir mi?',
+      question: 'Is protein powder bad for your kidneys?',
       answer:
-        'Sağlıklı bireylerde makul miktarda protein alımının böbrek hasarına yol açtığını gösteren güçlü bir kanıt bulunmuyor. Ancak mevcut bir böbrek rahatsızlığı varsa durum farklıdır — böyle bir durumda protein alımı bir hekimle konuşulmalıdır.',
+        'There is no strong evidence that a reasonable protein intake causes kidney damage in healthy people. It is different with an existing kidney condition; in that case protein intake should be discussed with a doctor.',
     },
     {
-      question: 'Protein tozu şişkinlik yapar mı?',
+      question: 'Why does protein powder make me bloated?',
       answer:
-        'Bazı kişilerde whey konsantre, içerdiği laktoz nedeniyle şişkinlik veya sindirim rahatsızlığı yapabiliyor. Laktoza duyarlıysan izole formlar veya bitkisel protein seçenekleri değerlendirilebilir; bazı ürünler bu şikayeti azaltmak için sindirim enzimi de içerir.',
+        'In some people whey concentrate causes bloating or digestive discomfort because of its lactose. If you are lactose sensitive, isolate or plant proteins are worth considering; some products also add digestive enzymes to reduce this.',
     },
     {
-      question: 'Sütle mi suyla mı karıştırmalı?',
+      question: 'Should I mix it with milk or water?',
       answer:
-        'İkisi de olur; fark kalori ve kıvamdadır. Suyla hazırlandığında sadece tozun kendi kalorisini alırsın. Sütle hazırlandığında karışım kremalaşır ve ekstra kalori/protein eklenir — kilo almaya çalışıyorsan avantaj, kalori takibi yapıyorsan hesaba katman gereken bir şeydir.',
+        'Either works; the difference is calories and texture. With water you get only the powder\'s calories. With milk the shake is creamier and adds calories and protein, useful if you are trying to gain weight and something to count if you track calories.',
     },
     {
-      question: 'Protein tozu fiyatları neden bu kadar farklı?',
+      question: 'Why do protein powder prices vary so much?',
       answer:
-        'Protein kaynağı (konsantre/izole/hidrolize/bitkisel), paket büyüklüğü, aroma ve markanın konumlandırması fiyatı belirler. Büyük paketler genelde servis başına daha ucuza gelir. Bu yüzden "en ucuz paket" ile "en ucuz servis" çoğu zaman aynı ürün değildir.',
+        'The protein source (concentrate, isolate, hydrolyzed, plant), tub size, flavor and brand positioning set the price. Bigger tubs usually cost less per serving, so the cheapest tub and the cheapest serving are often not the same product.',
     },
     {
-      question: 'Antrenman yapmadığım günlerde de içmeli miyim?',
+      question: 'Should I take it on rest days too?',
       answer:
-        'Günlük protein hedefine katı gıdayla ulaşamıyorsan evet. Kaslar sadece antrenman günlerinde onarılmaz; protein ihtiyacı her gün devam eder.',
-    },
-  ],
-
-  kreatin: [
-    {
-      question: 'Kreatin ne işe yarar?',
-      answer:
-        'Kreatin, kısa süreli ve yüksek yoğunluklu egzersizlerde (ağırlık kaldırma, sprint gibi) fiziksel performansı artırmaya yardımcı olur. Kas hücrelerinde enerji üretimiyle ilgili bir rol oynar. Üzerinde en çok araştırma yapılmış spor takviyelerinden biridir.',
-    },
-    {
-      question: 'Kreatin nasıl kullanılır, günde kaç gram?',
-      answer:
-        'Yaygın kullanım günde 3-5 gram civarındadır ve ürünlerin çoğu 5 gramlık ölçekle gelir. Daha fazlası doygunluğu hızlandırmaz, fazlası vücuttan atılır. Belirleyici olan miktardan çok düzenliliktir.',
-    },
-    {
-      question: 'Kreatin kaç günde etki eder?',
-      answer:
-        'Kreatin anlık etki gösteren bir madde değildir. Kas hücrelerinde belirli bir doygunluğa ulaşması gerekir ve bu, düzenli kullanımla ortalama 3-4 hafta sürer. Bu yüzden bir iki gün kullanıp sonuç beklemek yanıltıcı olur.',
-    },
-    {
-      question: 'Kreatin su tutar mı?',
-      answer:
-        'Kreatin kas hücrelerinde su tutulmasını artırabilir; bu, tartıda birkaç kiloluk bir artış olarak görünebilir. Bu ağırlık yağ değildir, kas içi su miktarındaki değişimdir. Kullanım döneminde günlük su tüketimine dikkat etmek yaygın bir öneridir.',
-    },
-    {
-      question: 'Kreatin saç döker mi?',
-      answer:
-        'Bu, internette çok dolaşan bir iddia. Kaynağı, tek bir küçük çalışmada gözlenen bir hormon değişimidir; saç dökülmesinin kendisi o çalışmada ölçülmemiştir. Kreatinin saç dökülmesine yol açtığını gösteren güçlü bir kanıt bulunmuyor, ancak konu hakkında kesin bir yargı için yeterli araştırma da yok.',
-    },
-    {
-      question: 'Yükleme fazı şart mı?',
-      answer:
-        'Hayır. Yükleme fazı (ilk hafta bölünmüş dozlarda daha yüksek miktar) doygunluğa daha hızlı ulaşmak için kullanılan bir yöntemdir. Doğrudan 3-5 gramla başlamak da aynı sonuca, sadece birkaç hafta daha uzun sürede ulaştırır. Yükleme sırasında bazı kişilerde mide rahatsızlığı görülebilir.',
-    },
-    {
-      question: 'Kreatin ara verilmeli mi?',
-      answer:
-        'Düzenli kullanımda döngüsel ara vermenin gerekli olduğunu gösteren güçlü bir kanıt yok. Ara verildiğinde kas kreatin seviyeleri zamanla normale döner, tekrar başlandığında doygunluk süreci yeniden işler.',
-    },
-    {
-      question: 'Kreatin ve protein tozu birlikte kullanılır mı?',
-      answer:
-        'Evet. İkisi vücutta tamamen farklı mekanizmalar üzerinden çalışır ve birbirlerinin emilimini engellemez. Aynı karışımda alınmasının bilinen bir sakıncası yoktur.',
-    },
-    {
-      question: 'Kreatin monohidrat mı yoksa diğer formlar mı?',
-      answer:
-        'Kreatin monohidrat, üzerinde en çok araştırma yapılmış ve en uygun fiyatlı formdur. Diğer formların (HCL, etil ester gibi) monohidrata belirgin üstünlük sağladığını gösteren güçlü bir kanıt bulunmuyor.',
+        'Yes, if you can\'t reach your daily protein target with food. Muscles don\'t only repair on training days; protein needs continue every day.',
     },
   ],
 
-  'amino-asitler': [
+  creatine: [
     {
-      question: 'BCAA ile EAA arasındaki fark nedir?',
+      question: 'What does creatine do?',
       answer:
-        'EAA (esansiyel amino asitler) vücudun kendi üretemediği dokuz amino asidin tamamını kapsar. BCAA ise bunların içinden üç tanesidir (lösin, izolösin, valin). Yani BCAA, EAA\'nın bir alt kümesidir.',
+        'Creatine helps performance in short, high-intensity efforts such as lifting and sprinting. It plays a role in energy production in muscle cells and is one of the most researched sports supplements.',
     },
     {
-      question: 'Protein tozu kullanıyorsam BCAA gerekir mi?',
+      question: 'How much creatine should I take a day?',
       answer:
-        'Genellikle hayır. Whey protein zaten yüksek oranda BCAA içerir; günlük protein hedefini karşılayan biri için ayrıca BCAA almanın ek fayda sağladığını gösteren güçlü bir kanıt yoktur. Bu, BCAA takviyelerinin en çok tartışılan noktasıdır.',
+        'The usual intake is 3-5 grams a day, and most products come with a 5-gram scoop. More doesn\'t speed up saturation; the excess is excreted. Consistency matters more than the amount.',
     },
     {
-      question: 'Glutamin ne işe yarar?',
+      question: 'How long does creatine take to work?',
       answer:
-        'Glutamin vücutta en bol bulunan amino asitlerden biridir ve normal koşullarda vücut bunu yeterli miktarda üretebilir. Sporcularda takviye olarak kullanımının performansa katkısı konusunda kanıtlar sınırlıdır.',
+        'Creatine doesn\'t act instantly. Muscle stores need to reach saturation, which takes about 3-4 weeks of daily use, so expecting results after a day or two is misleading.',
     },
     {
-      question: 'Amino asit takviyesi ne zaman alınır?',
+      question: 'Does creatine make you retain water?',
       answer:
-        'Zamanlama konusunda net bir üstünlük gösteren güçlü bir kanıt yok. Antrenman sırasında veya çevresinde almak yaygın bir tercihtir, ancak günlük toplam protein/amino asit alımı çok daha belirleyicidir.',
+        'Creatine can increase water held in muscle cells, which may show as a few pounds on the scale. That weight is not fat but water inside the muscle. Drinking enough water while taking it is a common recommendation.',
     },
     {
-      question: 'Arjinin ve sitrulin ne için kullanılır?',
+      question: 'Does creatine cause hair loss?',
       answer:
-        'Bu ikisi, kan akışıyla ilişkili nitrik oksit üretimini destekledikleri için genelde antrenman sırasındaki "pump" hissiyle birlikte anılır. Sitrulinin bu amaçla arjinine göre daha etkili emildiği yaygın bir görüştür.',
+        'This claim circulates widely. It traces back to a single small study that saw a hormone change; hair loss itself was not measured. There is no strong evidence that creatine causes hair loss, though there isn\'t enough research for a firm verdict either.',
     },
     {
-      question: 'Amino asit takviyesi kas yapar mı?',
+      question: 'Do I need a loading phase?',
       answer:
-        'Tek başına kas yapan bir takviye yoktur. Kas gelişimi antrenman, yeterli toplam protein alımı ve dinlenmeye bağlıdır; amino asit takviyeleri bu tablonun tamamlayıcı bir parçası olabilir, yerine geçmez.',
+        'No. Loading (a higher amount split into doses during the first week) reaches saturation faster. Starting directly at 3-5 grams gets to the same result a few weeks later. Some people get an upset stomach while loading.',
     },
     {
-      question: 'Aç karnına amino asit alınır mı?',
+      question: 'Should I cycle off creatine?',
       answer:
-        'Alınabilir; amino asitler hızlı emilir ve mideyi genelde rahatsız etmez. Yine de kişiden kişiye değişir — rahatsızlık hissediyorsan hafif bir ara öğünle birlikte almayı deneyebilirsin.',
+        'There is no strong evidence that regular breaks are needed. When you stop, muscle creatine levels return to normal over time, and saturation starts again when you resume.',
     },
     {
-      question: 'EAA tozu mu kapsül mü?',
+      question: 'Can I take creatine with protein powder?',
       answer:
-        'Etken madde aynıdır; fark pratiklikte ve maliyettedir. Toz formlar genelde gram başına daha ucuzdur ve dozu ayarlamak kolaydır; kapsüller taşınabilirlik açısından avantajlıdır ama aynı miktar için daha fazla adet gerekir.',
+        'Yes. They work through entirely different mechanisms and don\'t interfere with each other\'s absorption. There is no known downside to mixing them in the same shake.',
+    },
+    {
+      question: 'Creatine monohydrate or another form?',
+      answer:
+        'Creatine monohydrate is the most researched and usually the cheapest form. There is no strong evidence that other forms (HCl, ethyl ester) are clearly better.',
+    },
+  ],
+
+  'amino-acids': [
+    {
+      question: 'What is the difference between BCAA and EAA?',
+      answer:
+        'EAAs (essential amino acids) are all nine amino acids the body can\'t make. BCAAs are three of them (leucine, isoleucine, valine). So BCAAs are a subset of EAAs.',
+    },
+    {
+      question: 'Do I need BCAAs if I take protein powder?',
+      answer:
+        'Usually not. Whey protein is already rich in BCAAs; for someone meeting their daily protein target there is no strong evidence that extra BCAAs help. This is the most debated point about BCAA supplements.',
+    },
+    {
+      question: 'What does glutamine do?',
+      answer:
+        'Glutamine is one of the most abundant amino acids in the body, which normally makes enough of it. Evidence that supplementing it improves performance in athletes is limited.',
+    },
+    {
+      question: 'When should I take amino acids?',
+      answer:
+        'There is no strong evidence that timing makes a clear difference. Taking them during or around training is common, but total daily protein and amino acid intake matters much more.',
+    },
+    {
+      question: 'What are arginine and citrulline used for?',
+      answer:
+        'Both support nitric oxide production, which is linked to blood flow, so they are associated with the "pump" during training. Citrulline is widely considered better absorbed than arginine for this purpose.',
+    },
+    {
+      question: 'Do amino acid supplements build muscle?',
+      answer:
+        'No supplement builds muscle on its own. Muscle growth depends on training, enough total protein and rest; amino acid supplements can complement that picture, not replace it.',
+    },
+    {
+      question: 'Can I take amino acids on an empty stomach?',
+      answer:
+        'Yes; they absorb quickly and rarely upset the stomach. It varies by person, though. If you feel discomfort, try them with a light snack.',
+    },
+    {
+      question: 'EAA powder or capsules?',
+      answer:
+        'The active ingredient is the same; the difference is convenience and cost. Powders are usually cheaper per gram and easy to dose; capsules are portable but need many pills for the same amount.',
     },
   ],
 
   'pre-workout': [
     {
-      question: 'Pre-workout ne işe yarar?',
+      question: 'What does pre-workout do?',
       answer:
-        'Antrenman öncesi enerji, odaklanma ve algılanan performans hissini desteklemek için kullanılır. Etkisinin büyük kısmı içerdiği kafeinden gelir; ayrıca "pump" hissiyle ilişkilendirilen sitrulin gibi bileşenler de içerebilir.',
+        'It is used to support energy, focus and the feeling of performance before training. Most of the effect comes from caffeine; many also contain ingredients such as citrulline, associated with the "pump".',
     },
     {
-      question: 'Pre-workout antrenmandan kaç dakika önce alınır?',
+      question: 'How long before a workout should I take it?',
       answer:
-        'Genel öneri 20-30 dakika öncedir. Kafeinin kandaki seviyesi bu sürede yükselmeye başlar. Çok erken alınırsa etkinin zirvesi antrenman bitmeden geçebilir, çok geç alınırsa ısınma bitmeden hiçbir şey hissedilmez.',
+        'The usual advice is 20-30 minutes before. Caffeine levels in the blood start rising in that time. Taken too early, the peak can pass before the workout ends; too late, you won\'t feel anything until after your warm-up.',
     },
     {
-      question: 'Pre-workout neden karıncalanma yapar?',
+      question: 'Why does pre-workout make me tingle?',
       answer:
-        'Ciltte hissedilen karıncalanma genelde beta-alanin içeriğinden kaynaklanır. Zararsız bir yan etkidir ve şiddeti kişiden kişiye değişir. Ürünün "çalıştığının" göstergesi değildir, sadece o bileşene verilen bir tepkidir.',
+        'The tingling on the skin usually comes from beta-alanine. It is a harmless effect whose intensity varies by person. It doesn\'t mean the product is "working"; it is simply a reaction to that ingredient.',
     },
     {
-      question: 'Her gün pre-workout kullanılır mı?',
+      question: 'Can I take pre-workout every day?',
       answer:
-        'Düzenli ve yüksek dozda kafein kullanımı zamanla tolerans geliştirir — aynı etkiyi hissetmek için dozu artırmak yerine, pre-workout\'u gerçekten ihtiyaç duyulan ağır antrenmanlara saklamak daha sürdürülebilir bir yaklaşımdır.',
+        'Regular high doses of caffeine build tolerance over time. Rather than raising the dose to feel the same effect, saving pre-workout for the hard sessions where you need it is more sustainable.',
     },
     {
-      question: 'Akşam antrenmanında pre-workout kullanılır mı?',
+      question: 'Can I take pre-workout for an evening workout?',
       answer:
-        'Kafeinin vücuttan atılması saatler sürer; akşam geç saatte kafeinli bir ürün almak uyku kalitesini belirgin şekilde etkileyebilir. Geç saatte antrenman yapanlar için stimülansız (kafeinsiz) seçenekler vardır.',
+        'Caffeine takes hours to clear the body, and a caffeinated product late in the day can noticeably affect sleep. Stimulant-free (caffeine-free) pre-workouts exist for late training.',
     },
     {
-      question: 'Pre-workout yan etkileri nelerdir?',
+      question: 'What are the side effects of pre-workout?',
       answer:
-        'Yüksek kafein dozlarında çarpıntı, huzursuzluk ve uykuya dalmakta zorlanma görülebilir. Gün içinde tükettiğin kahve/çay da bu toplama eklenir. Kalp rahatsızlığı veya tansiyon sorunu olanların bir hekime danışması gerekir.',
+        'At high caffeine doses, a racing heart, jitters and trouble falling asleep can occur, and coffee or tea during the day adds to the total. The FDA cites 400 mg of caffeine a day as generally safe for healthy adults. People with heart or blood pressure conditions should talk to a doctor.',
     },
     {
-      question: 'Kreatin mi pre-workout mu?',
+      question: 'Creatine or pre-workout?',
       answer:
-        'Farklı işler yaparlar, birbirinin alternatifi değildirler. Kreatin düzenli kullanımla zamanla performansa katkı sağlar; pre-workout ise o antrenman için anlık enerji/odak hissi verir. Bazı pre-workout ürünleri zaten kreatin içerir — ikisini birlikte alıyorsan etiketi kontrol et.',
+        'They do different jobs and aren\'t alternatives. Creatine supports performance over time with daily use; a pre-workout gives an in-the-moment boost for that session. Some pre-workouts already contain creatine, so check the label if you take both.',
     },
     {
-      question: 'Pre-workout yarım doz alınabilir mi?',
+      question: 'Can I take half a scoop?',
       answer:
-        'Evet ve ilk kez kullanıyorsan yaygın bir öneridir. Ürünlerin porsiyon başına kafein miktarı 150 mg ile 300 mg üzeri arasında çok değişir, yani "bir ölçek" her üründe aynı şey demek değildir.',
-    },
-  ],
-
-  'kilo-hacim': [
-    {
-      question: 'Gainer nedir, protein tozundan farkı ne?',
-      answer:
-        'Gainer, protein yanında yüksek oranda karbonhidrat içeren, porsiyon başına kalorisi yüksek bir üründür. Protein tozu esas olarak protein açığını kapatmak için kullanılırken, gainer günlük kalori hedefine ulaşmakta zorlananlar için tasarlanmıştır.',
-    },
-    {
-      question: 'Gainer kimler için uygun?',
-      answer:
-        'Yeterince yemek yemekte zorlanan, kilo almaya çalışan kişiler için pratik bir seçenek olabilir. Zaten kalori fazlasında olan biri için gerekli değildir — o durumda normal protein tozu ve gıda daha kontrollü bir yol sunar.',
-    },
-    {
-      question: 'Gainer yağlandırır mı?',
-      answer:
-        'Gainer da sonuçta kaloridir. Toplam günlük kalori ihtiyacının üzerine çıkıldığında alınan kilonun bir kısmı yağ olarak depolanır. Ne kadarının kas ne kadarının yağ olacağı, antrenman düzenine ve toplam kalori fazlasının büyüklüğüne bağlıdır.',
-    },
-    {
-      question: 'Gainer nasıl kullanılır?',
-      answer:
-        'Porsiyonlar genelde büyüktür (bazı ürünlerde 100 gramın üzerinde). Tam porsiyonu tek seferde içmek mide açısından zor gelirse bölerek kullanmak yaygın bir tercihtir. Öğün yerine değil, öğünlere ek olarak düşünülmelidir.',
-    },
-    {
-      question: 'Gainer yerine ne yenebilir?',
-      answer:
-        'Yulaf, süt, muz, fıstık ezmesi gibi gıdalarla hazırlanan yüksek kalorili karışımlar benzer bir işlevi görebilir. Gainer\'ın avantajı pratikliktir, besleyicilik açısından tek üstün seçenek olduğu anlamına gelmez.',
-    },
-    {
-      question: 'Gainer fiyatları neden değişiyor?',
-      answer:
-        'Paket büyüklüğü, protein/karbonhidrat oranı ve kullanılan protein kaynağı fiyatı etkiler. Gainer paketleri büyük olduğu için kilogram fiyatı düşük görünebilir; asıl karşılaştırma porsiyon başına maliyet üzerinden yapılmalıdır.',
-    },
-    {
-      question: 'Gainer ne zaman içilmeli?',
-      answer:
-        'Zamanlama kritik değildir; belirleyici olan günlük toplam kaloridir. Antrenman sonrası veya öğün araları, iştahı bozmadan ek kalori almak açısından pratik zamanlardır.',
+        'Yes, and it is common advice if you are new to a product. Caffeine per serving ranges from about 150 mg to over 300 mg, so "one scoop" doesn\'t mean the same thing in every product.',
     },
   ],
 
-  vitamin: [
+  hydration: [
     {
-      question: 'Vitamin takviyesi herkese gerekli mi?',
+      question: 'Do I need an electrolyte drink?',
       answer:
-        'Hayır. Dengeli ve çeşitli besleniyorsan çoğu vitamini gıdalardan alabilirsin. Takviye, belirli bir eksiklik veya artmış ihtiyaç durumunda anlamlıdır — bunu tahminle değil, gerekiyorsa kan tahliliyle belirlemek doğru olur.',
+        'For short, moderate workouts, water and normal meals are usually enough. Electrolytes matter more for long sessions, hot weather, heavy sweating or a low-carb diet.',
     },
     {
-      question: 'Multivitamin mi tekil vitamin mi?',
+      question: 'How much sodium should an electrolyte mix have?',
       answer:
-        'Multivitamin geniş ama düşük dozlu bir kapsama sunar. Belirli bir eksiklik varsa (örneğin D vitamini), tekil ve uygun dozlu bir ürün genelde daha anlamlıdır. "Her şeyden biraz" her zaman en iyi çözüm değildir.',
+        'It depends on how much you sweat. Everyday mixes may have a few hundred milligrams per serving; endurance products can exceed 1,000 mg. Match it to your activity instead of assuming more is better.',
     },
     {
-      question: 'D vitamini ne zaman ve nasıl alınır?',
+      question: 'Are sugar-free electrolyte mixes as good?',
       answer:
-        'D vitamini yağda çözünen bir vitamindir, bu yüzden yağ içeren bir öğünle birlikte alınması emilim açısından yaygın olarak önerilir. Doz kişiye göre değişir; yüksek dozlarda hekim kontrolü gerekir.',
+        'For hydration during everyday activity, yes. Sugar helps fluid absorb faster and supplies energy during long efforts, so it has a purpose in endurance sports, but it isn\'t needed for most daily use.',
     },
     {
-      question: 'Magnezyum ne işe yarar?',
+      question: 'Can I drink electrolytes every day?',
       answer:
-        'Magnezyum kas ve sinir işlevleri, enerji metabolizması gibi birçok süreçte rol oynar. Sporcular arasında kramp ve uyku kalitesiyle ilişkilendirilerek sık kullanılır; farklı formları (sitrat, bisglisinat gibi) emilim ve sindirim açısından farklılık gösterebilir.',
+        'Many people do. If you are on a sodium-restricted diet or have high blood pressure, kidney or heart conditions, talk to a doctor before using high-sodium products regularly.',
     },
     {
-      question: 'Çinko takviyesi ne zaman gerekir?',
+      question: 'Electrolyte powder or tablets?',
       answer:
-        'Çinko bağışıklık ve hormon dengesiyle ilişkilendirilen bir mineraldir. Uzun süreli yüksek doz kullanımı bakır emilimini etkileyebildiği için, uzun vadeli kullanımda bir sağlık profesyoneline danışmak gerekir.',
-    },
-    {
-      question: 'Omega-3 hangi durumda kullanılır?',
-      answer:
-        'Balık tüketimi düşük olan kişilerde omega-3 açığını kapatmak için tercih edilir. Ürünler arasında EPA/DHA miktarı büyük fark gösterir — kapsül sayısına değil, porsiyon başına EPA/DHA miktarına bakmak daha doğru bir karşılaştırma sağlar.',
-    },
-    {
-      question: 'Vitaminler aç karnına mı alınmalı?',
-      answer:
-        'Yağda çözünenler (A, D, E, K) yağ içeren bir öğünle birlikte daha iyi emilir. Suda çözünenler aç karnına alınabilir ama bazı kişilerde mide rahatsızlığı yapabilir; o durumda yemekle birlikte almak sorunu genelde çözer.',
+        'The minerals are the same; the difference is convenience and dose. Powders often carry more per serving and can include carbohydrate; tablets are easy to carry and usually lower in sodium.',
     },
   ],
 
-  'l-carnitine-cla': [
+  'mass-gainers': [
     {
-      question: 'L-karnitin ne işe yarar?',
+      question: 'What is a mass gainer, and how is it different from protein powder?',
       answer:
-        'L-karnitin, yağ asitlerinin hücre içinde enerjiye dönüştürülmek üzere taşınmasında rol oynayan bir bileşiktir. Vücut bunu kendisi de üretir ve kırmızı ette bulunur. Takviye olarak alındığında yağ yakımını belirgin şekilde artırdığına dair kanıtlar sınırlıdır.',
+        'A gainer contains a lot of carbohydrate alongside protein, with many calories per serving. Protein powder mainly covers a protein gap, while a gainer is designed for people who struggle to reach their daily calorie target.',
     },
     {
-      question: 'L-karnitin zayıflatır mı?',
+      question: 'Who is a mass gainer for?',
       answer:
-        'Tek başına zayıflatan bir madde değildir. Kilo kaybı esas olarak kalori açığına bağlıdır; L-karnitin bu tablonun yerine geçmez. Vücudun zaten yeterli ürettiği bir bileşen olduğu için, eksikliği olmayan kişilerde ek faydası sınırlı kalabilir.',
+        'It can be a practical option for people who find it hard to eat enough and are trying to gain weight. For someone already in a calorie surplus it isn\'t needed; regular protein powder and food offer more control.',
     },
     {
-      question: 'L-karnitin ne zaman içilir?',
+      question: 'Will a mass gainer make me fat?',
       answer:
-        'Yaygın kullanım antrenman öncesidir, ancak zamanlamanın belirleyici olduğunu gösteren güçlü bir kanıt yoktur. Sıvı (shot) formlar pratiklik açısından tercih edilir.',
+        'A gainer is still calories. Eat above your daily needs and part of the weight gained is stored as fat. How much becomes muscle versus fat depends on your training and the size of the surplus.',
     },
     {
-      question: 'CLA nedir?',
+      question: 'How do I use a mass gainer?',
       answer:
-        'CLA (konjuge linoleik asit), bazı hayvansal gıdalarda doğal olarak bulunan bir yağ asididir. Vücut kompozisyonu üzerindeki etkisine dair çalışmalar karışık sonuçlar vermiştir; kesin ve büyük bir etki beklemek gerçekçi olmaz.',
+        'Servings are usually large (over 100 grams in some products). If a full serving at once is too much, splitting it is common. Treat it as an addition to meals, not a replacement.',
     },
     {
-      question: 'L-karnitin kas kaybettirir mi?',
+      question: 'What can I use instead of a gainer?',
       answer:
-        'Böyle bir etkiye dair bir kanıt yoktur. Kas kaybı genelde aşırı kalori açığı ve yetersiz protein alımıyla ilişkilidir, takviyenin kendisiyle değil.',
+        'High-calorie shakes made with oats, milk, bananas and peanut butter can do a similar job. A gainer\'s advantage is convenience, not that it is the only nutritious option.',
     },
     {
-      question: 'L-karnitin yan etkisi var mı?',
+      question: 'Why do mass gainer prices vary?',
       answer:
-        'Yüksek dozlarda bazı kişilerde mide rahatsızlığı veya vücut kokusunda değişiklik bildirilmiştir. Etiketteki önerilen kullanım miktarını aşmamak ve mevcut bir sağlık sorunu varsa hekime danışmak gerekir.',
-    },
-  ],
-
-  'yag-yakici': [
-    {
-      question: 'Yağ yakıcı takviyeler gerçekten işe yarar mı?',
-      answer:
-        'Bu ürünlerin çoğu, metabolizmayı hafifçe hızlandırdığı veya iştahı baskıladığı öne sürülen bileşenler (çoğunlukla kafein ve bitkisel ekstreler) içerir. Etkileri genelde küçüktür ve kalori açığının yerine geçmez. Ürün isimlerindeki iddialar, gerçek etkiden çok pazarlama dilidir.',
+        'Tub size, the protein-to-carb ratio and the protein source affect the price. Gainer tubs are large, so the price per pound can look low; compare cost per serving instead.',
     },
     {
-      question: 'Yağ yakıcı olmadan kilo verilir mi?',
+      question: 'When should I drink a mass gainer?',
       answer:
-        'Evet. Kilo kaybının temeli kalori açığıdır; hiçbir takviye bu koşul olmadan yağ kaybı sağlamaz. Takviyeler en iyi ihtimalle küçük bir destek sunar.',
-    },
-    {
-      question: 'Termojenik ne demek?',
-      answer:
-        'Vücut ısısını ve dolayısıyla enerji harcamasını bir miktar artırdığı öne sürülen ürünler için kullanılan bir terimdir. Bu artış genellikle günlük toplam kalori harcamasında küçük bir paya karşılık gelir.',
-    },
-    {
-      question: 'Yağ yakıcı yan etkileri neler?',
-      answer:
-        'Çoğu ürün yüksek miktarda kafein içerdiği için çarpıntı, huzursuzluk, uyku bozukluğu ve tansiyon yükselmesi görülebilir. Kalp rahatsızlığı, tansiyon sorunu olanlar veya kafeine hassas kişiler bir hekime danışmadan kullanmamalıdır.',
-    },
-    {
-      question: 'Yağ yakıcı ne zaman kullanılır?',
-      answer:
-        'Genelde sabah veya antrenman öncesi tercih edilir. Kafein içeriği nedeniyle akşam saatlerinde kullanmak uyku kalitesini bozabilir.',
-    },
-    {
-      question: 'Yağ yakıcı ile pre-workout birlikte kullanılır mı?',
-      answer:
-        'Dikkatli olmak gerekir: ikisi de yüksek kafein içerebilir ve birlikte alındığında toplam doz hızla yükselir. Etiketleri karşılaştırıp toplam kafein miktarını hesaplamak gerekir.',
+        'Timing isn\'t critical; total daily calories are. After training or between meals are practical times to add calories without spoiling your appetite.',
     },
   ],
 
-  'saglikli-atistirmaliklar': [
+  vitamins: [
     {
-      question: 'Protein bar gerçekten sağlıklı mı?',
+      question: 'Does everyone need a vitamin supplement?',
       answer:
-        'Değişir. Bazı barlar yüksek protein ve makul şeker içerirken, bazıları besin değeri açısından çikolatalı bir bardan çok farklı değildir. Etiketteki protein miktarı, şeker ve toplam kaloriye birlikte bakmak gerekir.',
+        'No. With a balanced, varied diet you can get most vitamins from food. Supplements make sense for a specific deficiency or an increased need, which is best identified with a blood test rather than guessed.',
     },
     {
-      question: 'Protein bar öğün yerine geçer mi?',
+      question: 'Multivitamin or single vitamins?',
       answer:
-        'Genelde hayır. Barlar pratik bir ara öğün seçeneğidir; dengeli bir öğünün sunduğu lif, mikro besin ve doygunluk hissini çoğu zaman karşılamaz. Zaman baskısı olan durumlarda makul bir alternatiftir.',
+        'A multivitamin offers broad but low-dose coverage. For a specific deficiency (vitamin D, for example), a single, appropriately dosed product usually makes more sense. "A little of everything" isn\'t always the best answer.',
     },
     {
-      question: 'Protein bar kilo aldırır mı?',
+      question: 'When and how should I take vitamin D?',
       answer:
-        'Toplam kalori hedefinin üzerine çıkılırsa evet — bu her gıda için geçerlidir. Bazı barların kalorisi beklenenden yüksektir, bu yüzden "sağlıklı" etiketine değil gerçek kalori değerine bakmak gerekir.',
+        'Vitamin D is fat-soluble, so taking it with a meal that contains fat is commonly recommended for absorption. The right dose varies by person; high doses need a doctor\'s supervision.',
     },
     {
-      question: 'Şekersiz atıştırmalık gerçekten şekersiz mi?',
+      question: 'What does magnesium do?',
       answer:
-        '"İlave şeker içermez" ifadesi, üründe hiç karbonhidrat olmadığı anlamına gelmez; tatlandırıcı veya doğal şeker kaynakları bulunabilir. Etiketteki toplam karbonhidrat ve şeker satırına bakmak en doğrusudur.',
+        'Magnesium plays a role in muscle and nerve function and energy metabolism. It is popular among athletes for cramps and sleep quality; its forms (citrate, glycinate) differ in absorption and how they sit in the stomach.',
     },
     {
-      question: 'Antrenman öncesi protein bar yenir mi?',
+      question: 'When do I need a zinc supplement?',
       answer:
-        'Yenebilir, ancak yağ ve lif oranı yüksek barlar mideyi ağırlaştırabilir. Antrenmana yakın zamanda daha hafif ve sindirimi kolay bir seçenek çoğu kişi için daha rahattır.',
+        'Zinc is linked to immune function and hormone balance. Long-term high doses can interfere with copper absorption, so talk to a health professional before long-term use.',
+    },
+    {
+      question: 'When is omega-3 used?',
+      answer:
+        'It is used to cover omega-3 intake for people who eat little fish. Products differ a lot in EPA and DHA content; compare EPA/DHA per serving rather than the number of capsules.',
+    },
+    {
+      question: 'Should vitamins be taken on an empty stomach?',
+      answer:
+        'Fat-soluble vitamins (A, D, E, K) absorb better with a meal that has fat. Water-soluble ones can be taken on an empty stomach but may upset it in some people; taking them with food usually solves that.',
+    },
+  ],
+
+  'fat-burners': [
+    {
+      question: 'Do fat burner supplements really work?',
+      answer:
+        'Most contain ingredients said to slightly raise metabolism or curb appetite (mostly caffeine and plant extracts). Their effects are generally small and don\'t replace a calorie deficit. The claims in product names are more marketing than measured effect.',
+    },
+    {
+      question: 'Can I lose weight without a fat burner?',
+      answer:
+        'Yes. Weight loss rests on a calorie deficit; no supplement produces fat loss without it. At best, supplements offer a small addition.',
+    },
+    {
+      question: 'What does "thermogenic" mean?',
+      answer:
+        'It describes products said to raise body heat and therefore energy expenditure slightly. That increase is usually a small share of total daily calories burned.',
+    },
+    {
+      question: 'Does L-carnitine help you lose weight?',
+      answer:
+        'Not on its own. L-carnitine helps move fatty acids into cells to be used for energy, but the body already makes enough, and evidence that supplementing it meaningfully increases fat loss is limited.',
+    },
+    {
+      question: 'What is CLA?',
+      answer:
+        'CLA (conjugated linoleic acid) is a fatty acid found naturally in some animal foods. Studies on body composition have shown mixed results; expecting a large, reliable effect isn\'t realistic.',
+    },
+    {
+      question: 'What are the side effects of fat burners?',
+      answer:
+        'Most contain a lot of caffeine, so a racing heart, jitters, poor sleep and raised blood pressure can occur. People with heart or blood pressure conditions or caffeine sensitivity shouldn\'t use them without talking to a doctor.',
+    },
+    {
+      question: 'Can I take a fat burner with a pre-workout?',
+      answer:
+        'Be careful: both can be high in caffeine, and together the total climbs fast. Compare the labels and add up the caffeine.',
+    },
+  ],
+
+  'protein-snacks': [
+    {
+      question: 'Are protein bars actually healthy?',
+      answer:
+        'It depends. Some bars are high in protein with reasonable sugar; others aren\'t very different from a candy bar nutritionally. Look at protein, sugar and total calories together on the label.',
+    },
+    {
+      question: 'Can a protein bar replace a meal?',
+      answer:
+        'Usually not. Bars are a convenient snack but rarely match the fiber, micronutrients and fullness of a balanced meal. When you are short on time, they are a reasonable fallback.',
+    },
+    {
+      question: 'Can protein bars make you gain weight?',
+      answer:
+        'Yes, if they push you above your calorie target, as with any food. Some bars have more calories than expected, so check the real calorie count rather than the "healthy" label.',
+    },
+    {
+      question: 'Is a "no sugar added" snack really sugar-free?',
+      answer:
+        '"No sugar added" doesn\'t mean no carbohydrate; sweeteners or natural sugars may still be present. The total carbohydrate and sugar lines on the label are the reliable guide.',
+    },
+    {
+      question: 'Can I eat a protein bar before a workout?',
+      answer:
+        'Yes, but bars high in fat and fiber can sit heavy. Close to training, a lighter, easier-to-digest option is more comfortable for most people.',
     },
   ],
 };

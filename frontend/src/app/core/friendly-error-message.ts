@@ -1,35 +1,31 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
-// E-posta-hassas uçlar (favori ekleme, "Haber Ver", kurtarma linki, bülten
-// aboneliği) hepsi aynı IP-bazlı rate limit'i paylaşıyor (backend'deki
-// "EmailSensitive" policy, 5 dakikada 5 istek). Bu, kullanıcı testinde
-// jenerik "bir şeyler ters gitti" mesajının arkasında kaybolmuştu — 429'u
-// ayırt edip ne olduğunu açıkça söylüyoruz.
-const RATE_LIMIT_MESSAGE = 'Kısa sürede çok fazla istek gönderdin, birkaç dakika sonra tekrar dener misin?';
+// Email-sensitive endpoints (watchlist add, "notify me", recovery link,
+// newsletter) share one IP-based rate limit on the backend ("EmailSensitive",
+// 5 requests per 5 minutes). A 429 is told apart instead of disappearing
+// behind a generic "something went wrong".
+const RATE_LIMIT_MESSAGE = 'Too many requests in a short time. Please try again in a few minutes.';
 
-export function friendlyErrorMessage(error: unknown, genericMessage = 'Bir şeyler ters gitti, tekrar dener misin?'): string {
+export function friendlyErrorMessage(error: unknown, genericMessage = 'Something went wrong. Please try again.'): string {
   if (!(error instanceof HttpErrorResponse)) return genericMessage;
   if (error.status === 429) return RATE_LIMIT_MESSAGE;
 
-  // Backend zaten Türkçe, kullanıcı dostu bir { message: "..." } gövdesi
-  // döndürüyorsa (ör. 400 doğrulama hatası, 502 "e-posta şu anda
-  // gönderilemiyor") onu göstermek jenerik mesajdan her zaman daha
-  // faydalı — backend'e yeni bir anlamlı hata eklendiğinde frontend'in
-  // ayrıca güncellenmesi gerekmiyor.
+  // When the backend returns a readable { message: "..." } body (a 400
+  // validation error, a 502 "email can't be sent right now"), it is always
+  // more useful than the generic text, and a new backend error needs no
+  // frontend change.
   const backendMessage = (error.error as { message?: unknown } | null)?.message;
   return typeof backendMessage === 'string' && backendMessage.trim().length > 0 ? backendMessage : genericMessage;
 }
 
-// Bu ekran şimdiye kadar birbirinden çok farklı üç sebebi tek bir "Bağlantı
-// sorunu" mesajıyla gösteriyordu: hız sınırı (429), sunucu hatası (5xx) ve
-// isteğin sunucuya hiç ulaşamaması. Kullanıcı açısından bunlar aynı şey
-// değil; üstelik eski metin ("Fiyat bilgilerine ulaşamıyoruz") listenin
-// KAYBOLDUĞU gibi okunabiliyordu. Bu yüzden her varyant, listenin sunucuda
-// durduğunu açıkça söylüyor.
+// Three very different causes used to share one "connection problem"
+// message: rate limiting (429), a server error (5xx) and a request that never
+// reached the server. They are not the same thing to a visitor, and the old
+// text read as if the list were GONE. Every variant says the list is safe on
+// the server.
 //
-// Kod (HTTP 429/504 gibi) küçük puntoyla gösteriliyor: kullanıcıyı
-// korkutmamalı ama sorun bildirildiğinde hangi durum olduğunu tahmin
-// etmek zorunda kalmayalım.
+// The code (HTTP 429/504) is shown in small print: it should not alarm
+// anyone, but when a problem is reported we don't have to guess which it was.
 export interface LoadErrorInfo {
   label: string;
   title: string;
@@ -42,37 +38,37 @@ export function describeLoadError(error: unknown): LoadErrorInfo {
 
   if (status === 429) {
     return {
-      label: 'Yoğunluk',
-      title: 'Biraz hızlı gittik',
-      message: 'Kısa sürede çok fazla istek gönderildi. Takip listen yerinde duruyor; birkaç saniye içinde kendiliğinden yeniden deneniyor.',
+      label: 'Busy',
+      title: 'That was a bit fast',
+      message: 'Too many requests in a short time. Your watchlist is safe; we will retry automatically in a few seconds.',
       code: 'HTTP 429',
     };
   }
 
-  // Angular ağ seviyesindeki başarısızlıklarda (çevrimdışı, DNS, engelleyici
-  // eklenti) status olarak 0 veriyor — sunucu hiç yanıt vermemiş demek.
+  // Angular reports network-level failures (offline, DNS, a blocking
+  // extension) as status 0: the server never answered.
   if (status === null || status === 0) {
     return {
-      label: 'Bağlantı',
-      title: 'İnternete bağlanılamadı',
-      message: 'Takip listen sunucuda güvende. Bağlantını kontrol edip yeniden dene.',
+      label: 'Connection',
+      title: "Couldn't connect to the internet",
+      message: 'Your watchlist is safe on our server. Check your connection and try again.',
       code: null,
     };
   }
 
   if (status >= 500) {
     return {
-      label: 'Geçici aksaklık',
-      title: 'Sunucumuzda geçici bir sorun var',
-      message: 'Bu bizden kaynaklanıyor, takip listenden hiçbir şey kaybolmadı. Birazdan yeniden dener misin?',
+      label: 'Temporary problem',
+      title: 'Our server is having a temporary problem',
+      message: 'This is on our side and nothing on your watchlist was lost. Please try again in a moment.',
       code: `HTTP ${status}`,
     };
   }
 
   return {
-    label: 'Beklenmedik durum',
-    title: 'Takip listen şu anda açılamadı',
-    message: 'Listen sunucuda duruyor. Yeniden denediğinde büyük ihtimalle açılacak.',
+    label: 'Unexpected',
+    title: "Your watchlist couldn't be opened right now",
+    message: 'Your list is still on our server. It will most likely open when you try again.',
     code: `HTTP ${status}`,
   };
 }

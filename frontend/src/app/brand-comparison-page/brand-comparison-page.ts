@@ -1,5 +1,4 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { DecimalPipe } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
@@ -9,17 +8,19 @@ import { brandSlug, resolveBrandFromSlug } from '../core/brand-slug';
 import { DealsService } from '../core/deals.service';
 import { CATEGORY_LABELS } from '../core/category-labels';
 import { PageMetaService } from '../core/page-meta.service';
+import { PricePipe } from '../core/price.pipe';
+import { SITE_NAME } from '../core/site-identity';
 import { SiteHeader } from '../site-header/site-header';
 import { showNotFound } from '../core/not-found-navigation';
 
 @Component({
   selector: 'app-brand-comparison-page',
-  imports: [DecimalPipe, RouterLink, SiteHeader],
+  imports: [PricePipe, RouterLink, SiteHeader],
   templateUrl: './brand-comparison-page.html',
 })
 export class BrandComparisonPage implements OnInit {
-  // Adres üretimi tek yerden: toLowerCase() marka adındaki boşluğu ve
-  // Türkçe harfi adrese taşıyıp kanonikten sapan bir kopya üretiyordu.
+  // One place builds the URL: toLowerCase() carried spaces and accented
+  // letters into the address and produced a copy that drifted from canonical.
   protected readonly brandSlug = brandSlug;
 
   private readonly route = inject(ActivatedRoute);
@@ -49,9 +50,9 @@ export class BrandComparisonPage implements OnInit {
 
     this.pairSlug.set(pair);
 
-    // Adresteki parça bir slug ("torq-nutrition"); API gerçek marka adını
-    // bekliyor. Marka listesinden eşleştiriliyor, bulunamazsa parça olduğu
-    // gibi gönderiliyor — boşluklu eski adresler böyle çalışmaya devam ediyor.
+    // The URL part is a slug ("optimum-nutrition"); the API expects the real
+    // brand name. It's matched against the brand list; if nothing matches the
+    // part is sent as is.
     this.dealsService.getFilterOptions().subscribe({
       next: (filters) => {
         const brand1 = resolveBrandFromSlug(parts[0], filters.brands) ?? parts[0];
@@ -69,10 +70,10 @@ export class BrandComparisonPage implements OnInit {
         this.setMeta(result);
         this.loading.set(false);
       },
-      // 404 ile GEÇİCİ hata ayrılıyor. Önceden her hata ana sayfaya
-      // yönlendiriyordu; backend'in bir anlık 5xx'i yüzünden arama motoruna
-      // "bu sayfa yok" demek kalıcı zarar verirdi. Bu sayfada henüz bir hata
-      // ekranı yok, o yüzden geçici hatada eski davranış korunuyor.
+      // A 404 is kept apart from a TEMPORARY error: telling search engines
+      // "this page doesn't exist" because of a momentary backend 5xx would do
+      // lasting harm. This page has no error screen yet, so a temporary error
+      // falls back to the home page.
       error: (err: HttpErrorResponse) => {
         if (err.status === 404) {
           showNotFound(this.router);
@@ -84,13 +85,13 @@ export class BrandComparisonPage implements OnInit {
   }
 
   private setMeta(comparison: BrandComparison): void {
-    const title = `${comparison.brand1} vs ${comparison.brand2} Fiyat Karşılaştırması | ProteinAvcısı`;
-    const description = `${comparison.brand1} ve ${comparison.brand2} markalarının kategori bazında güncel ortalama fiyatlarını karşılaştır — gerçek fiyat verisine dayanır.`;
+    const title = `${comparison.brand1} vs ${comparison.brand2} Price Comparison | ${SITE_NAME}`;
+    const description = `Compare current average prices of ${comparison.brand1} and ${comparison.brand2} by category, based on real price data.`;
 
     this.pageMeta.set({
       title,
       description,
-      canonicalPath: `/karsilastir/${this.pairSlug()}`,
+      canonicalPath: `/compare/${this.pairSlug()}`,
     });
   }
 
@@ -104,19 +105,14 @@ export class BrandComparisonPage implements OnInit {
     return cat.brand1AvgPrice < cat.brand2AvgPrice ? 1 : 2;
   }
 
-  // Tablonun altına kısa bir özet paragrafı — kaç kategoride hangi markanın
-  // daha ucuz olduğu + en belirgin farkın hangi kategoride olduğu. Tamamen
-  // mevcut kategori verisinden türetiliyor, ekstra bir backend çağrısı
-  // gerekmiyor (dış bir kod incelemesinde önerildi: "sadece tablo, hiç
-  // yorum yok" eleştirisine cevap).
+  // A short summary under the table: in how many categories each brand is
+  // cheaper, and where the difference is largest. Derived entirely from the
+  // category data already loaded; no extra backend call.
   //
-  // "leader" alanı BİLİNÇLİ OLARAK eklendi (2026-08-24, ikinci bir dış
-  // inceleme bulgusu) — önceki şablon "daha ucuz olan taraf: {brand1}
-  // (Nwins), {brand2} (Mwins)" şeklinde brand1'i (alfabetik ilk marka,
-  // kazanan olsun olmasın) HER ZAMAN önce yazıyordu; "Hardline (0
-  // kategori), HIQ (7 kategori)" gibi Hardline'ı "daha ucuz taraf" diye
-  // açıp sonra 0 diyen kafa karıştırıcı cümleler üretiyordu. Artık kazanan
-  // marka ayrıca hesaplanıp şablonda TEK ve NET bir özne olarak kullanılıyor.
+  // "leader" exists on purpose: an earlier template always named brand1 (the
+  // alphabetically first brand, winner or not) first, producing confusing
+  // sentences that opened with the "cheaper side" and then said 0. The
+  // winner is computed separately and used as the single clear subject.
   protected readonly summary = computed(() => {
     const c = this.comparison();
     if (!c || c.categories.length === 0) return null;

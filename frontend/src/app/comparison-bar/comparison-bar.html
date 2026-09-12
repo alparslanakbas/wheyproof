@@ -1,9 +1,9 @@
 @if (comparison.slots().length > 0) {
-  <!-- Mobilde alt sekme çubuğunun (56px) ÜSTÜNDE duruyor, masaüstünde
-       sayfanın en altında. Çerez bandıyla aynı konumlandırma yaklaşımı. -->
+  <!-- On mobile it sits ABOVE the bottom tab bar, on desktop at the very
+       bottom of the page; the same positioning as the cookie banner. -->
   <div class="noc-shell fixed bottom-[66px] left-0 right-0 z-40 px-3 pb-3 sm:bottom-0 sm:px-6">
     <div class="pa-card mx-auto flex max-w-[1380px] items-center gap-3 px-4 py-3 shadow-[var(--noc-shadow-lg)]">
-      <span class="hidden items-center gap-2 text-xs font-bold sm:flex"><i class="ph ph-scales text-lg text-[var(--noc-accent)]" aria-hidden="true"></i>Karşılaştır <span class="font-normal text-[var(--noc-neutral-500)]">({{ comparison.slots().length }}/2)</span></span>
+      <span class="hidden items-center gap-2 text-xs font-bold sm:flex"><i class="ph ph-scales text-lg text-[var(--noc-accent)]" aria-hidden="true"></i>Compare <span class="font-normal text-[var(--noc-neutral-500)]">({{ comparison.slots().length }}/2)</span></span>
 
       <div class="flex min-w-0 flex-1 items-center gap-2">
         @for (slot of comparison.slots(); track slot.productId) {
@@ -18,7 +18,7 @@
             <button
               type="button"
               class="shrink-0 text-[var(--noc-neutral-500)] hover:text-[var(--noc-accent)]"
-              [attr.aria-label]="slot.productName + ' ürününü karşılaştırmadan çıkar'"
+              [attr.aria-label]="'Remove ' + slot.productName + ' from comparison'"
               (click)="comparison.remove(slot.productId)"
             >
               <i class="ph ph-x text-base" aria-hidden="true"></i>
@@ -27,10 +27,10 @@
         }
 
         @if (!comparison.isFull()) {
-          <!-- İkinci ürün seçilene kadar boş slot gösteriliyor: ne yapılması
-               gerektiği (bir ürün daha seç) kendiliğinden anlaşılsın diye. -->
+          <!-- An empty slot until the second product is picked, so the next
+               step (pick one more) explains itself. -->
           <div class="flex flex-1 items-center justify-center rounded-[8px] border border-dashed border-[var(--noc-divider)] px-2 py-[13px] text-[11px] text-[var(--noc-neutral-500)] sm:flex-none sm:basis-[240px]">
-            Bir ürün daha seç
+            Pick one more product
           </div>
         }
       </div>
@@ -41,10 +41,10 @@
         [disabled]="!comparison.isFull()"
         (click)="go()"
       >
-        Karşılaştır
+        Compare
       </button>
 
-      <button type="button" title="Karşılaştırmayı temizle" class="pa-icon-button h-9 w-9 shrink-0 text-[var(--noc-neutral-500)]" (click)="comparison.clear()"><i class="ph ph-trash text-base" aria-hidden="true"></i></button>
+      <button type="button" title="Clear comparison" class="pa-icon-button h-9 w-9 shrink-0 text-[var(--noc-neutral-500)]" (click)="comparison.clear()"><i class="ph ph-trash text-base" aria-hidden="true"></i></button>
     </div>
   </div>
 }

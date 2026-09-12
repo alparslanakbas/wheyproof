@@ -7,27 +7,19 @@ import { SITE_NAME } from '../core/site-identity';
 import { SiteHeader } from '../site-header/site-header';
 
 /**
- * Bulunamayan sayfa (404).
+ * Not found page (404).
  *
- * NEDEN VAR: 4 Eylül'e kadar rota listesinde yakalayıcı (`**`) rota YOKTU.
- * Angular router adresi eşleştiremeyince istek SSR katmanına düşüyor ve
- * Express'in çıplak varsayılanı basılıyordu:
+ * Without a catch-all (`**`) route, an unmatched URL fell through to the SSR
+ * layer and Express printed its bare default ("Cannot GET /..."): a 1 kB
+ * error with no title, no menu and no way back into the site.
  *
- *     <title>Error</title>
- *     <pre>Cannot GET /olmayan-sayfa</pre>
+ * <b>THE STATUS CODE MUST BE 404.</b> On the server the component sets it
+ * through `RESPONSE_INIT`. Otherwise the page would return 200 and Google
+ * would count it as a "soft 404", a valid-page signal for missing content.
+ * The review page uses the same mechanism for 503.
  *
- * 1 kB'lık, sitenin hiçbir öğesini taşımayan bir hata metni: başlık yok,
- * menü yok, kullanıcının geri dönebileceği hiçbir bağlantı yok. Google'ın ve
- * AdSense denetçisinin gördüğü sayfa da buydu.
- *
- * <b>DURUM KODU 404 OLMAK ZORUNDA.</b> Bileşen sunucuda `RESPONSE_INIT` ile
- * kodu 404'e çekiyor. Yapılmasaydı sayfa 200 dönerdi ve Google bunu "soft
- * 404" sayardı — yani var olmayan içerik için geçerli sayfa sinyali. Aynı
- * mekanizma inceleme sayfasında 503 için de kullanılıyor.
- *
- * Ayrıca `noIndex`: 404 zaten dizine girmez ama tek sayfa uygulamasında
- * kullanıcı buraya istemcide de gelebiliyor (o durumda HTTP kodu yok),
- * etiket o yolu da kapatıyor.
+ * It is also `noIndex`: a 404 is never indexed anyway, but in a single-page
+ * app a visitor can reach this page client-side, where there is no HTTP code.
  */
 @Component({
   selector: 'app-not-found-page',
@@ -46,12 +38,11 @@ export class NotFoundPage implements OnInit {
     }
 
     this.pageMeta.set({
-      title: `Sayfa bulunamadı | ${SITE_NAME}`,
+      title: `Page not found | ${SITE_NAME}`,
       description:
-        'Aradığın sayfa bulunamadı. Kategorilerden, markalardan ya da arama kutusundan devam edebilirsin.',
-      // Kanonik olarak KENDİ adresi verilmiyor: bu sayfa birçok farklı
-      // adreste görünüyor ve her birini ayrı bir kanonik sayfa ilan etmek
-      // dizine kopya adres bildirmek olurdu.
+        "The page you were looking for doesn't exist. Continue from the categories, the brands or the search box.",
+      // Not its OWN address as canonical: this page appears at many
+      // addresses, and declaring each one canonical would report duplicates.
       canonicalPath: '/',
       noIndex: true,
     });

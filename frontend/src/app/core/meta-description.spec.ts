@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { buildPageTitle, buildProductDescription, buildReviewDescription, clampTitle } from './meta-description';
 
-// Örnek metinler gerçek üretim verisinden alındı — üç markanın da kendine
-// özgü bir baş kalıbı var ve regex'ler bu kalıplara göre yazıldı.
 function build(description: string | null, overrides: Partial<Parameters<typeof buildProductDescription>[0]> = {}) {
   return buildProductDescription({
-    displayName: 'Test Ürünü',
-    brandName: 'TestMarka',
-    priceText: '100,00 TL',
+    displayName: 'Test Product',
+    brandName: 'TestBrand',
+    priceText: '$29.99',
     discountPercent: 0,
     description,
     ...overrides,
@@ -15,252 +13,243 @@ function build(description: string | null, overrides: Partial<Parameters<typeof 
 }
 
 describe('buildProductDescription', () => {
-  it('açıklama yoksa fiyat şablonuna düşer', () => {
+  it('falls back to the price template without a description', () => {
     const result = build(null);
-    expect(result).toContain('Test Ürünü güncel fiyatı 100,00 TL');
-    expect(result).toContain('TestMarka');
+    expect(result).toContain('Test Product costs $29.99 today');
+    expect(result).toContain('TestBrand');
   });
 
-  it('indirimli üründe indirim oranını yazar', () => {
+  it('states the discount on a discounted product', () => {
     const result = build(null, { discountPercent: 25 });
-    expect(result).toContain('%25 doğrulanmış indirim');
+    expect(result).toContain('verified 25% drop');
   });
 
-  it('"Açıklama:" önekini atar', () => {
-    const result = build('Açıklama: HIQ DUALFORCE, antrenman öncesi tüketim için geliştirilmiş toz formda bir spor gıdasıdır.');
-    expect(result.startsWith('HIQ DUALFORCE')).toBe(true);
-    expect(result).not.toContain('Açıklama:');
+  it('drops a "Description:" prefix', () => {
+    const result = build('Description: HIQ Dualforce is a powdered pre-workout formula made for hard training days.');
+    expect(result.startsWith('HIQ Dualforce')).toBe(true);
+    expect(result).not.toContain('Description:');
   });
 
-  // Türkçe "İ" büyük harfi, JavaScript'in büyük/küçük harf duyarsız
-  // eşleşmesinde "i" ile EŞLEŞMEZ — bu yüzden kalıplar açık harf sınıflarıyla
-  // yazıldı. Bu test o davranışı kilitliyor.
-  it('Türkçe İ içeren "NEDİR ?:" başlığını atar', () => {
-    const result = build('CREATINE CREAPURE® NEDİR ?: Alman üretici ALZCHEM firmasının patentiyle üretilmiş saf kreatindir.');
-    expect(result.startsWith('Alman üretici')).toBe(true);
-    expect(result).not.toContain('NEDİR');
+  it('drops a "Product Overview:" prefix', () => {
+    const result = build('Product Overview: Micronized creatine monohydrate that mixes easily into any drink.');
+    expect(result.startsWith('Micronized creatine')).toBe(true);
+    expect(result).not.toContain('Overview');
   });
 
-  it('Türkçe İ ile başlayan "İçerik:" önekini atar', () => {
-    const result = build('İçerik: Kafein; kahve, çay gibi gıdalarda doğal olarak bulunan bir maddedir.');
-    expect(result.startsWith('Kafein;')).toBe(true);
-    expect(result).not.toContain('İçerik:');
+  it('drops a "... WHAT IS IT?:" heading', () => {
+    const result = build('CREAPURE CREATINE WHAT IS IT?: A pure creatine monohydrate made under a German patent by AlzChem.');
+    expect(result.startsWith('A pure creatine')).toBe(true);
+    expect(result).not.toContain('WHAT IS IT');
   });
 
-  it('metin ürün adıyla başlıyorsa tekrarı atar', () => {
-    const result = build('Test Ürünü GMP ve HACCP sertifikasına sahip tesislerde üretilen saf bir proteindir.');
-    expect(result.startsWith('GMP ve HACCP')).toBe(true);
+  it('drops a repeated product name at the start', () => {
+    const result = build('Test Product GMP and HACCP certified facilities produce this pure whey protein.');
+    expect(result.startsWith('GMP and HACCP')).toBe(true);
   });
 
-  // "GI+ ürünü; lif..." metninden adı atmak "ürünü; lif..." bırakıyordu.
-  it('ad tekrarını atmak cümleyi ortasından kesiyorsa vazgeçer', () => {
-    const result = build('Test Ürünü; lif ve prebiyotik bileşenleri tek üründe birleştiren pratik bir içecek tozudur.');
-    expect(result.startsWith('Test Ürünü;')).toBe(true);
+  it('gives up when dropping the name would cut the sentence mid-way', () => {
+    const result = build('Test Product; fiber and prebiotics combined in one convenient drink powder.');
+    expect(result.startsWith('Test Product;')).toBe(true);
   });
 
-  it('sert boşluk karakterlerini normal boşluğa çevirir', () => {
-    const result = build('Bu ürün yoğun antrenman yapan sporcular için geliştirilmiştir.');
+  it('turns non-breaking spaces into normal spaces', () => {
+    const result = build('This product was developed for athletes who train hard.');
     expect(result).not.toContain(' ');
-    expect(result).toContain('Bu ürün yoğun antrenman');
+    expect(result).toContain('This product was developed');
   });
 
-  it('yalnızca ilk cümleyi alır', () => {
-    const result = build('Yoğun antrenman yapan sporcular için geliştirilmiş bir üründür. İkinci cümle buraya girmemeli.');
-    expect(result).not.toContain('İkinci cümle');
+  it('takes only the first sentence', () => {
+    const result = build('Developed for athletes who train hard and want more protein. The second sentence must not appear.');
+    expect(result).not.toContain('second sentence');
   });
 
-  it('çok kısa açıklamayı kullanmaz, şablona döner', () => {
-    const result = build('Protein tozu.');
-    expect(result).toContain('güncel fiyatı');
+  it("doesn't use a very short description; falls back to the template", () => {
+    const result = build('Protein powder.');
+    expect(result).toContain('costs $29.99 today');
   });
 
-  it('uzun tek cümleyi kırpar ve arama sonucu sınırında kalır', () => {
-    const long = 'Bu ürün ' + 'çok uzun bir açıklama metni içermektedir '.repeat(10) + 've burada biter.';
+  it('trims a long single sentence and stays within the snippet limit', () => {
+    const long = 'This product ' + 'contains a very long description text '.repeat(10) + 'and ends here.';
     const result = build(long);
     expect(result).toContain('…');
     expect(result.length).toBeLessThanOrEqual(165);
   });
 
-  it('fiyat bilgisi her durumda korunur', () => {
-    const result = build('Yoğun antrenman yapan sporcular için geliştirilmiş bir spor gıdasıdır.');
-    expect(result).toContain('100,00 TL');
+  it('always keeps the price', () => {
+    const result = build('Developed for athletes who train hard and want a clean protein source.');
+    expect(result).toContain('$29.99');
   });
 
-  // Canlıdan alınan gerçek örnek (1 Eylül, /urun/140). Markanın metni ürün
-  // adını arka arkaya iki kez yazıyor; ad kontrolü metindeki yazım farkı
-  // ("2100 g (Creme Caramel)" ile "2100gr Creme Caramel") yüzünden tutmuyordu.
-  it('metin ürün adını iki kez yazdıysa birinci kopyayı atar', () => {
+  // Some stores write the product name twice in a row; the name check misses
+  // it because the spellings differ slightly ("5 lb (…)" vs "5lb …").
+  it('drops the first copy when the copy writes the product name twice', () => {
     const result = build(
-      'SSN Sports Style Nutrition Command Quadro Whey 2100 g (Creme Caramel) ' +
-        'SSN Sports Style Nutrition Command Quadro Whey dört farklı protein ' +
-        'kaynağını bir arada sunan bir üründür.',
-      { displayName: 'SSN Sports Style Nutrition Command Quadro Whey 2100gr Creme Caramel' },
+      'Optimum Nutrition Gold Standard 100% Whey 5 lb (Double Rich Chocolate) ' +
+        'Optimum Nutrition Gold Standard 100% Whey delivers 24 grams of protein per serving.',
+      { displayName: 'Optimum Nutrition Gold Standard 100% Whey 5lb Double Rich Chocolate' },
     );
-    expect(result).not.toContain('(Creme Caramel) SSN');
-    expect(result.indexOf('Command Quadro Whey')).toBe(result.lastIndexOf('Command Quadro Whey'));
+    expect(result).not.toContain('(Double Rich Chocolate) Optimum');
+    expect(result.indexOf('Gold Standard')).toBe(result.lastIndexOf('Gold Standard'));
   });
 });
 
 describe('clampTitle', () => {
-  it('sınırın altındaki başlığa dokunmaz', () => {
-    const t = 'HIQ Kreatin Fiyatları 2026 | ProteinAvcısı';
+  it('leaves a title under the limit alone', () => {
+    const t = 'Optimum Nutrition Creatine Prices 2026 | WheyProof';
     expect(clampTitle(t)).toBe(t);
   });
 
-  // Canlıdan gerçek örnek: 160 sayfalık örneğin %16'sı böyleydi ve neredeyse
-  // tamamı marka×kategori sayfasıydı — sayfa başına en çok gösterim alan tip.
-  it('kuyruk sığmıyorsa yarım bırakmak yerine tamamını atar', () => {
-    const t = 'ProteinOcean Kreatin Fiyatları ve İndirimleri 2026 | ProteinAvcısı';
-    const sonuc = clampTitle(t);
-    expect(sonuc).toBe('ProteinOcean Kreatin Fiyatları ve İndirimleri 2026');
-    expect(sonuc).not.toContain('|');
-    expect(sonuc).not.toContain('…');
+  // Brand x category titles are the ones most likely to run long, and a
+  // half-cut tail ("…2026 |…") looks broken in search results.
+  it('drops the whole tail instead of leaving half of it', () => {
+    const t = 'Optimum Nutrition Protein Snacks Prices and Deals 2026 | WheyProof';
+    const result = clampTitle(t);
+    expect(result).toBe('Optimum Nutrition Protein Snacks Prices and Deals 2026');
+    expect(result).not.toContain('|');
+    expect(result).not.toContain('…');
   });
 
-  it('hiçbir başlık ayıraç ya da üç noktayla sarkık bitmez', () => {
-    const ornekler = [
-      'West Nutrition Amino Asitler Fiyatları ve İndirimleri 2026 | ProteinAvcısı',
-      'SSN L-Carnitine & CLA Fiyatları ve İndirimleri 2026 | ProteinAvcısı',
-      'Swiss Nutrition Protein Tozu Fiyatları ve İndirimleri 2026 | ProteinAvcısı',
+  it('never ends a title with a dangling separator or ellipsis', () => {
+    const samples = [
+      'Transparent Labs Amino Acids Prices and Deals in the US 2026 | WheyProof',
+      'Nutricost Fat Burners & Hydration Prices and Deals 2026 | WheyProof',
+      'MuscleTech Protein Powder Prices and Deals for Every Budget 2026 | WheyProof',
     ];
-    for (const t of ornekler) {
+    for (const t of samples) {
       expect(clampTitle(t)).not.toMatch(/[|·,:;&/–-]\s*…?\s*$/);
     }
   });
 
-  it('kuyruksuz başlık da uzunsa kelime sınırından kırpar', () => {
+  it('trims at a word boundary when a title without a tail is too long', () => {
     const t = 'A'.repeat(30) + ' ' + 'B'.repeat(30) + ' ' + 'C'.repeat(30);
-    const sonuc = clampTitle(t);
-    expect(sonuc.endsWith('…')).toBe(true);
-    expect(sonuc.length).toBeLessThanOrEqual(66);
+    const result = clampTitle(t);
+    expect(result.endsWith('…')).toBe(true);
+    expect(result.length).toBeLessThanOrEqual(66);
   });
 });
 
 describe('buildPageTitle', () => {
-  it('her şey sığıyorsa marka kuyruğunu korur', () => {
-    expect(buildPageTitle('HIQ Crea500', 'Fiyatı ve Fiyat Geçmişi', 'HIQ')).toBe(
-      'HIQ Crea500 Fiyatı ve Fiyat Geçmişi | HIQ',
+  it('keeps the brand tail when everything fits', () => {
+    expect(buildPageTitle('Nutricost Creatine', 'Price History', 'Nutricost')).toBe(
+      'Nutricost Creatine Price History | Nutricost',
     );
   });
 
-  // Canlıdan gerçek örnekler: sayı biriminden koparak yetim kalıyordu.
-  it('sonda yetim kalan sayıyı bırakmaz', () => {
-    const sonuc = buildPageTitle(
-      'SSN Sports Style Nutrition Command Quadro Whey 366 gr Çikolata',
-      'İncelemesi',
-      'SSN',
+  // A number torn from its unit at the cut ("…366…") looks broken.
+  it("doesn't leave an orphan number at the end", () => {
+    const result = buildPageTitle(
+      'Optimum Nutrition Gold Standard 100% Whey Protein 366 g Chocolate',
+      'Review',
+      'Optimum Nutrition',
     );
-    expect(sonuc).not.toContain('366…');
-    expect(sonuc).toContain('İncelemesi');
+    expect(result).not.toContain('366…');
+    expect(result).toContain('Review');
   });
 
-  it('sonda yetim kalan tek harfi bırakmaz', () => {
-    const sonuc = buildPageTitle(
-      'Bigjoy Classic High Protein Bar 45g x 16 Adet',
-      'Fiyatı ve Fiyat Geçmişi',
-      'BigJoy',
+  it("doesn't leave an orphan single letter at the end", () => {
+    const result = buildPageTitle(
+      'Quest Protein Bar Chocolate Chip Cookie Dough 60g x 12 Bars',
+      'Price History',
+      'Quest',
     );
-    expect(sonuc).not.toMatch(/\sx…/);
-    expect(sonuc).toContain('45g');
+    expect(result).not.toMatch(/\sx…/);
+    expect(result).toContain('60g');
   });
 
-  it('birimiyle tam olan parçayı korur', () => {
-    const sonuc = buildPageTitle(
-      'Argitorq L-Arginine Capsule 1250 120 Kapsül 60 Servis',
-      'Fiyatı ve Fiyat Geçmişi',
-      'Torq Nutrition',
+  it('keeps a fragment that carries its unit', () => {
+    const result = buildPageTitle(
+      'Nutricost L-Arginine Capsules 1250 mg 120 Capsules 60 Servings',
+      'Price History',
+      'Nutricost',
     );
-    expect(sonuc).not.toMatch(/\s\d+…/);
+    expect(result).not.toMatch(/\s\d+…/);
   });
 });
 
 describe('buildReviewDescription', () => {
-  const temel = {
-    displayName: 'Hardline Whey 3 Matrix 2300 Gr',
-    priceText: '1.899,00 TL',
+  const base = {
+    displayName: 'Optimum Nutrition Gold Standard 100% Whey 5 lb',
+    priceText: '$84.99',
     discountPercent: 0,
-    gecmisGunSayisi: 30,
+    historyDays: 30,
   };
 
-  it('fiyatı öne alıyor — eskiden 247 sayfada aynı cümle vardı ve tek sayı yoktu', () => {
-    const d = buildReviewDescription(temel);
-    expect(d).toContain('1.899,00 TL');
-    expect(d.indexOf('1.899,00 TL')).toBeLessThan(d.indexOf('bağımsız inceleme'));
+  it('leads with the price; a searcher typing the product name wants it', () => {
+    const d = buildReviewDescription(base);
+    expect(d).toContain('$84.99');
+    expect(d.indexOf('$84.99')).toBeLessThan(d.indexOf('Independent review'));
   });
 
-  it('yeterli geçmiş varsa gün sayısını anıyor', () => {
-    expect(buildReviewDescription({ ...temel, gecmisGunSayisi: 30 })).toContain('30 günlük fiyat geçmişi');
+  it('mentions the number of days when there is enough history', () => {
+    expect(buildReviewDescription({ ...base, historyDays: 30 })).toContain('30 days of price history');
   });
 
-  // Asıl koruma: veri inceyken iddia BÜYÜTÜLMÜYOR. Katalogda 4825 ürünün
-  // yalnızca 515'inde 14+ gün veri var.
-  it('geçmiş inceyse gün sayısını ANMIYOR', () => {
-    const d = buildReviewDescription({ ...temel, gecmisGunSayisi: 2 });
-    expect(d).not.toContain('günlük fiyat geçmişi');
-    expect(d).toContain('1.899,00 TL');
+  // The real protection: with thin data the claim is NOT inflated.
+  it("doesn't mention the number of days when history is thin", () => {
+    const d = buildReviewDescription({ ...base, historyDays: 2 });
+    expect(d).not.toContain('days of price history');
+    expect(d).toContain('$84.99');
   });
 
-  it('indirim + yeterli geçmiş varsa indirimi öne alıyor', () => {
-    const d = buildReviewDescription({ ...temel, discountPercent: 18, gecmisGunSayisi: 20 });
-    expect(d).toContain('%18 doğrulanmış indirim');
-    expect(d).toContain('markanın etiketine değil');
+  it('leads with the discount when there is a discount and enough history', () => {
+    const d = buildReviewDescription({ ...base, discountPercent: 18, historyDays: 20 });
+    expect(d).toContain('verified 18% drop');
+    expect(d).toContain("not the store's label");
   });
 
-  // En önemli test: iki günlük veriye "doğrulanmış indirim" demiyoruz.
-  // Bu sitenin varlık sebebi markaların dayanaksız indirim iddiasını
-  // teşhir etmek; aynısını yapmak markayı içeriden çürütürdü.
-  it('geçmiş inceyken indirim İDDİA ETMİYOR', () => {
-    const d = buildReviewDescription({ ...temel, discountPercent: 40, gecmisGunSayisi: 2 });
-    expect(d).not.toContain('indirim');
-    expect(d).toContain('güncel fiyatı');
+  // The most important test: two days of data don't make a "verified"
+  // discount. This site exists to expose baseless discount claims; making one
+  // would rot the brand from the inside.
+  it('does NOT CLAIM a discount while history is thin', () => {
+    const d = buildReviewDescription({ ...base, discountPercent: 40, historyDays: 2 });
+    expect(d).not.toContain('verified');
+    expect(d).not.toContain('drop');
+    expect(d).toContain('costs $84.99 today');
   });
 
-  it('Google sınırını aşmıyor', () => {
+  it("stays under Google's limit", () => {
     const d = buildReviewDescription({
-      ...temel,
-      displayName: 'Çok Uzun Bir Ürün Adı '.repeat(8),
+      ...base,
+      displayName: 'A Very Long Product Name '.repeat(8),
       discountPercent: 25,
-      gecmisGunSayisi: 30,
+      historyDays: 30,
     });
     expect(d.length).toBeLessThanOrEqual(155);
   });
 });
 
-describe('indirim yüzdesi biçimi', () => {
-  // Canlıda "%30.8 doğrulanmış indirim" çıkıyordu: nokta ayraçlı ve bir SERP
-  // parçacığı için gereksiz hassasiyette.
-  it('inceleme açıklamasında tam sayı', () => {
+describe('discount percent format', () => {
+  // "30.8%" in a search snippet is needless precision.
+  it('uses a whole number in the review description', () => {
     const d = buildReviewDescription({
-      displayName: 'X', priceText: '10,00 TL', discountPercent: 30.8, gecmisGunSayisi: 28,
+      displayName: 'X', priceText: '$10.00', discountPercent: 30.8, historyDays: 28,
     });
-    expect(d).toContain('%31 doğrulanmış indirim');
+    expect(d).toContain('verified 31% drop');
     expect(d).not.toContain('30.8');
   });
 
-  it('ürün açıklamasında da tam sayı', () => {
+  it('uses a whole number in the product description too', () => {
     const d = buildProductDescription({
-      displayName: 'X', brandName: 'Y', priceText: '10,00 TL', discountPercent: 7.2, description: null,
+      displayName: 'X', brandName: 'Y', priceText: '$10.00', discountPercent: 7.2, description: null,
     });
-    expect(d).toContain('%7 doğrulanmış indirim');
+    expect(d).toContain('verified 7% drop');
     expect(d).not.toContain('7.2');
   });
 });
 
-describe('clampTitle — marka kuyrukta olmalı', () => {
-  // GERÇEK OLAY (5 Eylül): ana sayfanın başlığı "Protein Avcısı | Güncel
-  // İndirim ve Kampanyalar — Spor Takviyesi Fiyat Takibi" idi. Marka BAŞTA,
-  // uzunluk 76. clampTitle son " | " işaretinden sonrasını attığı için
-  // canlıda geriye sadece "Protein Avcısı" kalıyordu — sitenin en önemli
-  // sayfasında sıfır anahtar kelime, ve bu hiçbir yerde hata vermiyordu.
-  it('marka BAŞTAYSA içerik tamamen kaybolur — bu yüzden marka kuyrukta yazılmalı', () => {
-    const markaBasta = 'Protein Avcısı | Güncel İndirim ve Kampanyalar — Spor Takviyesi Fiyat Takibi';
-    expect(markaBasta.length).toBeGreaterThan(65);
-    expect(clampTitle(markaBasta)).toBe('Protein Avcısı');
+describe('clampTitle: the site name belongs in the tail', () => {
+  // A title with the site name FIRST loses all of its content: clampTitle
+  // drops everything after the last " | ", leaving only the name, and nothing
+  // anywhere reports an error.
+  it('loses the content entirely when the site name comes first, so it must go last', () => {
+    const nameFirst = 'WheyProof | Real Protein Deals and Supplement Price Tracking in the US';
+    expect(nameFirst.length).toBeGreaterThan(65);
+    expect(clampTitle(nameFirst)).toBe('WheyProof');
   });
 
-  it('marka kuyruktaysa ve sığıyorsa başlığa hiç dokunmuyor', () => {
-    const dogru = 'Gerçek Protein ve Takviye İndirimleri | Protein Avcısı';
-    expect(dogru.length).toBeLessThanOrEqual(60);
-    expect(clampTitle(dogru)).toBe(dogru);
+  it("doesn't touch a title with the name in the tail when it fits", () => {
+    const right = 'Real Protein and Supplement Deals | WheyProof';
+    expect(right.length).toBeLessThanOrEqual(60);
+    expect(clampTitle(right)).toBe(right);
   });
 });

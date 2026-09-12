@@ -8,19 +8,17 @@ import { Deal } from './deal.model';
 
 const TOKEN_KEY = 'favorites-token';
 
-// Hesap/login gerektirmeyen "favorilerim" listesi — ilk eklemede backend'in
-// döndürdüğü token localStorage'da tutulup sonraki isteklerde kullanılıyor
-// (ThemeService/CookieConsentService ile aynı SSR-güvenli desende).
+// A watchlist with no account or login: the token the backend returns on the
+// first add is kept in localStorage and sent with later requests (the same
+// SSR-safe pattern as ThemeService/CookieConsentService).
 @Injectable({ providedIn: 'root' })
 export class FavoritesService {
   private readonly http = inject(HttpClient);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
-  // Nav'daki (site-header, mobil tab bar, ana sayfanın kendi header'ı)
-  // "Takip listem" rozeti hepsi bu TEK signal'i okuyor — favori eklenince/
-  // çıkarılınca sayfa yenilemeden hepsi birden güncellensin diye servis
-  // seviyesinde (singleton) tutuluyor, her component kendi kopyasını
-  // tutup senkronize etmek zorunda kalmıyor.
+  // Every watchlist badge (site header, mobile tab bar, the home page's own
+  // header) reads this ONE signal, kept at service level (singleton) so they
+  // all update together without a reload.
   readonly count = signal(0);
 
   getToken(): string | null {
@@ -31,36 +29,33 @@ export class FavoritesService {
     return this.getToken() !== null;
   }
 
-  // Listeyi BU CİHAZDAN ayırır; sunucudaki favoriler olduğu gibi kalır ve
-  // kurtarma linkiyle geri alınabilir.
+  // Detaches the list from THIS DEVICE; the watchlist stays on the server and
+  // can be restored with the recovery link.
   //
-  // Bu düğme olmadan liste bir kez kaydedildiğinde o tarayıcıdan hiç
-  // çıkarılamıyordu: ortak kullanılan bir bilgisayarda sonraki kişi önceki
-  // kişinin listesini görüyor ve bunu fark etmesinin de bir yolu bulunmuyordu.
+  // Without it a saved list could never be removed from that browser: on a
+  // shared computer the next person saw the previous person's list with no
+  // way of noticing.
   signOut(): void {
     if (this.isBrowser) localStorage.removeItem(TOKEN_KEY);
     this.count.set(0);
-    // Bayrak da sıfırlanmalı: kullanıcı listesini kurtarma bağlantısıyla geri
-    // aldığında sayacın yeniden çekilebilmesi gerekiyor.
+    // Reset the flag too, so the count can be fetched again after the list is
+    // restored through the recovery link.
     this.countLoaded = false;
   }
 
   saveToken(token: string | null): void {
-    // token null gelebilir — e-posta zaten başka bir aboneye aitse backend
-    // artık o hesabın token'ını ifşa etmiyor (bkz. 2026-08-15 güvenlik
-    // düzeltmesi), bu durumda localStorage'a hiçbir şey yazmıyoruz.
+    // The token can be null: when the email already belongs to another
+    // subscriber, the backend no longer reveals that account's token, and
+    // nothing is written to localStorage.
     if (this.isBrowser && token) localStorage.setItem(TOKEN_KEY, token);
   }
 
-  // recoverySent: e-posta zaten var olan bir aboneye aitse (bu cihazda hiç
-  // token yoksa) backend arka planda bir kurtarma maili gönderiyor — bu
-  // cihaz da aynı e-postayla favorilerini görebilsin diye. Kullanıcı
-  // gerçek bir testte bunu bulamayınca (favori eklendi ama listede hiç
-  // görünmüyordu) eklendi, bkz. FavoriteService.AddAsync.
-  // Ekleme sonrası count'u tam bir list() ile (basit +1 yerine) yeniliyoruz —
-  // recoverySent=true durumunda bu cihazda daha önce hiç token yoktu, yani
-  // yerel sayaç 0'dı ama sunucudaki gerçek favori sayısı 1'den fazla olabilir
-  // (başka bir cihazda eklenmiş favoriler de artık bu hesaba dahil).
+  // recoverySent: when the email belongs to an existing subscriber (and this
+  // device has no token), the backend sends a recovery email so this device
+  // can see that watchlist too.
+  // After adding, the count is refreshed with a full list() rather than +1:
+  // with recoverySent=true this device had no token (local count 0), but the
+  // real count on the server can be more than 1.
   add(productId: number, email?: string): Observable<{ token: string | null; recoverySent: boolean }> {
     return this.http
       .post<{ token: string | null; recoverySent: boolean }>(`${API_BASE_URL}/api/products/${productId}/favorite`, {
@@ -84,29 +79,24 @@ export class FavoritesService {
     return this.http.get<Deal[]>(`${API_BASE_URL}/api/favorites`, { params: { token } }).pipe(tap((list) => this.count.set(list.length)));
   }
 
-  // Bu cihazda token kaybolduysa (temizlenen tarayıcı verisi, farklı bir
-  // tarayıcı/uygulama vb.) — e-postaya token'ı içeren bir link gönderiliyor.
-  // Yanıt e-postanın kayıtlı olup olmadığından bağımsız hep aynı (backend
-  // enumeration'ı önlüyor), bu yüzden burada da tek bir mesaj döndürülüyor.
+  // When the token is lost on this device (cleared data, another browser or
+  // app), a link carrying the token is emailed. The response is the same
+  // whether or not the email is registered (the backend prevents
+  // enumeration), so a single message is returned here too.
   recover(email: string): Observable<{ message: string }> {
     return this.http.post<{ message: string }>(`${API_BASE_URL}/api/favorites/recover`, { email });
   }
 
-  // Rozeti gösteren üç bileşen (site-header, mobile-tab-bar ve ana sayfadaki
-  // deals-list) daha önce HER BİRİ ayrı ayrı list() çağırıyordu. Sayaç servis
-  // seviyesinde paylaşılıyordu ama İSTEK paylaşılmıyordu: tek bir sayfa
-  // açılışında üç istek gidiyor, birkaç gezinme + bir favori eklemede on
-  // isteği geçiyor ve Cloudflare'in hız sınırı 429 döndürüyordu. Kullanıcıya
-  // bu "Bağlantı sorunu / Takip listen yüklenemedi" ekranı olarak yansıyor,
-  // Retry-After 10 saniye olduğu için de "bir geliyor bir gelmiyor" şeklinde
-  // görünüyordu.
+  // The three components showing the badge used to call list() EACH. The
+  // count was shared, the REQUEST wasn't: three requests per page load, more
+  // than ten after a few navigations and an add, and Cloudflare's rate limit
+  // answered 429, which showed as a flickering "couldn't load your watchlist".
   //
-  // Artık sayaç uygulama başına bir kez çekiliyor.
+  // Now the count is fetched once per app.
   private countLoaded = false;
 
   ensureCount(): void {
-    // Sunucuda token okunamıyor (localStorage yok); SSR'da istek atmanın
-    // anlamı yok.
+    // The server can't read the token (no localStorage); no request in SSR.
     if (!this.isBrowser) return;
 
     if (!this.getToken()) {
@@ -116,12 +106,12 @@ export class FavoritesService {
 
     if (this.countLoaded) return;
 
-    // Bayrak subscribe'dan ÖNCE, senkron olarak set ediliyor. Üç bileşenin
-    // ngOnInit'i aynı tick içinde çalışıyor; sonraya bırakılsaydı üçü de
-    // "henüz yüklenmedi" görüp yine üç istek atardı.
+    // The flag is set BEFORE subscribing, synchronously. The three
+    // components' ngOnInit run in the same tick; setting it later, all three
+    // would see "not loaded yet" and send three requests again.
     this.countLoaded = true;
     this.list().subscribe({
-      // Başarısızsa bayrağı geri al ki bir sonraki gezinmede tekrar denensin.
+      // On failure, clear the flag so the next navigation retries.
       error: () => {
         this.countLoaded = false;
       },

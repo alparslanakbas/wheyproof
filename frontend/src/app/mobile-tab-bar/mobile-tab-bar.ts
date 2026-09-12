@@ -3,10 +3,9 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 
 import { FavoritesService } from '../core/favorites.service';
 
-// Nocturne tasarımının kendi kapsamındaki mobil alt sekme çubuğu — dar
-// ekranlarda (sm altı) sabit, header'daki nav linklerinin küçük bir alt
-// kümesini (en sık gidilen 4 hedef) her sayfada erişilebilir kılıyor.
-// Masaüstünde tamamen gizli (`sm:hidden`), header'daki nav zaten yeterli.
+// Bottom tab bar for narrow screens (below sm): keeps the most visited
+// destinations one tap away on every page. Hidden on desktop (`sm:hidden`),
+// where the header nav is enough.
 @Component({
   selector: 'app-mobile-tab-bar',
   imports: [RouterLink, RouterLinkActive],
@@ -15,8 +14,7 @@ import { FavoritesService } from '../core/favorites.service';
 export class MobileTabBar implements OnInit {
   private readonly favoritesService = inject(FavoritesService);
 
-  // Servisteki paylaşılan signal'e doğrudan referans — favori eklenince/
-  // çıkarılınca (bu sayfadan ya da başka bir sayfadan) otomatik güncellenir.
+  // The service's shared signal: watchlist changes on any page update the badge.
   protected readonly favoritesCount = this.favoritesService.count;
 
   ngOnInit(): void {

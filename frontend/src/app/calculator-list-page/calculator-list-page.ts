@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { BODY_CALCULATORS } from '../core/body-calculators';
 import { calculatorPhosphorIcon } from '../core/nav-icons';
 import { PageMetaService } from '../core/page-meta.service';
+import { SITE_NAME } from '../core/site-identity';
 import { SUPPLEMENT_DOSAGES } from '../core/supplement-dosages';
 import { SiteHeader } from '../site-header/site-header';
 
@@ -19,8 +20,8 @@ interface CalculatorCard {
 type CalculatorSection = 'body' | 'dosage';
 type CalculatorTone = 'violet' | 'mint' | 'blue' | 'cyan' | 'orange' | 'rose';
 
-// Hesaplama araçlarının index sayfası — /kategoriler ile aynı desende.
-// Nav'daki "Hesaplama" dropdown'ı da buraya ve tek tek araçlara link veriyor.
+// Index page of the calculators, in the same pattern as /categories. The
+// nav's "Calculators" dropdown links here and to each tool.
 @Component({
   selector: 'app-calculator-list-page',
   imports: [RouterLink, SiteHeader],
@@ -31,21 +32,20 @@ export class CalculatorListPage implements OnInit {
   private readonly document = inject(DOCUMENT);
   protected readonly activeSection = signal<CalculatorSection>('body');
 
-  // Beslenme/vücut hesaplayıcıları bir grupta, takviye dozu hesaplayıcıları
-  // ayrı bir grupta gösteriliyor — kullanıcı geri bildirimi: kartlar çok
-  // sade/tek düzeydi, hem ikon hem gruplama eklendi. İkonlar core/nav-icons.ts'te
-  // paylaşılıyor (nav dropdown'larıyla aynı set).
+  // Nutrition/body calculators in one group, supplement dosage calculators
+  // in another. Icons are shared in core/nav-icons.ts (the same set as the
+  // nav dropdowns).
   protected readonly bodyGroupCalculators: CalculatorCard[] = [
     {
-      path: '/hesaplama/protein-ihtiyaci',
-      title: 'Günlük Protein İhtiyacı',
+      path: '/calculators/protein',
+      title: 'Daily Protein Needs',
       description:
-        'Kilona ve antrenman yoğunluğuna göre günlük protein hedefini hesapla, servis başı en uygun ürünleri gör.',
-      iconClass: calculatorPhosphorIcon('protein-ihtiyaci'),
+        'Work out your daily protein target from body weight and training load, and see the best value products per serving.',
+      iconClass: calculatorPhosphorIcon('protein'),
       tone: 'violet',
     },
     ...BODY_CALCULATORS.map((c, index): CalculatorCard => ({
-      path: `/hesaplama/${c.slug}`,
+      path: `/calculators/${c.slug}`,
       title: c.name,
       description: c.description,
       iconClass: calculatorPhosphorIcon(c.slug),
@@ -54,25 +54,25 @@ export class CalculatorListPage implements OnInit {
   ];
 
   protected readonly dosageGroupCalculators: CalculatorCard[] = SUPPLEMENT_DOSAGES.map((s, index): CalculatorCard => ({
-    path: `/hesaplama/${s.slug}`,
-    title: `${s.name} Dozu`,
-    description: `Günde ${s.minDailyGrams}-${s.maxDailyGrams} g yaygın aralık. Seçtiğin paketin kaç gün yeteceğini ve günlük maliyetini hesapla.`,
+    path: `/calculators/${s.slug}`,
+    title: `${s.name} Dosage`,
+    description: `Common range: ${s.minDailyGrams}-${s.maxDailyGrams} g a day. See how long a package lasts and what it costs per day.`,
     iconClass: calculatorPhosphorIcon(s.slug),
     tone: (['violet', 'mint', 'blue', 'orange', 'rose'] as CalculatorTone[])[index] ?? 'violet',
   }));
 
   ngOnInit(): void {
     this.pageMeta.set({
-      title: 'Spor Takviyesi Hesaplama Araçları | ProteinAvcısı',
+      title: `Supplement Calculators | ${SITE_NAME}`,
       description:
-        'Protein ihtiyacı, kreatin, beta-alanine, sitrülin, betain ve EAA dozu hesaplama araçları — sonuçlar güncel ürün fiyatlarına bağlı.',
-      canonicalPath: '/hesaplama',
+        'Protein needs plus creatine, beta-alanine, citrulline, betaine and EAA dosage calculators, with results tied to current product prices.',
+      canonicalPath: '/calculators',
     });
   }
 
   protected selectSection(section: CalculatorSection): void {
     this.activeSection.set(section);
-    const target = this.document.getElementById(section === 'body' ? 'beslenme-araclari' : 'takviye-araclari');
+    const target = this.document.getElementById(section === 'body' ? 'nutrition-tools' : 'dosage-tools');
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }

@@ -1,35 +1,34 @@
-// SPA gezinmesinde "sayfayı en üste al" kararı.
+// The "scroll to the top" decision for SPA navigation.
 //
-// Bu mantık app.ts'in içine gömülüydü ve test edilemiyordu; sonuç olarak bir
-// hata (fragment'in yol karşılaştırmasına dahil edilmesi) üretime kadar gitti
-// ve kullanıcı tarafından bulundu. Saf fonksiyon olarak ayrıldı.
+// This logic was buried in app.ts and untestable; a bug (including the
+// fragment in the path comparison) reached production and was found by a
+// user. It was split out as a pure function.
 
 /**
- * Karşılaştırma için yolu normalleştirir: sorgu ve fragment atılır.
+ * Normalizes a path for comparison: query and fragment are dropped.
  *
- * '#' KESİLMEK ZORUNDA. `Router.url` fragment'i içerir; kesilmezse sayfa içi
- * bir bölüm bağlantısına tıklamak (ör. /gizlilik-politikasi#kvkk-haklari)
- * "başka bir sayfaya geçildi" gibi görünür ve kaydırma sıfırlanarak
- * tarayıcının az önce yaptığı bölüme gitme işlemi geri alınır.
+ * '#' MUST be cut. `Router.url` includes the fragment; otherwise clicking an
+ * in-page section link (e.g. /privacy#your-rights) looks like "another page"
+ * and resetting the scroll undoes the jump the browser just made.
  */
 export function routePath(url: string): string {
   return url.split(/[?#]/)[0];
 }
 
 export interface NavigationSnapshot {
-  /** Rotanın yaprak component'i; aynı component içinde kalan gezinmeleri ayırt etmek için. */
+  /** The route's leaf component; tells navigations within one component apart. */
   component: unknown;
-  /** routePath() ile normalleştirilmiş yol. */
+  /** The path, normalized by routePath(). */
   path: string;
 }
 
 /**
- * Gezinme sonrası sayfa en üste alınmalı mı?
+ * Should the page scroll to the top after this navigation?
  *
- * `previous` null ise bu ilk gezinmedir ve sıfırlama YAPILMAZ: belge zaten
- * en üstte açılır, ayrıca adres bir fragment içeriyorsa (paylaşılmış bir
- * bölüm bağlantısı) ya da tarayıcı geri/ileri sonrası kaydırma konumunu
- * geri yüklediyse, onların yaptığını bozmamak gerekir.
+ * With `previous` null this is the first navigation and there is NO reset:
+ * the document already opens at the top, and a fragment in the address (a
+ * shared section link) or a scroll position restored by back/forward must not
+ * be undone.
  */
 export function shouldResetScroll(previous: NavigationSnapshot | null, next: NavigationSnapshot): boolean {
   if (previous === null) return false;
@@ -37,16 +36,15 @@ export function shouldResetScroll(previous: NavigationSnapshot | null, next: Nav
   const changed = previous.component !== next.component || previous.path !== next.path;
   if (!changed) return false;
 
-  // Tek istisna ürün modalı: ana sayfada modal açılıp kapanması '/' ile
-  // '/urun/...' arasında gerçek bir yol değişimi gibi görünür ama aslında
-  // aynı sayfanın üstündeki bir katmandır (bkz. DealsRouteReuseStrategy).
-  // Burada sıfırlanırsa, sayfanın ortasındaki bir ürüne tıklayıp modalı
-  // kapatan kişi kendini en başta bulur.
+  // The one exception is the product modal: opening and closing it on the
+  // home page changes the path between '/' and '/product/...', but it is a
+  // layer over the same page (see DealsRouteReuseStrategy). Resetting here
+  // would send someone who clicked a product halfway down back to the top.
   //
-  // İstisna yalnızca aynı component içinde kalırken geçerli: ürün
-  // modalından marka sayfasına geçmek gerçek bir sayfa değişimidir.
+  // It only applies within the same component: going from the product modal
+  // to a brand page is a real page change.
   const sameComponent = previous.component === next.component;
-  const productModalNav = sameComponent && (next.path.startsWith('/urun/') || previous.path.startsWith('/urun/'));
+  const productModalNav = sameComponent && (next.path.startsWith('/product/') || previous.path.startsWith('/product/'));
 
   return !productModalNav;
 }

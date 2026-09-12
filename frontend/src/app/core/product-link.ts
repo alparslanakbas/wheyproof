@@ -5,22 +5,20 @@ export interface ProductLinkSource {
   productName: string;
 }
 
-// Ürün detay sayfasının kanonik yolu — sitemap ve canonical etiketiyle aynı
-// biçim (bkz. deals-list.ts, server.ts).
+// Canonical path of a product page, in the same form as the sitemap and the
+// canonical tag (see deals-list.ts, server.ts).
 export function productPath(deal: ProductLinkSource): string {
-  return `/urun/${deal.productId}/${slugify(deal.productName)}`;
+  return `/product/${deal.productId}/${slugify(deal.productName)}`;
 }
 
-// Ürün kartları gerçek <a href> olmak ZORUNDA. Arama motorları yalnızca gerçek
-// bağlantıları takip eder ve site içi otorite yalnızca onlar üzerinden akar;
-// kartlar <button> + JS tıklaması olduğu sürece ürün sayfaları site içi bağlantı
-// grafiğinde izole kalıyor, yalnızca sitemap üzerinden keşfediliyordu (27 Ağustos
-// ölçümü: ana sayfada 52 iç bağlantı, ürüne giden 0).
+// Product cards MUST be real <a href> links. Search engines follow only real
+// links and internal authority flows only through them; as <button> + JS
+// clicks, product pages sat isolated in the link graph and were discovered
+// only through the sitemap.
 //
-// Ama tıklama davranışı (modalı açmak) korunmalı. Bu yardımcı, olayın uygulama
-// içinde mi ele alınacağını yoksa tarayıcıya mı bırakılacağını söylüyor:
-// modifier'lı tık ve orta tık tarayıcıya kalır ki "yeni sekmede aç" çalışsın —
-// kartlar buton olduğu sürece bu da kırıktı.
+// The click behavior (opening the modal) must survive, though. This helper
+// says whether the app or the browser handles the event: modified and middle
+// clicks go to the browser so "open in new tab" works.
 export function shouldHandleInApp(event: MouseEvent): boolean {
   return event.button === 0
     && !event.metaKey

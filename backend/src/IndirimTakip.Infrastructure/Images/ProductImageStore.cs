@@ -177,11 +177,11 @@ public sealed class ProductImageStore(
 
 public sealed class ProductImageOptions
 {
-    /// <summary>Görsellerin yazılacağı dizin (konteyner içi yol).</summary>
-    public string Dizin { get; set; } = "/app/urun-gorsel";
+    /// <summary>Directory the images are written to (path inside the container).</summary>
+    public string Dizin { get; set; } = "/app/product-images";
 
-    /// <summary>Yerel görsellerin herkese açık adres öneki.</summary>
-    public string TabanAdres { get; set; } = "https://api.proteinavcisi.com.tr/api/gorsel";
+    /// <summary>Public URL prefix of the local images; must match Program.cs (/api/images).</summary>
+    public string TabanAdres { get; set; } = "https://api.wheyproof.com/api/images";
 
     public bool Enabled { get; set; } = true;
 

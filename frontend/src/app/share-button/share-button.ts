@@ -10,8 +10,8 @@ export class ShareButton {
   private readonly document = inject(DOCUMENT);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
-  // Verilmezse mevcut sayfanın kendisi paylaşılır (site geneli paylaşım butonu).
-  readonly title = input<string>('ProteinAvcısı — Spor Takviyesi Fiyat Takibi');
+  // Without a URL the current page is shared (site-wide share button).
+  readonly title = input<string>('WheyProof — Supplement Price Tracker');
   readonly shareUrl = input<string | undefined>(undefined);
 
   protected readonly menuOpen = signal(false);
@@ -34,7 +34,7 @@ export class ShareButton {
       try {
         await navigator.share({ title: this.title(), url: this.resolvedUrl() });
       } catch {
-        // Kullanıcı paylaşım penceresini kapattıysa sessizce geç.
+        // The visitor closed the share sheet; nothing to do.
       }
       return;
     }

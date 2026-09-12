@@ -1,127 +1,125 @@
+import { SITE_NAME } from './site-identity';
+
 export interface SupplementDosage {
   slug: string;
-  // Sayfa/başlık metinleri
+  // Page and heading text
   name: string;
   title: string;
   description: string;
   h1: string;
   intro: string;
-  // Günlük doz aralığı (gram). Bu takviyelerin dozu KİLOYA GÖRE
-  // ölçeklenmez — literatürde ve pratikte sabit aralıklar kullanılır.
-  // "Kiloya göre doz hesapla" gibi bir araç yapmak uydurma olurdu.
+  // Daily dose range in grams. These supplements are NOT dosed by body
+  // weight; research and practice use fixed ranges. A "dose by body weight"
+  // tool would be made up.
   minDailyGrams: number;
   maxDailyGrams: number;
   defaultDailyGrams: number;
-  // Dozun neye dayandığı — kullanıcıya açıkça söylüyoruz, "biz uydurduk"
-  // izlenimi bırakmamak için.
+  // What the dose rests on, stated plainly so it doesn't look invented.
   dosageNote: string;
-  // Ürünleri çekmek için kullanılacak kategori + arama terimi. Kategori
-  // tek başına yetmiyor (ör. beta-alanine "amino-asitler" içinde ama
-  // kategorinin tamamı beta-alanine değil).
-  // NULL olabilir: bazı ürünlerin (ör. betain) kategorisi hiç
-  // atanmamış — orada yalnızca arama terimiyle filtreleniyor.
+  // Category + search term used to fetch products. The category alone isn't
+  // enough (beta-alanine sits in "amino-acids", but not every amino product
+  // is beta-alanine).
+  // May be NULL: then only the search term filters.
   category: string | null;
-  // NULL olabilir: kategori zaten tam olarak istenen ürün grubuysa (kreatin
-  // gibi) arama terimi eklemek işe yaramıyor, TERSİNE daraltıyor —
-  // "creatine" araması Hardline'ın "Kreatin Mikronize" ürünlerini
-  // yakalamıyordu ve tablo iki markaya düşüyordu.
+  // May be NULL: when the category is exactly the product group (creatine),
+  // a search term only narrows it and drops products spelled differently.
   searchTerm: string | null;
-  // İlgili rehber yazısı (varsa) — iç linkleme.
+  // Related guide (when there is one), for internal linking.
   guideSlug?: string;
   guideLabel?: string;
 }
 
 export const SUPPLEMENT_DOSAGES: SupplementDosage[] = [
   {
-    slug: 'kreatin-dozu',
-    name: 'Kreatin',
-    title: 'Kreatin Dozu Hesaplama: Günde Kaç Gram? | ProteinAvcısı',
+    slug: 'creatine-dosage',
+    name: 'Creatine',
+    title: `Creatine Dosage Calculator: How Many Grams a Day? | ${SITE_NAME}`,
     description:
-      'Günlük kreatin dozunu ve seçtiğin ürünün kaç gün yeteceğini hesapla. Güncel fiyatlarla servis başı ve günlük maliyeti gör.',
-    h1: 'Kreatin Dozu Hesaplama',
+      'Work out your daily creatine dose and how long a tub will last. See the cost per day at current prices.',
+    h1: 'Creatine Dosage Calculator',
     intro:
-      'Kreatin dozu kiloya göre ölçeklenen bir şey değil — yaygın kullanım sabit bir aralıkta. Aşağıda günlük dozunu seçip, gerçek ürün fiyatlarıyla o paketin kaç gün yeteceğini ve günlük maliyetini görebilirsin.',
+      'Creatine isn\'t dosed by body weight; the common intake is a fixed range. Pick your daily dose below and see how many days a tub lasts and what it costs per day at real prices.',
     minDailyGrams: 3,
     maxDailyGrams: 5,
     defaultDailyGrams: 5,
     dosageNote:
-      'Günde 3-5 gram, kreatin için en yaygın kullanılan aralıktır ve ürünlerin çoğu 5 gramlık ölçekle gelir. Daha fazlası doygunluğu hızlandırmaz, fazlası vücuttan atılır. Belirleyici olan miktardan çok her gün düzenli kullanmaktır.',
-    category: 'kreatin',
-    // Kategori zaten tam olarak kreatin ürünleri — arama terimi eklemek
-    // Türkçe yazımlı ("Kreatin Mikronize") ürünleri dışarıda bırakıyordu.
+      '3-5 grams a day is the most common range for creatine, and most products come with a 5-gram scoop. More doesn\'t speed up saturation; the excess is excreted. Taking it every day matters more than the amount.',
+    category: 'creatine',
+    // The category is exactly creatine products; a search term would only
+    // drop products whose names spell it differently.
     searchTerm: null,
-    guideSlug: 'kreatin-nasil-kullanilir',
-    guideLabel: 'Kreatin Nasıl Kullanılır?',
+    guideSlug: 'creatine-what-to-know',
+    guideLabel: 'Creatine: What to Know Before You Buy',
   },
   {
-    slug: 'beta-alanine-dozu',
+    slug: 'beta-alanine-dosage',
     name: 'Beta-Alanine',
-    title: 'Beta-Alanine Dozu Hesaplama: Günde Kaç Gram? | ProteinAvcısı',
+    title: `Beta-Alanine Dosage Calculator: How Many Grams a Day? | ${SITE_NAME}`,
     description:
-      'Günlük beta-alanine dozunu ve paketinin kaç gün yeteceğini hesapla. Güncel fiyatlarla günlük maliyetini gör.',
-    h1: 'Beta-Alanine Dozu Hesaplama',
+      'Work out your daily beta-alanine dose and how long a tub will last. See the cost per day at current prices.',
+    h1: 'Beta-Alanine Dosage Calculator',
     intro:
-      'Beta-alanine dozu kiloya göre değil, sabit bir aralıkta kullanılır. Günlük dozunu seç, gerçek ürün fiyatlarıyla paketin kaç gün yeteceğini hesapla.',
+      'Beta-alanine is taken in a fixed range, not by body weight. Pick your daily dose and see how long a tub lasts at real prices.',
     minDailyGrams: 3,
     maxDailyGrams: 6,
     defaultDailyGrams: 3.2,
     dosageNote:
-      'Günde 3-6 gram yaygın olarak kullanılan aralıktır. Etkisi kreatin gibi zamanla birikime dayanır, tek seferlik alımda beklenen bir katkısı yoktur. Ciltte hissedilen karıncalanma (parestezi) bu bileşene bağlı, zararsız ve geçici bir yan etkidir; tek seferde alınan miktarı bölmek bu hissi azaltabilir.',
-    category: 'amino-asitler',
+      '3-6 grams a day is the commonly used range. Like creatine, it works by building up over time; a single dose isn\'t expected to do much. The skin tingling (paresthesia) is a harmless, temporary effect of this ingredient; splitting the dose can reduce it.',
+    category: 'amino-acids',
     searchTerm: 'alanine',
   },
   {
-    slug: 'sitrulin-dozu',
-    name: 'Sitrülin',
-    title: 'Sitrülin (Citrulline) Dozu Hesaplama | ProteinAvcısı',
+    slug: 'citrulline-dosage',
+    name: 'Citrulline',
+    title: `Citrulline Dosage Calculator | ${SITE_NAME}`,
     description:
-      'Günlük sitrülin dozunu ve paketinin kaç gün yeteceğini hesapla. Güncel fiyatlarla günlük maliyetini gör.',
-    h1: 'Sitrülin Dozu Hesaplama',
+      'Work out your daily citrulline dose and how long a tub will last. See the cost per day at current prices.',
+    h1: 'Citrulline Dosage Calculator',
     intro:
-      'Sitrülin dozu kiloya göre ölçeklenmez. Aşağıda günlük dozunu seçip, gerçek ürün fiyatlarıyla paketin kaç gün yeteceğini ve günlük maliyetini görebilirsin.',
+      'Citrulline isn\'t dosed by body weight. Pick your daily dose below and see how many days a tub lasts and what it costs per day at real prices.',
     minDailyGrams: 3,
     maxDailyGrams: 8,
     defaultDailyGrams: 6,
     dosageNote:
-      'Saf L-sitrülin için 3-6 gram, sitrülin malat için 6-8 gram yaygın olarak kullanılan aralıklardır — ürünün hangi formu içerdiği etikette yazar ve bu iki form aynı miktarda değildir. Antrenmandan yaklaşık bir saat önce alınması yaygın bir tercihtir.',
-    category: 'amino-asitler',
+      '3-6 grams for pure L-citrulline and 6-8 grams for citrulline malate are the commonly used ranges; the label says which form a product contains, and the two aren\'t the same amount. Taking it about an hour before training is a common choice.',
+    category: 'amino-acids',
     searchTerm: 'citrulline',
   },
   {
-    slug: 'betain-dozu',
-    name: 'Betain',
-    title: 'Betain (Betaine) Dozu Hesaplama | ProteinAvcısı',
+    slug: 'betaine-dosage',
+    name: 'Betaine',
+    title: `Betaine Dosage Calculator | ${SITE_NAME}`,
     description:
-      'Günlük betain dozunu ve paketinin kaç gün yeteceğini hesapla. Güncel fiyatlarla günlük maliyetini gör.',
-    h1: 'Betain Dozu Hesaplama',
+      'Work out your daily betaine dose and how long a tub will last. See the cost per day at current prices.',
+    h1: 'Betaine Dosage Calculator',
     intro:
-      'Betain dozu sabit bir aralıkta kullanılır, kiloya göre hesaplanmaz. Günlük dozunu seç, paketinin kaç gün yeteceğini ve günlük maliyetini gör.',
+      'Betaine is taken in a fixed range, not calculated by body weight. Pick your daily dose and see how long a tub lasts and what it costs per day.',
     minDailyGrams: 1.25,
     maxDailyGrams: 2.5,
     defaultDailyGrams: 2.5,
     dosageNote:
-      'Günde 1,25-2,5 gram (betain anhidrat) çalışmalarda en sık kullanılan aralıktır. Pancar gibi gıdalarda doğal olarak da bulunur. Kreatinde olduğu gibi etkisi düzenli kullanıma dayanır. Not: "Betain HCL" farklı bir üründür (sindirim desteği amaçlı), performans için kullanılan form betain anhidrattır.',
+      '1.25-2.5 grams a day (betaine anhydrous) is the range most used in studies. It also occurs naturally in foods such as beets. As with creatine, its effect relies on regular use. Note: "betaine HCl" is a different product (a digestive aid); the form used for performance is betaine anhydrous.',
     category: null,
-    searchTerm: 'betain',
+    searchTerm: 'betaine',
   },
   {
-    slug: 'eaa-dozu',
+    slug: 'eaa-dosage',
     name: 'EAA',
-    title: 'EAA Dozu Hesaplama: Günde Kaç Gram? | ProteinAvcısı',
+    title: `EAA Dosage Calculator: How Many Grams a Day? | ${SITE_NAME}`,
     description:
-      'Günlük EAA dozunu ve paketinin kaç gün yeteceğini hesapla. Güncel fiyatlarla günlük maliyetini gör.',
-    h1: 'EAA Dozu Hesaplama',
+      'Work out your daily EAA dose and how long a tub will last. See the cost per day at current prices.',
+    h1: 'EAA Dosage Calculator',
     intro:
-      'EAA dozu kiloya göre değil, porsiyon bazında kullanılır. Günlük dozunu seç, gerçek ürün fiyatlarıyla paketin kaç gün yeteceğini hesapla.',
+      'EAAs are taken per serving, not by body weight. Pick your daily dose and see how long a tub lasts at real prices.',
     minDailyGrams: 5,
     maxDailyGrams: 15,
     defaultDailyGrams: 10,
     dosageNote:
-      'Porsiyon başına 5-15 gram yaygın kullanılan aralıktır. Önemli bir not: günlük protein hedefini zaten karşılıyorsan ayrıca EAA almanın ek fayda sağladığını gösteren güçlü bir kanıt yoktur — whey protein zaten yüksek oranda esansiyel amino asit içerir.',
-    category: 'amino-asitler',
+      '5-15 grams per serving is the common range. One important note: if you already meet your daily protein target, there is no strong evidence that extra EAAs add benefit; whey protein is already rich in essential amino acids.',
+    category: 'amino-acids',
     searchTerm: 'eaa',
-    guideSlug: 'bcaa-mi-eaa-mi-amino-asit-rehberi',
-    guideLabel: 'BCAA mı EAA mı?',
+    guideSlug: 'bcaa-vs-eaa',
+    guideLabel: 'BCAA vs EAA',
   },
 ];
 

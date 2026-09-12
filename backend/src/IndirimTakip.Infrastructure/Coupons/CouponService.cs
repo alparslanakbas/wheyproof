@@ -7,7 +7,7 @@ namespace IndirimTakip.Infrastructure.Coupons;
 public record CreateCouponRequest(
     string? BrandName,
     string? Seller,
-    // Kodu olmayan kampanyalar için boş bırakılabilir; bkz. Coupon.Code.
+    // May be empty for promotions without a code; see Coupon.Code.
     string? Code,
     string Description,
     DateTimeOffset? ValidUntil)
@@ -16,19 +16,19 @@ public record CreateCouponRequest(
         !string.IsNullOrWhiteSpace(BrandName) ^ !string.IsNullOrWhiteSpace(Seller);
 }
 
-// IsActive dahil — süresi geçen/yanlış çıkan bir kuponu deaktive etmenin
-// API üzerinden hiçbir yolu yoktu, sadece doğrudan DB erişimiyle mümkündü.
-// ValidUntilTemizle NEDEN AYRI BIR ALAN: bu uçta null "dokunma" demek,
-// "boşalt" demek değil. Kod için sorun yok — boş METİN göndermek kodu
-// siliyor. Ama tarih alanında boş metin diye bir şey yok, dolayısıyla
-// süresi olan bir kuponu tekrar "süresiz" yapmanın hiçbir yolu yoktu.
-// Açık bir bayrak, sessizce çalışmayan bir alandan iyidir.
+// IsActive is included so an expired or wrong coupon can be deactivated
+// through the API rather than directly in the database.
+// WHY ClearValidUntil IS A SEPARATE FIELD: on this endpoint null means "leave
+// it alone", not "clear it". That's fine for the code (an empty STRING clears
+// it), but a date has no empty string, so there was no way to make a dated
+// coupon open-ended again. An explicit flag beats a field that silently
+// does nothing.
 public record UpdateCouponRequest(
     string? Code,
     string? Description,
     DateTimeOffset? ValidUntil,
     bool? IsActive,
-    bool? ValidUntilTemizle = null);
+    bool? ClearValidUntil = null);
 
 public class CouponService(AppDbContext db)
 {
@@ -53,29 +53,28 @@ public class CouponService(AppDbContext db)
     public async Task<CouponDto?> CreateAsync(CreateCouponRequest request, CancellationToken cancellationToken = default)
     {
         if (!request.HasExactlyOneTarget)
-            throw new ArgumentException("Kupon yalnızca bir markaya veya bir satıcıya bağlanmalıdır.", nameof(request));
+            throw new ArgumentException("A coupon must belong to exactly one brand or one seller.", nameof(request));
 
         Brand? brand = null;
         if (!string.IsNullOrWhiteSpace(request.BrandName))
         {
-            var aranan = request.BrandName.Trim();
-            brand = await db.Brands.FirstOrDefaultAsync(b => b.Name == aranan, cancellationToken);
+            var wanted = request.BrandName.Trim();
+            brand = await db.Brands.FirstOrDefaultAsync(b => b.Name == wanted, cancellationToken);
 
             if (brand is null)
             {
-                // BİREBİR EŞLEŞME YETMİYOR. Kupon marka adını ELLE yazarak
-                // ekleniyor ve katalogdaki yazım her zaman akılda kalmıyor:
-                // 8 Eylül'de "DrSupplement" yazıldı, katalogdaki ad
-                // "Dr Supplement" (boşluklu) olduğu için 404 döndü.
+                // AN EXACT MATCH ISN'T ENOUGH. The brand name is typed BY HAND
+                // and the catalog's spelling isn't always remembered ("DrPan"
+                // vs "Dr Pan" returned a 404).
                 //
-                // Aynı sorun tarama tarafında ÇOK ÖNCE çözülmüş: FoldBrandName
-                // Türkçe harfleri elle katlıyor, boşluk ve noktayı atıyor,
-                // tireyi koruyor. Kendi kopyasını yazmak yerine o kullanılıyor —
-                // iki kopya zamanla ayrışır ve "tarama buluyor, kupon bulmuyor"
-                // gibi anlaşılmaz bir fark doğardı.
-                var katlanmis = ScrapeIngestionService.FoldBrandName(aranan);
+                // The scraping side solved the same problem long ago:
+                // FoldBrandName folds letters, drops spaces and dots and keeps
+                // hyphens. It's reused rather than copied; two copies would
+                // drift apart into a baffling "the scraper finds it, the coupon
+                // doesn't".
+                var folded = ScrapeIngestionService.FoldBrandName(wanted);
                 brand = (await db.Brands.ToListAsync(cancellationToken))
-                    .FirstOrDefault(b => ScrapeIngestionService.FoldBrandName(b.Name) == katlanmis);
+                    .FirstOrDefault(b => ScrapeIngestionService.FoldBrandName(b.Name) == folded);
             }
 
             if (brand is null)
@@ -90,11 +89,11 @@ public class CouponService(AppDbContext db)
         {
             BrandId = brand?.Id,
             Seller = seller,
-            // Boş dize ile NULL aynı şeyi ifade ediyor ("kod yok"); tek bir
-            // biçimde saklanıyor ki arayüz iki ayrı boşluk durumu kontrol etmesin.
+            // An empty string and NULL mean the same thing ("no code"); stored
+            // one way so the UI doesn't check two kinds of empty.
             Code = string.IsNullOrWhiteSpace(request.Code) ? null : request.Code.Trim(),
             Description = request.Description.Trim(),
-            ValidUntil = UtcyeCevir(request.ValidUntil),
+            ValidUntil = ToUtc(request.ValidUntil),
             LastVerifiedAt = DateTimeOffset.UtcNow,
             IsActive = true,
         };
@@ -113,10 +112,10 @@ public class CouponService(AppDbContext db)
         if (request.Code is not null)
             coupon.Code = string.IsNullOrWhiteSpace(request.Code) ? null : request.Code.Trim();
         if (request.Description is not null) coupon.Description = request.Description;
-        if (request.ValidUntilTemizle == true)
+        if (request.ClearValidUntil == true)
             coupon.ValidUntil = null;
         else if (request.ValidUntil is not null)
-            coupon.ValidUntil = UtcyeCevir(request.ValidUntil);
+            coupon.ValidUntil = ToUtc(request.ValidUntil);
         if (request.IsActive is not null) coupon.IsActive = request.IsActive.Value;
 
         await db.SaveChangesAsync(cancellationToken);
@@ -124,21 +123,20 @@ public class CouponService(AppDbContext db)
         return ToDto(coupon, coupon.Brand?.Name);
     }
 
-    /// <summary>Tarihi UTC'ye çevirir.</summary>
+    /// <summary>Converts a date to UTC.</summary>
     /// <remarks>
-    /// <b>ZORUNLU.</b> Npgsql, <c>timestamp with time zone</c> kolonuna
-    /// yalnızca offset'i 0 olan bir <see cref="DateTimeOffset"/> yazabiliyor;
-    /// Türkiye saatiyle ("+03:00") gelen bir tarih
-    /// <c>"only offset 0 (UTC) is supported"</c> ile PATLIYOR ve istek 500
-    /// dönüyor. 7 Eylül'de canlıda yaşandı.
+    /// <b>REQUIRED.</b> Npgsql can only write a <see cref="DateTimeOffset"/>
+    /// with offset 0 to a <c>timestamp with time zone</c> column; a date with
+    /// a local offset (e.g. "-04:00") FAILS with
+    /// <c>"only offset 0 (UTC) is supported"</c> and the request returns 500.
     ///
-    /// Tuzak, gönderenin biçimine bağlı olduğu için sinsi: tarayıcının
-    /// <c>&lt;input type="date"&gt;</c> alanı offset'siz ("2026-12-31")
-    /// gönderdiği için panel üzerinden hata GÖRÜNMÜYOR, ama aynı ucu bir
-    /// betikten ya da farklı bir istemciden çağırmak patlatıyor.
+    /// The trap is sneaky because it depends on the sender: the browser's
+    /// <c>&lt;input type="date"&gt;</c> sends no offset ("2026-12-31"), so the
+    /// panel never shows the error, but calling the same endpoint from a
+    /// script or another client blows up.
     /// </remarks>
-    private static DateTimeOffset? UtcyeCevir(DateTimeOffset? deger) =>
-        deger?.ToUniversalTime();
+    private static DateTimeOffset? ToUtc(DateTimeOffset? value) =>
+        value?.ToUniversalTime();
 
     private static CouponDto ToDto(Coupon coupon, string? brandName) =>
         new(

@@ -1,5 +1,12 @@
+import { MARKET } from './market';
+import { SITE_NAME } from './site-identity';
+
 export type BodyField = 'gender' | 'age' | 'height' | 'weight' | 'activity';
 
+/**
+ * Calculator input, always METRIC (cm, kg): the formulas are defined that
+ * way. The page converts from the units the visitor typed (ft/in, lb).
+ */
 export interface BodyCalcInput {
   gender: 'male' | 'female';
   age: number | null;
@@ -9,11 +16,11 @@ export interface BodyCalcInput {
 }
 
 export interface BodyCalcResult {
-  // Büyük puntoyla gösterilen ana sonuç
+  // The main result, shown large
   primaryValue: string;
   primaryUnit: string;
   primaryLabel: string;
-  // Ana sonucun altındaki ek satırlar (hedefe göre kalori, BMI sınıfı vb.)
+  // Extra rows under the main result (calories by goal, BMI class, ...)
   details: { label: string; value: string }[];
   note?: string;
 }
@@ -25,14 +32,13 @@ export interface ActivityOption {
   factor: number;
 }
 
-// Aktivite katsayıları — Mifflin-St Jeor ile birlikte yaygın kullanılan
-// standart çarpanlar.
+// Activity multipliers commonly used with Mifflin-St Jeor.
 export const ACTIVITY_OPTIONS: ActivityOption[] = [
-  { id: 'sedentary', label: 'Hareketsiz', description: 'Masa başı, spor yok', factor: 1.2 },
-  { id: 'light', label: 'Hafif aktif', description: 'Haftada 1-3 gün', factor: 1.375 },
-  { id: 'moderate', label: 'Orta aktif', description: 'Haftada 3-5 gün', factor: 1.55 },
-  { id: 'active', label: 'Çok aktif', description: 'Haftada 6-7 gün', factor: 1.725 },
-  { id: 'athlete', label: 'Sporcu', description: 'Günde iki antrenman / ağır fiziksel iş', factor: 1.9 },
+  { id: 'sedentary', label: 'Sedentary', description: 'Desk job, no exercise', factor: 1.2 },
+  { id: 'light', label: 'Lightly active', description: '1-3 days a week', factor: 1.375 },
+  { id: 'moderate', label: 'Moderately active', description: '3-5 days a week', factor: 1.55 },
+  { id: 'active', label: 'Very active', description: '6-7 days a week', factor: 1.725 },
+  { id: 'athlete', label: 'Athlete', description: 'Twice a day or heavy physical work', factor: 1.9 },
 ];
 
 export interface BodyCalculator {
@@ -47,58 +53,64 @@ export interface BodyCalculator {
   calculate: (input: BodyCalcInput) => BodyCalcResult | null;
 }
 
+const KG_TO_LB = 2.20462262;
+const ML_PER_FL_OZ = 29.5735296;
+const ML_PER_CUP = 236.588237;
+
+const whole = (value: number) => Math.round(value).toLocaleString(MARKET.locale);
+
 function activityFactor(id: string): number {
   return ACTIVITY_OPTIONS.find((a) => a.id === id)?.factor ?? 1.375;
 }
 
 export const BODY_CALCULATORS: BodyCalculator[] = [
   {
-    slug: 'kalori-ihtiyaci',
-    name: 'Günlük Kalori İhtiyacı',
-    title: 'Günlük Kalori İhtiyacı Hesaplama (TDEE) | ProteinAvcısı',
+    slug: 'calorie-needs',
+    name: 'Daily Calorie Needs',
+    title: `Daily Calorie Calculator (TDEE) | ${SITE_NAME}`,
     description:
-      'Boy, kilo, yaş ve aktivite seviyene göre günlük kalori ihtiyacını (TDEE) hesapla. Kilo alma ve verme hedefleri için gereken kaloriyi gör.',
-    h1: 'Günlük Kalori İhtiyacı Hesaplama',
+      'Calculate your daily calorie needs (TDEE) from your height, weight, age and activity level, and the calories to lose or gain weight.',
+    h1: 'Daily Calorie Calculator',
     intro:
-      'Mifflin-St Jeor denklemiyle bazal metabolizma hızını ve aktivite seviyene göre günlük toplam kalori ihtiyacını hesaplar. Sonuç bir tahmindir — gerçek ihtiyacın kişiden kişiye değişir.',
+      'Uses the Mifflin-St Jeor equation to estimate your basal metabolic rate and your total daily calorie needs for your activity level. The result is an estimate; real needs vary from person to person.',
     fields: ['gender', 'age', 'height', 'weight', 'activity'],
     disclaimer:
-      'Bu hesaplama yaygın kullanılan bir denkleme dayanan bir tahmindir, kişiye özel beslenme planı değildir. Gerçek ihtiyaç kas oranı, hormonal durum ve sağlık geçmişine göre değişir; kesin bir plan için bir diyetisyene danışmak gerekir.',
+      'This is an estimate based on a widely used equation, not a personal nutrition plan. Real needs vary with muscle mass, hormones and health history; for a precise plan, talk to a registered dietitian.',
     calculate: (input) => {
       const { gender, age, height, weight } = input;
       if (!age || !height || !weight) return null;
       if (age < 10 || age > 100 || height < 100 || height > 250 || weight < 30 || weight > 300) return null;
 
-      // Mifflin-St Jeor: bazal metabolizma hızı (BMR)
+      // Mifflin-St Jeor: basal metabolic rate (BMR)
       const bmr = 10 * weight + 6.25 * height - 5 * age + (gender === 'male' ? 5 : -161);
       const tdee = Math.round(bmr * activityFactor(input.activityId));
 
       return {
-        primaryValue: tdee.toLocaleString('tr-TR'),
-        primaryUnit: 'kcal / gün',
-        primaryLabel: 'Kilonu korumak için',
+        primaryValue: whole(tdee),
+        primaryUnit: 'kcal / day',
+        primaryLabel: 'To maintain your weight',
         details: [
-          { label: 'Bazal metabolizma (BMR)', value: `${Math.round(bmr).toLocaleString('tr-TR')} kcal` },
-          { label: 'Kilo vermek için (~500 kcal açık)', value: `${(tdee - 500).toLocaleString('tr-TR')} kcal` },
-          { label: 'Kilo almak için (~500 kcal fazla)', value: `${(tdee + 500).toLocaleString('tr-TR')} kcal` },
+          { label: 'Basal metabolic rate (BMR)', value: `${whole(bmr)} kcal` },
+          { label: 'To lose weight (~500 kcal deficit)', value: `${whole(tdee - 500)} kcal` },
+          { label: 'To gain weight (~500 kcal surplus)', value: `${whole(tdee + 500)} kcal` },
         ],
         note:
-          'Haftada yaklaşık 0,5 kg değişim için günde 500 kcal açık/fazla yaygın bir başlangıç noktasıdır. Çok büyük açıklar kas kaybı riskini artırır.',
+          'A 500 kcal daily deficit or surplus is a common starting point for about 1 lb of change per week. Very large deficits raise the risk of losing muscle.',
       };
     },
   },
   {
-    slug: 'vucut-kitle-indeksi',
-    name: 'Vücut Kitle İndeksi (BMI)',
-    title: 'Vücut Kitle İndeksi (BMI) Hesaplama | ProteinAvcısı',
+    slug: 'bmi',
+    name: 'Body Mass Index (BMI)',
+    title: `BMI Calculator | ${SITE_NAME}`,
     description:
-      'Boy ve kilona göre vücut kitle indeksini (BMI) hesapla. Sporcularda BMI\'nin neden yanıltıcı olabileceğini öğren.',
-    h1: 'Vücut Kitle İndeksi (BMI) Hesaplama',
+      'Calculate your body mass index (BMI) from your height and weight, and learn why BMI can mislead for people who lift.',
+    h1: 'BMI Calculator',
     intro:
-      'BMI, boy ve kiloya dayanan basit bir orandır. Genel nüfus için kaba bir gösterge sunar ama kas ile yağı ayırt edemez — bu yüzden düzenli antrenman yapanlarda yanıltıcı sonuç verebilir.',
+      'BMI is a simple ratio of height and weight. It gives a rough indicator for the general population but can\'t tell muscle from fat, so it can mislead for people who train regularly.',
     fields: ['height', 'weight'],
     disclaimer:
-      'BMI kas kütlesini, yağ oranını ve yağın vücuttaki dağılımını hesaba katmaz. Kas kütlesi yüksek bir sporcu "fazla kilolu" aralığında çıkabilir; bu tek başına bir sağlık sorunu göstergesi değildir. Sağlık değerlendirmesi için hekime danışmak gerekir.',
+      'BMI ignores muscle mass, body fat and where fat is carried. A muscular athlete can land in the "overweight" range, which alone is not a sign of a health problem. For a health assessment, talk to a doctor.',
     calculate: (input) => {
       const { height, weight } = input;
       if (!height || !weight) return null;
@@ -107,56 +119,56 @@ export const BODY_CALCULATORS: BodyCalculator[] = [
       const meters = height / 100;
       const bmi = weight / (meters * meters);
 
-      // Dünya Sağlık Örgütü'nün yetişkinler için kullandığı standart aralıklar.
+      // Standard adult ranges used by the World Health Organization and CDC.
       const category =
-        bmi < 18.5 ? 'Zayıf' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Fazla kilolu' : 'Obez';
+        bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Healthy weight' : bmi < 30 ? 'Overweight' : 'Obesity';
 
-      const idealMin = (18.5 * meters * meters).toFixed(1);
-      const idealMax = (24.9 * meters * meters).toFixed(1);
+      const idealMinLb = whole(18.5 * meters * meters * KG_TO_LB);
+      const idealMaxLb = whole(24.9 * meters * meters * KG_TO_LB);
 
       return {
-        primaryValue: bmi.toFixed(1).replace('.', ','),
+        primaryValue: bmi.toFixed(1),
         primaryUnit: '',
         primaryLabel: category,
         details: [
-          { label: 'Normal aralık (BMI 18,5-24,9)', value: `${idealMin.replace('.', ',')} - ${idealMax.replace('.', ',')} kg` },
+          { label: 'Healthy range for your height (BMI 18.5-24.9)', value: `${idealMinLb}-${idealMaxLb} lb` },
         ],
         note:
-          'Kas kütlesi yüksek kişilerde BMI olduğundan yüksek çıkar. Vücut kompozisyonunu daha doğru değerlendirmek için yağ oranı ölçümü daha bilgilendiricidir.',
+          'BMI reads high for people with a lot of muscle. A body fat measurement says more about body composition.',
       };
     },
   },
   {
-    slug: 'gunluk-su-ihtiyaci',
-    name: 'Günlük Su İhtiyacı',
-    title: 'Günlük Su İhtiyacı Hesaplama | ProteinAvcısı',
-    description: 'Kilona ve aktivite seviyene göre günlük su ihtiyacını hesapla.',
-    h1: 'Günlük Su İhtiyacı Hesaplama',
+    slug: 'water-intake',
+    name: 'Daily Water Intake',
+    title: `Daily Water Intake Calculator | ${SITE_NAME}`,
+    description: 'Calculate how much water you need a day from your weight and activity level.',
+    h1: 'Daily Water Intake Calculator',
     intro:
-      'Günlük su ihtiyacı kiloya ve aktivite düzeyine göre değişir. Aşağıdaki hesap yaygın kullanılan bir aralığa dayanır; sıcak havada veya yoğun terlemede ihtiyaç artar.',
+      'How much water you need depends on your weight and activity. The calculation below uses a commonly cited range; hot weather and heavy sweating raise it.',
     fields: ['weight', 'activity'],
     disclaimer:
-      'Bu hesap genel bir referanstır. Böbrek veya kalp rahatsızlığı gibi sıvı alımının kısıtlanması gereken durumlarda mutlaka hekime danışılmalıdır.',
+      'This is a general reference. If you have a condition that requires limiting fluids, such as kidney or heart disease, follow your doctor\'s advice.',
     calculate: (input) => {
       const { weight } = input;
       if (!weight || weight < 30 || weight > 300) return null;
 
-      // Yaygın referans: 30-35 ml/kg. Aktivite arttıkça terlemeyle kaybedilen
-      // sıvı için üstüne ekleniyor.
+      // Common reference: 30-35 ml per kg. More activity adds fluid for sweat.
       const factor = activityFactor(input.activityId);
       const extraMl = Math.round((factor - 1.2) * 1000);
       const minMl = weight * 30 + extraMl;
       const maxMl = weight * 35 + extraMl;
 
       return {
-        primaryValue: `${(minMl / 1000).toFixed(1).replace('.', ',')}–${(maxMl / 1000).toFixed(1).replace('.', ',')}`,
-        primaryUnit: 'litre / gün',
-        primaryLabel: 'Günlük su ihtiyacın',
+        primaryValue: `${whole(minMl / ML_PER_FL_OZ)}–${whole(maxMl / ML_PER_FL_OZ)}`,
+        primaryUnit: 'fl oz / day',
+        primaryLabel: 'Your daily water needs',
         details: [
-          { label: 'Bardak olarak (200 ml)', value: `${Math.round(minMl / 200)}-${Math.round(maxMl / 200)} bardak` },
+          { label: 'In cups (8 fl oz)', value: `${Math.round(minMl / ML_PER_CUP)}-${Math.round(maxMl / ML_PER_CUP)} cups` },
+          { label: 'In liters', value: `${(minMl / 1000).toFixed(1)}–${(maxMl / 1000).toFixed(1)} L` },
         ],
         note:
-          'Kreatin kullanıyorsan su tüketimine ayrıca dikkat etmen yaygın bir öneridir. Çay, kahve ve gıdalardan alınan sıvı da toplam alıma katkı sağlar.',
+          'Paying extra attention to water intake while taking creatine is a common recommendation. Tea, coffee and food also count toward your total.',
       };
     },
   },

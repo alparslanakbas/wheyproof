@@ -1,60 +1,36 @@
 import { Deal } from './deal.model';
+import { packageGrams } from './package-size';
 
-// "Bu indirimde — peki bu ürün gerçekten iyi mi?" sorusunun cevabı.
+// "It's on sale, but is it actually good value?"
 //
-// 28 Ağustos 2026'da beş yapay zekâ modeline aynı karşılaştırma soruldu; üçü
-// birbirinden bağımsız olarak AYNI boşluğu işaret etti: servis başına fiyat
-// gösteriyoruz ama ödenen paranın ne kadarının etken maddeye gittiğini
-// göstermiyoruz. ChatGPT'nin somut ifadesiyle: *"gerçek besin değerlerinden
-// 'servis maliyeti' ve '25 gram gerçek protein maliyeti' hesaplamak"*.
+// A price per serving is not enough: it hides how much of each serving is the
+// active ingredient. The data is already collected (serving size and protein
+// per serving from the brand's nutrition label); these helpers present it.
 //
-// Gerekli veri zaten toplanıyor (markanın besin değeri tablosundan gelen
-// porsiyon ve porsiyon başına protein) — eksik olan yalnızca sunumdu.
-//
-// İLKE: veri yoksa null. Rakiplerden biri porsiyonu bilmediğinde standart
-// 30 gram varsayıyor; biz varsaymıyoruz, alanı hiç göstermiyoruz.
+// RULE: no data, no number. Some comparison sites assume a standard 30 g
+// serving when they don't know it; we never assume, we show nothing.
 
-// Karşılaştırmanın yapıldığı sabit protein miktarı. Paket boyutları ve
-// porsiyonlar markadan markaya değiştiği için, ürünleri ancak ortak bir
-// birim üzerinden yan yana koymak anlamlı oluyor.
-//
-// 30 g seçildi çünkü ürün incelemesi sayfasında bu ölçü zaten yayında
-// kullanılıyordu; iki sayfada iki farklı referans göstermek okuyucuyu
-// yanıltırdı. (Bir modelin önerisi 25 g'dı ama o, rakibin porsiyon
-// varsaymasına verilen bir örnekti, referans dayatması değil.)
+// Fixed protein amount to compare products on. Package and serving sizes
+// differ from brand to brand, so products only line up on a common unit.
+// 30 g matches the reference already used on the product review page; two
+// different references on two pages would mislead.
 export const PROTEIN_REFERENCE_GRAMS = 30;
 
-/** Paket etiketinden gram cinsinden ağırlık ("900 Gr" → 900). */
-// Backend'deki `DealsQueryService.ParsePackageGrams` ile AYNI kuralı
-// uygulamak zorunda: aksi halde aynı ürün hesaplayıcıda (backend) servis
-// maliyeti gösterip ürün sayfasında (frontend) göstermiyor. Daha önce
-// burada yalnızca "Gr" tanınıyordu, kilogramla satılan paketlerin tamamı
-// sessizce hesap dışında kalıyordu.
-function parsePackageGrams(size: string | null): number | null {
-  if (!size) return null;
-  const match = /^(\d+(?:[.,]\d+)?)\s*(gr|kg)$/i.exec(size.trim());
-  if (!match) return null;
-  const value = Number(match[1].replace(',', '.'));
-  if (!(value > 0)) return null;
-  return match[2].toLowerCase() === 'kg' ? value * 1000 : value;
-}
-
 /**
- * Paketten kaç porsiyon çıktığı. Öncelik sırası backend'deki
- * `CalculateServings` ile aynı: önce markanın doğrudan beyanı, o yoksa
- * paket ağırlığı ÷ porsiyon.
+ * Servings in the package. Same order as the backend's `CalculateServings`:
+ * the brand's own statement first, otherwise package weight ÷ serving size.
  */
 export function servingsInPackage(deal: Deal): number | null {
   if (deal.servingsPerPackage && deal.servingsPerPackage > 0) return deal.servingsPerPackage;
 
-  const packageGrams = parsePackageGrams(deal.size);
-  if (packageGrams && deal.servingSizeGrams && deal.servingSizeGrams > 0) {
-    return packageGrams / deal.servingSizeGrams;
+  const grams = packageGrams(deal.size);
+  if (grams && deal.servingSizeGrams && deal.servingSizeGrams > 0) {
+    return grams / deal.servingSizeGrams;
   }
   return null;
 }
 
-/** Bir porsiyonun maliyeti. */
+/** Cost of one serving. */
 export function pricePerServing(deal: Deal): number | null {
   const servings = servingsInPackage(deal);
   if (!servings || servings < 1) return null;
@@ -62,24 +38,23 @@ export function pricePerServing(deal: Deal): number | null {
 }
 
 /**
- * Porsiyonun yüzde kaçı protein — "ödediğin paranın ne kadarı etken maddeye
- * gidiyor" sorusunun doğrudan cevabı. Bir üründe 30 gramlık porsiyonda 24 g
- * protein varsa %80; başka birinde 20 g varsa %66.
+ * What share of a serving is protein: "how much of what you pay goes to the
+ * active ingredient". 24 g of protein in a 30 g serving is 80%; 20 g is 66%.
  */
 export function proteinRatioPercent(deal: Deal): number | null {
   const { proteinPerServingGrams: protein, servingSizeGrams: serving } = deal;
   if (!protein || !serving || serving <= 0) return null;
 
   const ratio = (protein / serving) * 100;
-  // Etiket verisi tutarsızsa (porsiyondan fazla protein) göstermiyoruz.
+  // Inconsistent label data (more protein than the serving) is not shown.
   if (ratio <= 0 || ratio > 100) return null;
   return Math.round(ratio);
 }
 
 /**
- * Sabit miktarda (25 g) proteinin maliyeti. Paket boyutundan ve porsiyon
- * farklarından arındırılmış olduğu için iki ürünü doğrudan karşılaştırmanın
- * en dürüst yolu bu.
+ * Cost of a fixed amount of protein (PROTEIN_REFERENCE_GRAMS). It is free of
+ * package and serving size differences, so it is the fairest way to compare
+ * two products directly.
  */
 export function proteinReferenceCost(deal: Deal): number | null {
   const servings = servingsInPackage(deal);

@@ -1,38 +1,37 @@
 import { describe, expect, it } from 'vitest';
 import { brandSlug, resolveBrandFromSlug } from './brand-slug';
 
-const BRANDS = ['HIQ', 'Hardline', 'ProteinOcean', 'SSN', 'Torq Nutrition', 'West Nutrition', 'Yeşilmarka'];
+const BRANDS = ['Ghost', 'Kaged', 'MuscleTech', 'Optimum Nutrition', 'Transparent Labs', 'Açaí Co'];
 
 describe('brandSlug', () => {
-  it('boşlukları tireye çevirir', () => {
-    expect(brandSlug('Torq Nutrition')).toBe('torq-nutrition');
-    expect(brandSlug('West Nutrition')).toBe('west-nutrition');
+  it('turns spaces into hyphens', () => {
+    expect(brandSlug('Optimum Nutrition')).toBe('optimum-nutrition');
+    expect(brandSlug('Transparent Labs')).toBe('transparent-labs');
   });
 
-  it('Türkçe karakterleri çevirir', () => {
-    expect(brandSlug('Yeşilmarka')).toBe('yesilmarka');
+  it('strips accents', () => {
+    expect(brandSlug('Açaí Co')).toBe('acai-co');
   });
 
-  it('tek kelimeli markalarda adres değişmiyor', () => {
-    // Bu adresler zaten dizinde; slug'a geçiş onları bozmamalı.
-    expect(brandSlug('Hardline')).toBe('hardline');
-    expect(brandSlug('HIQ')).toBe('hiq');
+  it('lower-cases one-word brands', () => {
+    expect(brandSlug('Kaged')).toBe('kaged');
+    expect(brandSlug('MuscleTech')).toBe('muscletech');
   });
 });
 
 describe('resolveBrandFromSlug', () => {
-  it('slug\'dan gerçek marka adını bulur', () => {
-    expect(resolveBrandFromSlug('torq-nutrition', BRANDS)).toBe('Torq Nutrition');
-    expect(resolveBrandFromSlug('hardline', BRANDS)).toBe('Hardline');
+  it('finds the real brand name from a slug', () => {
+    expect(resolveBrandFromSlug('optimum-nutrition', BRANDS)).toBe('Optimum Nutrition');
+    expect(resolveBrandFromSlug('kaged', BRANDS)).toBe('Kaged');
   });
 
-  // Bir süre sitemap'te boşluklu adresler yer aldı, kırılmamalılar.
-  it('boşluklu ve Türkçe karakterli eski adresleri de çözer', () => {
-    expect(resolveBrandFromSlug('torq nutrition', BRANDS)).toBe('Torq Nutrition');
-    expect(resolveBrandFromSlug('yeşilmarka', BRANDS)).toBe('Yeşilmarka');
+  // Addresses with spaces or accents (typed or shared by hand) must still work.
+  it('also resolves addresses with spaces or accents', () => {
+    expect(resolveBrandFromSlug('optimum nutrition', BRANDS)).toBe('Optimum Nutrition');
+    expect(resolveBrandFromSlug('açaí-co', BRANDS)).toBe('Açaí Co');
   });
 
-  it('bilinmeyen markada null döner', () => {
-    expect(resolveBrandFromSlug('bilinmeyen-marka', BRANDS)).toBeNull();
+  it('returns null for an unknown brand', () => {
+    expect(resolveBrandFromSlug('unknown-brand', BRANDS)).toBeNull();
   });
 });

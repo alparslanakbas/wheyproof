@@ -5,10 +5,9 @@ import { Deal } from './deal.model';
 
 const STORAGE_KEY = 'comparison-slots';
 
-// Karşılaştırmaya alınan ürünün, sayfalar arası gezinirken tekrar API'den
-// çekilmesine gerek kalmadan alt çubukta gösterilebilmesi için sakladığımız
-// asgari bilgi. Tam Deal nesnesini saklamıyoruz — fiyat gibi alanlar
-// bayatlar; karşılaştırma sayfası verinin tamamını taze çekiyor.
+// The minimum kept for a product added to the comparison, so the bottom bar
+// can show it across pages without another API call. Not the full Deal:
+// fields such as price go stale; the comparison page fetches everything fresh.
 export interface ComparisonSlot {
   productId: number;
   productName: string;
@@ -16,20 +15,19 @@ export interface ComparisonSlot {
   imageUrl: string | null;
 }
 
-// En fazla iki ürün — yan yana okunabilir bir karşılaştırma için doğru
-// sayı bu; üç sütun mobilde okunmaz hale geliyor.
+// At most two products: the right number for a readable side-by-side view;
+// three columns become unreadable on mobile.
 const MAX_SLOTS = 2;
 
-// Karşılaştırma seçimi localStorage'da tutuluyor: kullanıcı ana sayfada bir
-// ürün seçip kategori sayfasına geçtiğinde seçimi kaybetmesin (kullanıcı
-// isteği: "ilk koyulan işaret saklanmalı"). ThemeService/CookieConsentService
-// ile aynı SSR-güvenli desen.
+// The selection lives in localStorage, so picking a product on the home page
+// and moving to a category page keeps it. The same SSR-safe pattern as
+// ThemeService/CookieConsentService.
 @Injectable({ providedIn: 'root' })
 export class ComparisonService {
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
-  // Tüm bileşenler (kartlar, alt çubuk) bu TEK signal'i okuyor — bir yerde
-  // yapılan seçim her yerde anında görünsün diye servis seviyesinde.
+  // Every component (cards, bottom bar) reads this ONE signal, so a selection
+  // made anywhere shows everywhere at once.
   readonly slots = signal<ComparisonSlot[]>(this.readFromStorage());
   readonly isFull = computed(() => this.slots().length >= MAX_SLOTS);
 
@@ -37,8 +35,8 @@ export class ComparisonService {
     return this.slots().some((s) => s.productId === productId);
   }
 
-  // Aynı ürüne tekrar basmak seçimi kaldırıyor (toggle) — ayrı bir "çıkar"
-  // butonu aramak zorunda kalmasın.
+  // Clicking the same product again removes it (toggle), so nobody has to
+  // look for a separate "remove" button.
   toggle(deal: Deal): void {
     const current = this.slots();
     if (current.some((s) => s.productId === deal.productId)) {
@@ -67,10 +65,9 @@ export class ComparisonService {
     this.write([]);
   }
 
-  // Karşılaştırma sayfasının kanonik adresi. ID'ler KÜÇÜKTEN BÜYÜĞE
-  // sıralanıyor — aksi halde aynı içerik "29-vs-603" ve "603-vs-29"
-  // adreslerinden iki kez erişilebilir olurdu (marka karşılaştırma
-  // sayfalarındaki alfabetik sıralamayla aynı gerekçe).
+  // The comparison page's canonical address. Ids are sorted ASCENDING;
+  // otherwise the same content would be reachable at both "29-vs-603" and
+  // "603-vs-29" (the same reason brand comparisons are alphabetical).
   static pairSlug(idA: number, idB: number): string {
     const [first, second] = [idA, idB].sort((a, b) => a - b);
     return `${first}-vs-${second}`;
@@ -79,7 +76,7 @@ export class ComparisonService {
   comparisonUrl(): string | null {
     const current = this.slots();
     if (current.length < MAX_SLOTS) return null;
-    return `/karsilastir-urun/${ComparisonService.pairSlug(current[0].productId, current[1].productId)}`;
+    return `/compare-products/${ComparisonService.pairSlug(current[0].productId, current[1].productId)}`;
   }
 
   private write(slots: ComparisonSlot[]): void {
@@ -90,8 +87,8 @@ export class ComparisonService {
       if (slots.length === 0) localStorage.removeItem(STORAGE_KEY);
       else localStorage.setItem(STORAGE_KEY, JSON.stringify(slots));
     } catch {
-      // Depolama kotası dolu ya da kapalı olabilir — seçim yine de bu
-      // oturum boyunca signal'de yaşamaya devam etsin, hata fırlatmayalım.
+      // Storage may be full or disabled; the selection still lives in the
+      // signal for this session, so don't throw.
     }
   }
 
@@ -103,8 +100,8 @@ export class ComparisonService {
       if (!raw) return [];
 
       const parsed = JSON.parse(raw) as ComparisonSlot[];
-      // Bozuk/eski biçimli veriye karşı: yalnızca beklenen alanları taşıyan
-      // kayıtları al ve en fazla iki tanesini tut.
+      // Guard against broken or old data: keep only records with the expected
+      // fields, and at most two of them.
       return Array.isArray(parsed)
         ? parsed.filter((s) => typeof s?.productId === 'number' && typeof s?.productName === 'string').slice(0, MAX_SLOTS)
         : [];

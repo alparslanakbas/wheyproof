@@ -1,4 +1,4 @@
-import { DecimalPipe, isPlatformBrowser } from '@angular/common';
+import { isPlatformBrowser } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnDestroy, OnInit, PLATFORM_ID, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -12,18 +12,20 @@ import { displayName } from '../core/display-name';
 import { FavoritesService } from '../core/favorites.service';
 import { LoadErrorInfo, describeLoadError, friendlyErrorMessage } from '../core/friendly-error-message';
 import { PageMetaService } from '../core/page-meta.service';
+import { PricePipe } from '../core/price.pipe';
 import { PriceHistoryService } from '../core/price-history.service';
 import { formatRelativeTime } from '../core/relative-time';
+import { SITE_NAME } from '../core/site-identity';
 import { ProductModal } from '../product-modal/product-modal';
 import { SiteHeader } from '../site-header/site-header';
 
-// Hız sınırına takılınca kaç kez sessizce tekrar denenecek. İkiden fazlası
-// anlamsız: sorun geçici değilse kullanıcıya durumu göstermek daha dürüst.
+// How many times a rate-limited load retries silently. More than two makes no
+// sense: if the problem isn't temporary, showing it is more honest.
 const MAX_AUTO_RETRY = 2;
 
 @Component({
   selector: 'app-favorites-page',
-  imports: [DecimalPipe, RouterLink, ProductModal, SiteHeader, FormsModule],
+  imports: [PricePipe, RouterLink, ProductModal, SiteHeader, FormsModule],
   templateUrl: './favorites-page.html',
   styleUrl: './favorites-page.css',
 })
@@ -56,48 +58,33 @@ export class FavoritesPage implements OnInit, OnDestroy {
     return total === 0 ? 0 : Math.round((this.opportunityCount() / total) * 100);
   });
 
-  // bkz. category-page.ts'teki aynı gerekçe.
+  // See category-page.ts for the same reasoning.
   protected readonly selectedDeal = signal<Deal | null>(null);
 
-  // Favori listesi kurtarma — token bu cihazda yoksa e-posta girip link
-  // isteyebiliyor (bkz. FavoritesService.recover, backend'deki
-  // FavoriteService.SendRecoveryEmailAsync). product-modal.ts'teki
-  // watch/favorite inline form desenleriyle aynı signal yapısı.
+  // Watchlist recovery: without a token on this device, an email address
+  // requests a link (see FavoritesService.recover and the backend's
+  // FavoriteService.SendRecoveryEmailAsync).
   protected readonly recoverEmail = signal('');
   protected readonly recoverSubmitting = signal(false);
   protected readonly recoverStatusMessage = signal<string | null>(null);
 
   ngOnInit(): void {
-    // Başlık ve açıklama "Takip listem" demeli: sayfanın h1'i, üst menü,
-    // footer ve mobil sekme çubuğu bu adı kullanıyor. Tasarım turunda kavram
-    // yeniden adlandırıldı ama meta tarafı "Favorilerim"de kalmıştı — arama
-    // sonucunda kullanıcının sitede gördüğünden başka bir isim çıkıyordu.
-    //
-    // ADRES bilinçli olarak /favorilerim kalıyor: dışarıda verilmiş
-    // bağlantılar ve e-postadaki kurtarma linki bu adrese işaret ediyor,
-    // değiştirmenin SEO/kullanıcı tarafında hiçbir karşılığı yok (sayfa
-    // zaten noindex).
     this.pageMeta.set({
-      title: 'Takip listem | ProteinAvcısı',
-      description: 'Takip listene eklediğin ürünlerin güncel fiyatlarını ve fiyat düşüşlerini buradan izle.',
-      canonicalPath: '/favorilerim',
+      title: `My Watchlist | ${SITE_NAME}`,
+      description: 'Follow the current prices and price drops of the products on your watchlist.',
+      canonicalPath: '/watchlist',
     });
-    // Kişiye özel içerik (localStorage token'ına bağlı) — arama motoru
-    // botları için anlamsız/boş görünür, indekslenmesin diye noindex.
+    // Personal content (tied to a localStorage token) that would look
+    // empty to crawlers, so noindex.
     this.metaService.updateTag({ name: 'robots', content: 'noindex' });
 
-    // E-postadan tıklanan kurtarma linki (?recover=TOKEN) — token'ı bu
-    // cihaza kaydedip URL'den temizliyoruz (tarayıcı geçmişinde/paylaşımda
-    // token açıkta kalmasın diye). Sadece ilk yüklemede kontrol etmek
-    // yeterli, bu yüzden snapshot kullanılıyor (queryParamMap aboneliği
-    // aşağıda ayrıca ?urun= için sürüyor).
-    // KRİTİK: sadece tarayıcıda çalıştırılmalı. router.navigate() SSR
-    // sırasında da çağrılırsa Angular Universal bunu gerçek bir HTTP 302
-    // yönlendirmesine çeviriyor — tarayıcı hiç HTML/JS almadan doğrudan
-    // /favorilerim'e (recover parametresi silinmiş halde) yönlendiriliyor,
-    // saveToken() ise sunucuda no-op olduğu için token hiçbir yere
-    // kaydolmadan kayboluyor. Gerçek bir kullanıcı testinde bulundu —
-    // yerel ng serve (SSR'sız) testinde bu hiç ortaya çıkmamıştı.
+    // The recovery link from the email (?recover=TOKEN): the token is saved on
+    // this device and removed from the URL (so it doesn't sit in history or
+    // get shared). Only the first load matters, hence the snapshot.
+    // CRITICAL: browser only. router.navigate() during SSR becomes a real
+    // HTTP 302, the browser is redirected before any JS runs, and saveToken()
+    // is a no-op on the server, so the token would be lost. A real user test
+    // found it; a local SSR-less dev server never showed it.
     const recoverToken = this.route.snapshot.queryParamMap.get('recover');
     if (recoverToken && this.isBrowser) {
       this.favoritesService.saveToken(recoverToken);
@@ -108,7 +95,7 @@ export class FavoritesPage implements OnInit, OnDestroy {
     this.loadFavorites();
 
     this.route.queryParamMap.subscribe((params) => {
-      const idParam = params.get('urun');
+      const idParam = params.get('product');
       if (!idParam) {
         this.selectedDeal.set(null);
         return;
@@ -144,20 +131,19 @@ export class FavoritesPage implements OnInit, OnDestroy {
           this.hasToken.set(false);
           this.favorites.set([]);
           this.recoverStatusMessage.set(
-            'Bu cihazdaki liste bağlantısı artık geçerli değil. E-postanla listeni yeniden açabilirsin.',
+            'The list link on this device is no longer valid. You can reopen your list with your email.',
           );
           this.loading.set(false);
           return;
         }
 
-        // 429 = hız sınırı (Cloudflare). Kalıcı bir arıza DEĞİL, birkaç
-        // saniye içinde kendiliğinden geçiyor; "Bağlantı sorunu" ekranı
-        // göstermek yanıltıcı olurdu. Yükleniyor durumunda kalıp kısa bir
-        // süre sonra sessizce tekrar deniyoruz.
+        // 429 = rate limit (Cloudflare). NOT a lasting failure; it clears in a
+        // few seconds, and a "connection problem" screen would mislead. Stay
+        // in the loading state and retry quietly after a short wait.
         //
-        // Retry-After başlığı çapraz kökenli yanıtta JS'ye açık olmayabilir
-        // (Access-Control-Expose-Headers'a bağlı), bu yüzden okunamazsa
-        // gözlenen değere (10 sn) düşülüyor.
+        // The Retry-After header may not be exposed to JS on a cross-origin
+        // response (Access-Control-Expose-Headers), so it falls back to the
+        // observed value (10 s).
         if (error instanceof HttpErrorResponse && error.status === 429 && this.autoRetryCount < MAX_AUTO_RETRY) {
           this.autoRetryCount++;
           const retryAfter = Number(error.headers?.get('Retry-After'));
@@ -174,7 +160,7 @@ export class FavoritesPage implements OnInit, OnDestroy {
   }
 
   protected retryLoad(): void {
-    // Kullanıcı bilinçli olarak bastıysa otomatik tekrar hakkı sıfırlanıyor.
+    // A deliberate click resets the automatic retry allowance.
     this.autoRetryCount = 0;
     this.clearRetryTimer();
     this.loadFavorites();
@@ -187,15 +173,15 @@ export class FavoritesPage implements OnInit, OnDestroy {
     }
   }
 
-  // Sayfadan ayrılınca bekleyen tekrar denemesi iptal ediliyor; yoksa
-  // kullanıcı başka bir sayfadayken gereksiz bir istek gidiyor.
+  // Cancel a pending retry when leaving the page; otherwise a needless
+  // request goes out while the visitor is elsewhere.
   ngOnDestroy(): void {
     this.clearRetryTimer();
   }
 
-  // Listeyi yalnızca bu tarayıcıdan ayırır — sunucudaki favoriler duruyor,
-  // kurtarma bağlantısıyla geri alınabiliyor. Sayfa, token'ı olmayan
-  // ziyaretçiye gösterdiği "e-postana bağlantı gönderelim" formuna dönüyor.
+  // Detaches the list from this browser only; the watchlist stays on the
+  // server and the recovery link brings it back. The page returns to the
+  // "we'll email you a link" form shown to visitors without a token.
   protected signOut(): void {
     this.favoritesService.signOut();
     this.hasToken.set(false);
@@ -226,17 +212,14 @@ export class FavoritesPage implements OnInit, OnDestroy {
     });
   }
 
-  // Kart/satır bağlantıları gerçek <a href> olmak zorunda (bkz.
-  // core/product-link.ts). Bu sayfalarda modal, ürün sayfasına gitmeden
-  // ?urun= parametresiyle açılıyor — bu yüzden RouterLink yerine gerçek bir
-  // href + kontrollü tıklama kullanılıyor: bot kanonik ürün adresini görüyor,
-  // kullanıcı ise sayfadan ayrılmadan modalı açıyor.
+  // Row links must be real <a href> (see core/product-link.ts). Here the
+  // modal opens through ?product= without leaving the page.
   protected productPath(deal: Deal): string {
     return productPath(deal);
   }
 
   protected onProductClick(event: MouseEvent, deal: Deal): void {
-    // Satırın/kartın kendi tıklama işleyicisi de varsa iki kez tetiklenmesin.
+    // The row may have its own click handler; don't fire twice.
     event.stopPropagation();
     if (!shouldHandleInApp(event)) return;
     event.preventDefault();
@@ -244,11 +227,11 @@ export class FavoritesPage implements OnInit, OnDestroy {
   }
 
   protected openDeal(deal: Deal): void {
-    this.router.navigate([], { relativeTo: this.route, queryParams: { urun: deal.productId }, queryParamsHandling: 'merge' });
+    this.router.navigate([], { relativeTo: this.route, queryParams: { product: deal.productId }, queryParamsHandling: 'merge' });
   }
 
   protected closeDeal(): void {
-    this.router.navigate([], { relativeTo: this.route, queryParams: { urun: null }, queryParamsHandling: 'merge' });
+    this.router.navigate([], { relativeTo: this.route, queryParams: { product: null }, queryParamsHandling: 'merge' });
   }
 
   protected lastCheckedText(deal: Deal): string {
@@ -259,9 +242,9 @@ export class FavoritesPage implements OnInit, OnDestroy {
     return this.priceHistoryService.goToStoreUrl(deal.productId, deal.storeUrl);
   }
 
-  /** Mağaza tıklamasını sayar; bağlantı doğrudan mağazaya gittiği için
-   *  sayacı artık /go/{id} artıramıyor (bkz. PriceHistoryService). */
-  protected magazaTiklamasi(productId: number): void {
+  /** Counts the store click; the link goes straight to the store, so /go/{id}
+   *  can no longer count it (see PriceHistoryService). */
+  protected trackStoreClick(productId: number): void {
     this.priceHistoryService.trackStoreClick(productId);
   }
 }

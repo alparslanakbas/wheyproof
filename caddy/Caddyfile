@@ -221,20 +221,19 @@ www.proteinavcisi.com.tr {
 	import erisim-logu
 	import csp
 
-	# YONETIM PANELI VE API'SI AYNI ORIGIN ALTINDA.
+	# THE ADMIN PANEL AND ITS API SHARE ONE ORIGIN.
 	#
-	# NEDEN: Cloudflare Access bir ALAN ADI + YOL koruyor. Panel www'de ama
-	# API cagrilari api.proteinavcisi.com.tr'ye gitseydi o cagrilar Access'in
-	# DISINDA kalirdi - sayfa korunur, verinin kendisi korunmazdi. Ayrica
-	# capraz origin oldugu icin CORS ve cerez sorunlari cikardi (CORS bu
-	# projede bilerek kapali).
+	# WHY: Cloudflare Access protects a HOST + PATH. Had the panel on www
+	# called the api. subdomain, those calls would sit OUTSIDE Access: the
+	# page protected, the data itself not. Cross-origin would also bring CORS
+	# and cookie problems (CORS is deliberately off in this project).
 	#
-	# Boylece TEK bir Access kurali (www.proteinavcisi.com.tr/yonetim*) hem
-	# sayfayi hem veriyi kapsiyor.
+	# This way ONE Access rule (www.<domain>/admin*) covers both the page
+	# and the data. The session cookie is scoped to Path=/admin to match.
 	#
-	# handle_path onegi soyuyor: /yonetim/api/security-events -> /security-events
-	# rewrite ise backend'in bekledigi yola geri koyuyor: /api/dev/security-events
-	handle_path /yonetim/api/* {
+	# handle_path strips the prefix: /admin/api/security-events -> /security-events
+	# and rewrite puts back the path the backend expects: /api/dev/security-events
+	handle_path /admin/api/* {
 		rewrite * /api/dev{uri}
 		reverse_proxy backend:8080
 	}

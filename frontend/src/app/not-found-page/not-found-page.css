@@ -17,9 +17,8 @@
   text-align: center;
 }
 
-/* Kod büyük ama DEKORATİF: ekran okuyucudan gizli (aria-hidden), çünkü
-   "404" tek başına okunduğunda kullanıcıya hiçbir şey anlatmıyor —
-   anlamı taşıyan metin h1'de. */
+/* The big code is DECORATIVE and hidden from screen readers (aria-hidden):
+   "404" read on its own tells the user nothing; the h1 carries the meaning. */
 .pa-404-code {
   margin: 0;
   font-size: clamp(64px, 11vw, 104px);

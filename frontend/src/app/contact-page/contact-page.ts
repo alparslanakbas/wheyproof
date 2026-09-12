@@ -21,17 +21,17 @@ export class ContactPage implements OnInit {
 
   ngOnInit(): void {
     this.pageMeta.set({
-      title: `İletişim | ${SITE_NAME}`,
-      description: `${SITE_NAME} ile iletişime geç: yanlış fiyat bildirimi, marka iş birliği, reklam ve basın talepleri için doğrudan e-posta adresi.`,
-      canonicalPath: '/iletisim',
+      title: `Contact | ${SITE_NAME}`,
+      description: `Contact ${SITE_NAME}: a direct email address for wrong prices, brand partnerships, advertising and press.`,
+      canonicalPath: '/contact',
     });
 
     upsertJsonLdScript(
       this.document,
       null,
       buildBreadcrumbJsonLd(this.document, [
-        { name: 'Ana Sayfa', path: '/' },
-        { name: 'İletişim', path: '/iletisim' },
+        { name: 'Home', path: '/' },
+        { name: 'Contact', path: '/contact' },
       ]),
     );
   }

@@ -9,9 +9,9 @@ export class SubscribeService {
   private readonly http = inject(HttpClient);
 
   /**
-   * `website` bir bal küpü: form içinde gizli duruyor, gerçek kullanıcı hiç
-   * görmüyor ve boş gönderiyor. Otomatik doldurma yapan botlar dolduruyor;
-   * sunucu dolu gelen isteği sessizce yok sayıyor.
+   * `website` is a honeypot: hidden in the form, never seen by a real visitor
+   * and sent empty. Bots that auto-fill forms fill it; the server silently
+   * ignores such requests.
    */
   subscribe(email: string, website = ''): Observable<{ message: string }> {
     return this.http.post<{ message: string }>(`${API_BASE_URL}/api/subscribe`, { email, website });

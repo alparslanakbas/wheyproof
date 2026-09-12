@@ -4,27 +4,26 @@ import { provideHttpClient, withFetch } from '@angular/common/http';
 import { provideClientHydration, withIncrementalHydration } from '@angular/platform-browser';
 
 import { routes } from './app.routes';
+import { MARKET } from './core/market';
 import { DealsRouteReuseStrategy } from './core/deals-route-reuse.strategy';
 import { provideServiceWorker } from '@angular/service-worker';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    // Lazy route'lar (app.routes.ts) ilk yükte indirilmiyor ama
-    // PreloadAllModules ile ana sayfa yüklenip tarayıcı boşa düşünce
-    // (idle) arka planda hepsi önceden çekiliyor — kullanıcı bir linke
-    // tıkladığında ekstra ağ gecikmesi yaşanmıyor, sadece ilk yük küçülüyor.
+    // Lazy routes (app.routes.ts) aren't downloaded on first load, but with
+    // PreloadAllModules they're all fetched in the background once the home
+    // page is idle: no extra network wait on click, just a smaller first load.
     provideRouter(routes, withPreloading(PreloadAllModules)),
     provideHttpClient(withFetch()),
-    // Artımlı hydration: @defer (hydrate on ...) ile işaretlenen bloklar
-    // sunucuda yine render ediliyor (arama motorları HTML'de görüyor) ama
-    // tarayıcıda tetikleyici gelene kadar canlandırılmıyor. Ana sayfa ilk
-    // açılışta 320 ms'lik bir engelleme süresi üretiyordu; bunun kaynağı
-    // veri değil, ekranda görünmeyen blokların da baştan canlandırılmasıydı.
-    // Olay tekrarı da bununla birlikte geliyor: henüz canlanmamış bir bloğa
-    // yapılan tıklama kaybolmuyor, hydration bitince uygulanıyor.
+    // Incremental hydration: blocks marked @defer (hydrate on ...) still
+    // render on the server (search engines see them in the HTML) but aren't
+    // hydrated in the browser until their trigger fires. Hydrating
+    // off-screen blocks up front caused a long blocking time on first load.
+    // Event replay comes with it: a click on a not-yet-hydrated block isn't
+    // lost, it's applied once hydration finishes.
     provideClientHydration(withIncrementalHydration()),
-    { provide: LOCALE_ID, useValue: 'tr-TR' },
+    { provide: LOCALE_ID, useValue: MARKET.locale },
     { provide: RouteReuseStrategy, useClass: DealsRouteReuseStrategy },
     provideServiceWorker('ngsw-worker.js', {
       enabled: !isDevMode(),

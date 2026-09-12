@@ -3,23 +3,23 @@
 
   <main class="pa-directory-main">
     <nav class="pa-directory-breadcrumb">
-      <a routerLink="/" class="hover:text-[var(--noc-accent)]">Ana Sayfa</a> / Hesaplama
+      <a routerLink="/" class="hover:text-[var(--noc-accent)]">Home</a> / Calculators
     </nav>
-    <h1 class="pa-directory-title">Hesaplama Araçları</h1>
+    <h1 class="pa-directory-title">Calculators</h1>
     <p class="pa-directory-lead">
-      Doz ve ihtiyaç hesaplarını, güncel ürün fiyatlarıyla birleştiren araçlar. Sonuçlar bilgilendirme amaçlıdır,
-      kişiye özel tıbbi tavsiye değildir.
+      Tools that combine dosage and needs calculations with current product prices. Results are for information only,
+      not personal medical advice.
     </p>
 
-    <section class="pa-calculator-toolbar" aria-label="Hesaplama bölümleri">
-      <div class="pa-calculator-tabs" role="group" aria-label="Hesaplama türü">
+    <section class="pa-calculator-toolbar" aria-label="Calculator sections">
+      <div class="pa-calculator-tabs" role="group" aria-label="Calculator type">
         <button
           type="button"
           [class.is-active]="activeSection() === 'body'"
           [attr.aria-pressed]="activeSection() === 'body'"
           (click)="selectSection('body')"
         >
-          Beslenme ve Vücut
+          Nutrition and Body
         </button>
         <button
           type="button"
@@ -27,17 +27,17 @@
           [attr.aria-pressed]="activeSection() === 'dosage'"
           (click)="selectSection('dosage')"
         >
-          Takviye Dozu
+          Supplement Dosage
         </button>
       </div>
       <div class="pa-calculator-trust">
-        <span><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i> Güncel ürün fiyatlarıyla hesapla</span>
-        <span><i class="ph ph-info" aria-hidden="true"></i> Sonuçlar bilgilendirme amaçlıdır</span>
+        <span><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i> Calculated with current prices</span>
+        <span><i class="ph ph-info" aria-hidden="true"></i> For information only</span>
       </div>
     </section>
 
-    <h2 id="beslenme-araclari" class="pa-directory-section-title">
-      Beslenme ve Vücut Hesaplayıcıları
+    <h2 id="nutrition-tools" class="pa-directory-section-title">
+      Nutrition and Body Calculators
     </h2>
     <div class="pa-body-calculator-grid">
       @for (calc of bodyGroupCalculators; track calc.path) {
@@ -54,8 +54,8 @@
       }
     </div>
 
-    <h2 id="takviye-araclari" class="pa-directory-section-title">
-      Takviye Dozu Hesaplayıcıları
+    <h2 id="dosage-tools" class="pa-directory-section-title">
+      Supplement Dosage Calculators
     </h2>
     <div class="pa-dosage-calculator-grid">
       @for (calc of dosageGroupCalculators; track calc.path) {

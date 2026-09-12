@@ -1,14 +1,15 @@
-// Takviye sözlüğü — rakip analizinde görülen bir fırsat: uzun-kuyruk
-// "X nedir" aramalarını hedefleyen, düşük efor/yüksek getirili bir sayfa.
-// Tanımlar kısa ama dürüst — kesin tıbbi iddia yok, belirsizlikler açıkça
-// belirtiliyor (rehber yazıları/kategori rehberleriyle aynı ton).
+// Supplement glossary: aimed at long-tail "what is X" searches, a low-effort,
+// high-return page. Definitions are short and honest; no firm medical
+// claims, uncertainty stated plainly (same tone as the guides).
+
+import { SITE_NAME } from './site-identity';
 
 export interface GlossaryTerm {
   term: string;
   slug: string;
   definition: string;
-  // İlgili kategori sayfasına iç link (varsa) — sözlük ↔ kategori arası
-  // çapraz linkleme.
+  // Internal link to the related category page (when there is one), for
+  // glossary <-> category cross-linking.
   relatedCategorySlug?: string;
 }
 
@@ -19,256 +20,274 @@ export interface GlossaryGroup {
 
 export const GLOSSARY: GlossaryGroup[] = [
   {
-    heading: 'Protein Türleri',
+    heading: 'Protein Types',
     terms: [
       {
-        term: 'Whey Konsantre (WPC)',
-        slug: 'whey-konsantre',
+        term: 'Whey Concentrate (WPC)',
+        slug: 'whey-concentrate',
         definition:
-          'Peynir altı suyundan elde edilen, en yaygın ve genelde en uygun fiyatlı protein tozu türü. Protein oranı ' +
-          '%70-80 civarındadır, az miktarda yağ ve laktoz içerir.',
-        relatedCategorySlug: 'protein-tozu',
+          'The most common and usually cheapest type of protein powder, made from whey. Typically 70-80% protein, ' +
+          'with small amounts of fat and lactose.',
+        relatedCategorySlug: 'protein-powder',
       },
       {
-        term: 'Whey İzole (WPI)',
-        slug: 'whey-izole',
+        term: 'Whey Isolate (WPI)',
+        slug: 'whey-isolate',
         definition:
-          'Whey konsantrenin ek bir filtreleme adımından geçirilmiş hali. Protein oranı %85-95\'e çıkar, laktoz ' +
-          'neredeyse sıfıra iner — laktoz hassasiyeti olanlar için tercih edilir.',
-        relatedCategorySlug: 'protein-tozu',
+          'Whey concentrate put through an extra filtration step. Protein rises to 85-95% and lactose drops to ' +
+          'almost zero, so it is a common choice for people with lactose sensitivity.',
+        relatedCategorySlug: 'protein-powder',
       },
       {
-        term: 'Whey Hidrolize (WPH)',
-        slug: 'whey-hidrolize',
+        term: 'Hydrolyzed Whey (WPH)',
+        slug: 'hydrolyzed-whey',
         definition:
-          'Proteinin önceden kısmi olarak parçalandığı (hidrolize edildiği) bir whey formu — teorik olarak daha hızlı ' +
-          'emilir. Genelde daha pahalıdır, çoğu kullanıcı için izole/konsantreye kıyasla pratik fark küçüktür.',
-        relatedCategorySlug: 'protein-tozu',
+          'Whey whose protein is partly broken down in advance, in theory absorbed faster. Usually more expensive; ' +
+          'for most users the practical difference from isolate or concentrate is small.',
+        relatedCategorySlug: 'protein-powder',
       },
       {
-        term: 'Kazein',
-        slug: 'kazein',
+        term: 'Casein',
+        slug: 'casein',
         definition:
-          'Sütteki ikinci ana protein türü, whey\'e göre çok daha yavaş sindirilir. Genelde gece veya uzun açlık ' +
-          'aralıklarında tercih edilir, antrenman sonrası hızlı toparlanma için değil.',
-        relatedCategorySlug: 'protein-tozu',
+          'The second main milk protein, digested much more slowly than whey. Usually taken before bed or for long ' +
+          'gaps between meals rather than for quick post-workout recovery.',
+        relatedCategorySlug: 'protein-powder',
       },
       {
-        term: 'Bitkisel Protein',
-        slug: 'bitkisel-protein',
+        term: 'Plant Protein',
+        slug: 'plant-protein',
         definition:
-          'Bezelye, pirinç, kenevir veya soya gibi kaynaklardan elde edilen, süt proteini içermeyen protein tozu. ' +
-          'Tek bir bitkisel kaynağın amino asit profili genelde eksiktir, bu yüzden kaliteli ürünler birden fazla ' +
-          'kaynağı karıştırır.',
-        relatedCategorySlug: 'protein-tozu',
+          'Protein powder from sources such as pea, rice, hemp or soy, with no dairy. A single plant source often ' +
+          'has an incomplete amino acid profile, so good products blend several.',
+        relatedCategorySlug: 'protein-powder',
       },
     ],
   },
   {
-    heading: 'Amino Asitler',
+    heading: 'Amino Acids',
     terms: [
       {
         term: 'BCAA',
         slug: 'bcaa',
         definition:
-          'Dallı zincirli 3 amino asit (lösin, izolösin, valin) — kas protein sentezini tetikleyen lösin sinyaline ' +
-          'odaklanır. EAA\'nın bir alt kümesidir.',
-        relatedCategorySlug: 'amino-asitler',
+          'The three branched-chain amino acids (leucine, isoleucine, valine), focused on the leucine signal that ' +
+          'triggers muscle protein synthesis. A subset of the EAAs.',
+        relatedCategorySlug: 'amino-acids',
       },
       {
         term: 'EAA',
         slug: 'eaa',
         definition:
-          'Vücudun kendisinin üretemediği 9 esansiyel amino asidin tamamı (BCAA\'nın 3\'ü de bunların içinde). Kas ' +
-          'protein sentezi için sadece lösin sinyali yetmez, diğer 8 amino asit de gerekir.',
-        relatedCategorySlug: 'amino-asitler',
+          'All nine essential amino acids the body can\'t make itself (the three BCAAs are among them). Building ' +
+          'muscle protein needs the other eight, not just the leucine signal.',
+        relatedCategorySlug: 'amino-acids',
       },
       {
-        term: 'Glutamin',
-        slug: 'glutamin',
+        term: 'Glutamine',
+        slug: 'glutamine',
         definition:
-          'Bağışıklık ve bağırsak sağlığıyla ilişkilendirilen bir amino asit. Kas gelişimi üzerindeki doğrudan etkisi ' +
-          'BCAA/EAA kadar güçlü kanıtlanmamıştır.',
-        relatedCategorySlug: 'amino-asitler',
+          'An amino acid linked to immune and gut health. Its direct effect on muscle growth is not as well ' +
+          'supported as BCAAs or EAAs.',
+        relatedCategorySlug: 'amino-acids',
       },
       {
-        term: 'Sitrülin',
-        slug: 'sitrulin',
+        term: 'Citrulline',
+        slug: 'citrulline',
         definition:
-          'Kan akışını destekleyerek antrenman sırasında "pump" hissini artıran bir amino asit türevi. Etkili doz ' +
-          'genelde 6-8 g civarındadır — birçok ucuz üründe bu dozun altında kullanılır.',
+          'An amino acid that supports blood flow and adds to the "pump" during training. Effective doses are ' +
+          'usually around 6-8 g of citrulline malate; many budget products use less.',
         relatedCategorySlug: 'pre-workout',
       },
       {
-        term: 'Beta-Alanin',
-        slug: 'beta-alanin',
+        term: 'Beta-Alanine',
+        slug: 'beta-alanine',
         definition:
-          'Kas dokusunda karnosin birikimini artırıp yüksek yoğunluklu, kısa süreli egzersizlerde yorgunluğu ' +
-          'geciktirmeye yardımcı olan bir amino asit. Cilt/yüzde karıncalanma (parestezi) zararsız ama bilinen bir ' +
-          'yan etkisidir.',
+          'An amino acid that raises carnosine in muscle and can help delay fatigue in short, high-intensity ' +
+          'efforts. Tingling of the skin (paresthesia) is a harmless, well-known side effect.',
         relatedCategorySlug: 'pre-workout',
       },
       {
-        term: 'Taurin',
-        slug: 'taurin',
+        term: 'Taurine',
+        slug: 'taurine',
         definition:
-          'Enerji içeceklerinde ve bazı pre-workout formüllerinde bulunan bir amino asit türevi. Performans ' +
-          'üzerindeki etkisi diğer bileşenlere (kafein, beta-alanin gibi) kıyasla daha zayıf kanıtlanmıştır.',
+          'An amino acid found in energy drinks and some pre-workouts. Its effect on performance is less well ' +
+          'supported than ingredients such as caffeine or beta-alanine.',
         relatedCategorySlug: 'pre-workout',
       },
       {
-        term: 'ALCAR (Asetil-L-Karnitin)',
+        term: 'ALCAR (Acetyl-L-Carnitine)',
         slug: 'alcar',
         definition:
-          'L-Karnitin\'in bir formu, standart L-Karnitin\'e göre kan-beyin bariyerini daha kolay geçtiği düşünülür. ' +
-          'Bilişsel etkileriyle de anılır, ama bu alanda da kanıtlar sınırlıdır.',
-        relatedCategorySlug: 'l-carnitine-cla',
+          'A form of L-carnitine thought to cross the blood-brain barrier more easily than standard L-carnitine. ' +
+          'Also mentioned for cognitive effects, where evidence is limited too.',
+        relatedCategorySlug: 'fat-burners',
       },
     ],
   },
   {
-    heading: 'Performans Takviyeleri',
+    heading: 'Performance Supplements',
     terms: [
       {
-        term: 'Kreatin Monohidrat',
-        slug: 'kreatin-monohidrat',
+        term: 'Creatine Monohydrate',
+        slug: 'creatine-monohydrate',
         definition:
-          'En eski, en çok araştırılan ve genelde en uygun fiyatlı kreatin formu. Kas gücü ve patlayıcı performans ' +
-          'üzerindeki etkisi bilimsel literatürde en sağlam kanıtlanmış takviyelerden biridir.',
-        relatedCategorySlug: 'kreatin',
+          'The oldest, most researched and usually cheapest form of creatine. Its effect on strength and power ' +
+          'is among the best supported of any supplement.',
+        relatedCategorySlug: 'creatine',
       },
       {
-        term: 'Kreatin HCL',
-        slug: 'kreatin-hcl',
+        term: 'Creatine HCl',
+        slug: 'creatine-hcl',
         definition:
-          'Kreatinin hidroklorür formu — "daha az su tutar" veya "daha az mide rahatsızlığı yapar" iddiasıyla ' +
-          'pazarlanır. Bu iddiaları monohidrata kıyasla doğrulayan geniş ölçekli çalışma sayısı azdır.',
-        relatedCategorySlug: 'kreatin',
+          'Creatine hydrochloride, marketed as causing less water retention or stomach upset. Far fewer large ' +
+          'studies support those claims than support monohydrate.',
+        relatedCategorySlug: 'creatine',
       },
       {
-        term: 'Yükleme Fazı',
-        slug: 'yukleme-fazi',
+        term: 'Loading Phase',
+        slug: 'loading-phase',
         definition:
-          'İlk 5-7 gün yüksek dozla (günde ~20 g) kreatin kullanıp kas depolarını hızlıca doldurma yöntemi. ' +
-          'Atlanırsa da (doğrudan düşük dozla başlanırsa) aynı doygunluğa 3-4 hafta içinde ulaşılır — sonuç aynıdır, ' +
-          'yükleme sadece bir hız tercihidir.',
-        relatedCategorySlug: 'kreatin',
+          'Taking a high dose of creatine (about 20 g a day) for the first 5-7 days to fill muscle stores quickly. ' +
+          'Skipping it and starting at a low dose reaches the same saturation within 3-4 weeks; loading is only ' +
+          'about speed.',
+        relatedCategorySlug: 'creatine',
       },
       {
-        term: 'Termojenik',
-        slug: 'termojenik',
+        term: 'Thermogenic',
+        slug: 'thermogenic',
         definition:
-          'Metabolizma hızında hafif, geçici bir artış sağladığı düşünülen bileşenler (kafein, yeşil çay ekstresi ' +
-          'gibi). Bu etki günlük kalori açığının yanında ölçülemeyecek kadar küçüktür, tek başına yağ kaybı sağlamaz.',
-        relatedCategorySlug: 'yag-yakici',
+          'Ingredients thought to raise metabolic rate slightly and briefly (caffeine, green tea extract). The ' +
+          'effect is tiny next to a daily calorie deficit and doesn\'t cause fat loss on its own.',
+        relatedCategorySlug: 'fat-burners',
       },
       {
-        term: 'Biyoyararlanım',
-        slug: 'biyoyararlanim',
+        term: 'Electrolytes',
+        slug: 'electrolytes',
         definition:
-          'Alınan bir besin öğesinin vücut tarafından ne kadarının gerçekten kullanılabildiğini ifade eder. Sadece ' +
-          'toplam miktar (ör. "24 g protein") bu konuda tam bir fikir vermez.',
+          'Minerals such as sodium, potassium and magnesium that help regulate fluid balance and muscle function. ' +
+          'Sodium is the one lost in the largest amounts in sweat.',
+        relatedCategorySlug: 'hydration',
+      },
+      {
+        term: 'Bioavailability',
+        slug: 'bioavailability',
+        definition:
+          'How much of a nutrient the body can actually use. The total amount on a label (e.g. "24 g protein") ' +
+          'doesn\'t tell the whole story.',
       },
     ],
   },
   {
-    heading: 'Kilo / Hacim',
+    heading: 'Weight Gain',
     terms: [
       {
-        term: 'Gainer',
-        slug: 'gainer',
+        term: 'Mass Gainer',
+        slug: 'mass-gainer',
         definition:
-          'Standart bir protein tozuna kıyasla çok daha fazla karbonhidrat içeren, kilo almayı kolaylaştırmak için ' +
-          'tasarlanmış yüksek kalorili bir takviye. Kilo almakta zorlanmayan biri için genelde gerekli değildir.',
-        relatedCategorySlug: 'kilo-hacim',
+          'A high-calorie supplement with far more carbohydrate than a standard protein powder, designed to make ' +
+          'gaining weight easier. Usually unnecessary for people who gain weight easily.',
+        relatedCategorySlug: 'mass-gainers',
       },
       {
-        term: 'Maltodekstrin',
-        slug: 'maltodekstrin',
+        term: 'Maltodextrin',
+        slug: 'maltodextrin',
         definition:
-          'Gainer ürünlerinde sıkça kullanılan, hızlı sindirilen bir karbonhidrat kaynağı. Kan şekerinde ani ' +
-          'yükselmelere yol açabilir, bazı kaliteli ürünler bunun yerine yulaf gibi daha yavaş kaynaklar kullanır.',
-        relatedCategorySlug: 'kilo-hacim',
+          'A fast-digesting carbohydrate common in gainers. It can spike blood sugar; some better products use ' +
+          'slower sources such as oats instead.',
+        relatedCategorySlug: 'mass-gainers',
       },
     ],
   },
   {
-    heading: 'Vitamin ve Mineral',
+    heading: 'Vitamins and Minerals',
     terms: [
       {
         term: 'Multivitamin',
         slug: 'multivitamin',
         definition:
-          'Genel beslenme eksikliklerini önlemeye yönelik, düşük-orta dozlarda birçok vitamin/mineral içeren ' +
-          'takviye. Belirli bir eksikliği hedef almaz — kan tahlilinde tespit edilen bir eksiklik varsa tekli/yüksek ' +
-          'dozlu bir takviye genelde daha etkilidir.',
-        relatedCategorySlug: 'vitamin',
+          'A supplement with many vitamins and minerals at low to moderate doses to help prevent general gaps. ' +
+          'It doesn\'t target a specific deficiency; for one found in a blood test, a single, higher-dose ' +
+          'supplement is usually more effective.',
+        relatedCategorySlug: 'vitamins',
       },
       {
         term: 'ZMA',
         slug: 'zma',
         definition:
-          'Çinko, magnezyum ve B6 vitamininin bir kombinasyonu. Uyku kalitesi ve toparlanmayı desteklediği öne ' +
-          'sürülür, ama bu iddiaları destekleyen kanıtlar sınırlıdır.',
-        relatedCategorySlug: 'vitamin',
+          'A combination of zinc, magnesium and vitamin B6, claimed to support sleep and recovery. Evidence for ' +
+          'those claims is limited.',
+        relatedCategorySlug: 'vitamins',
+      },
+      {
+        term: 'Daily Value (%DV)',
+        slug: 'daily-value',
+        definition:
+          'The percentage of a reference daily intake that one serving provides, shown on the Supplement Facts ' +
+          'panel. Useful for comparing how much of each ingredient a product really contains.',
+        relatedCategorySlug: 'vitamins',
       },
     ],
   },
   {
-    heading: 'Yağ Yakıcı',
+    heading: 'Fat Burners',
     terms: [
       {
-        term: 'CLA (Konjuge Linoleik Asit)',
+        term: 'CLA (Conjugated Linoleic Acid)',
         slug: 'cla',
         definition:
-          'Et ve süt ürünlerinde doğal olarak bulunan bir yağ asidi türevi. Yağ hücrelerinin depolanmasını ' +
-          'etkilediği öne sürülür, ama insan çalışmalarındaki sonuçlar tutarsızdır.',
-        relatedCategorySlug: 'l-carnitine-cla',
+          'A fatty acid found naturally in meat and dairy, said to affect fat storage. Results in human studies ' +
+          'are inconsistent.',
+        relatedCategorySlug: 'fat-burners',
       },
       {
-        term: 'L-Karnitin',
-        slug: 'l-karnitin',
+        term: 'L-Carnitine',
+        slug: 'l-carnitine',
         definition:
-          'Yağ asitlerini hücrenin enerji üreten kısmına taşıyan bir bileşik. Vücut zaten yeterli miktarda üretir, ' +
-          'dışarıdan alınan ek miktarın etkisi beklenenden daha mütevazıdır.',
-        relatedCategorySlug: 'l-carnitine-cla',
+          'A compound that carries fatty acids to the part of the cell that produces energy. The body already ' +
+          'makes enough, and the effect of extra supplemental carnitine is more modest than expected.',
+        relatedCategorySlug: 'fat-burners',
       },
     ],
   },
   {
-    heading: 'Fiyat ve Etiket Okuma',
+    heading: 'Prices and Labels',
     terms: [
       {
-        term: 'Servis Başına Fiyat',
-        slug: 'servis-basina-fiyat',
+        term: 'Price per Serving',
+        slug: 'price-per-serving',
         definition:
-          'Paket fiyatının, paketten çıkan servis (porsiyon) sayısına bölünmesiyle bulunan gerçek maliyet. Büyük ' +
-          'bir paketin "ucuz" görünmesi, servis başına fiyatı yüksekse yanıltıcı olabilir.',
+          'The package price divided by the number of servings in it, the real cost. A big tub can look "cheap" ' +
+          'and still cost more per serving.',
       },
       {
         term: 'Amino Spiking',
         slug: 'amino-spiking',
         definition:
-          'Bazı üreticilerin, ucuz serbest amino asitleri (glisin, taurin gibi) ekleyerek etikette görünen protein ' +
-          'oranını yapay olarak yükseltme pratiği. Üçüncü taraf test sertifikaları bu tür sapmaları tespit etmeye ' +
-          'yardımcı olur.',
+          'The practice of adding cheap free amino acids (such as glycine or taurine) to inflate the protein ' +
+          'number on the label. Third-party testing helps catch it.',
       },
       {
-        term: 'Üçüncü Taraf Test',
-        slug: 'ucuncu-taraf-test',
+        term: 'Proprietary Blend',
+        slug: 'proprietary-blend',
         definition:
-          'Bir ürünün, üreticiden bağımsız bir laboratuvar tarafından (etikette yazan içeriği gerçekten taşıyıp ' +
-          'taşımadığı ve yasaklı madde içerip içermediği açısından) test edilmesi. Informed Sport ve NSF Certified ' +
-          'for Sport bilinen örneklerdir.',
+          'A label listing that gives the total weight of a group of ingredients but not the dose of each. It ' +
+          'makes it impossible to tell whether an ingredient is present at an effective amount.',
       },
       {
-        term: 'Gerçek İndirim (ProteinAvcısı tanımı)',
-        slug: 'gercek-indirim',
+        term: 'Third-Party Testing',
+        slug: 'third-party-testing',
         definition:
-          'Bir ürünün son 30 gün içindeki en yüksek fiyatına göre şu anki fiyatının gerçekten düşük olması. ' +
-          'Markanın kendi sitesinde yazan "eski fiyat/yeni fiyat" beyanına değil, bizim topladığımız fiyat ' +
-          'geçmişine dayanır — ProteinAvcısı bu ayrımı "Gerçek İndirim" ve "Mağaza Kampanyası" olarak iki ayrı ' +
-          'etiketle gösterir.',
+          'Testing by a lab independent of the manufacturer that a product contains what the label says and no ' +
+          'banned substances. NSF Certified for Sport and Informed Sport are well-known programs.',
+      },
+      {
+        term: `Real Price Drop (${SITE_NAME} definition)`,
+        slug: 'real-price-drop',
+        definition:
+          'A product whose current price is genuinely below its highest price in the last 30 days. It rests on ' +
+          `the price history we collect, not on the store's own "was/now" claim; ${SITE_NAME} shows the two ` +
+          'separately as "Real price drops" and "Store sales".',
       },
     ],
   },

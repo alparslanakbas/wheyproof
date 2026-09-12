@@ -9,28 +9,28 @@ namespace IndirimTakip.Api.Endpoints;
 internal static class AdminAuthExtensions
 {
     /// <summary>
-    /// Admin uçlarını korur: ya <c>X-Admin-Key</c> başlığı ya da yönetim
-    /// panelinin HttpOnly oturum çerezi.
+    /// Protects admin endpoints: either the <c>X-Admin-Key</c> header or the
+    /// admin panel's HttpOnly session cookie.
     /// </summary>
     /// <remarks>
-    /// Çerez yolu 6 Eylül'de eklendi. Alternatifi, panelin admin anahtarını
-    /// tarayıcıda tutup her istekte başlık olarak göndermesiydi — o anahtar
-    /// bütün abonelere e-posta gönderebildiği için JavaScript'in erişebildiği
-    /// bir yerde durmamalı. Başlık yolu KALDIRILMADI: betikler, cron ve elle
-    /// yapılan çağrılar onu kullanıyor.
+    /// The alternative to the cookie was the panel keeping the admin key in
+    /// the browser and sending it as a header on every request; that key can
+    /// email every subscriber, so it must not sit where JavaScript can reach
+    /// it. The header path was NOT removed: scripts, cron and manual calls
+    /// use it.
     /// </remarks>
     public static RouteHandlerBuilder RequireAdminKey(this RouteHandlerBuilder builder, string? expectedKey)
     {
         return builder.AddEndpointFilter(async (context, next) =>
         {
-            if (!await YetkiliMi(context.HttpContext, expectedKey))
+            if (!await IsAuthorized(context.HttpContext, expectedKey))
                 return Results.Unauthorized();
 
-            return await KaydederekCalistir(context, next);
+            return await RunAndRecordFailures(context, next);
         });
     }
 
-    private static async Task<bool> YetkiliMi(HttpContext http, string? expectedKey)
+    private static async Task<bool> IsAuthorized(HttpContext http, string? expectedKey)
     {
         if (string.IsNullOrEmpty(expectedKey))
             return false;
@@ -41,111 +41,109 @@ internal static class AdminAuthExtensions
 
         var dataProtection = http.RequestServices.GetService<IDataProtectionProvider>();
         if (dataProtection is not null
-            && YonetimSessionEndpoints.GecerliOturum(http, dataProtection))
+            && AdminSessionEndpoints.IsValidSession(http, dataProtection))
         {
             return true;
         }
 
-        // Cloudflare Access'in imzalı kimlik jetonu. Access zaten kimliği
-        // doğrulayıp bunu isteğe ekliyor; jetonu doğrulamak, elle girilen
-        // bir anahtarı kabul etmekten daha sağlam. Yapılandırılmamışsa bu
-        // yol tamamen kapalı (bkz. CloudflareAccessValidator).
+        // Cloudflare Access's signed identity token. Access has already
+        // verified the identity and attached this to the request; validating
+        // the token is sturdier than accepting a hand-typed key. When not
+        // configured this path is fully closed (see CloudflareAccessValidator).
         var access = http.RequestServices.GetService<CloudflareAccessValidator>();
         return access is not null
             && await access.GecerliMi(http, http.RequestAborted);
     }
 
     /// <summary>
-    /// Ucu çalıştırır; başarısız olursa SEBEBİNİ kaydeder.
+    /// Runs the endpoint and records WHY it failed, if it did.
     /// </summary>
     /// <remarks>
-    /// <b>NEDEN BURASI.</b> Bu filtre bütün yönetim uçlarının ortak geçidi;
-    /// kaydı buraya koymak, her uca tek tek eklemeye kıyasla hem tek yerde
-    /// duruyor hem de bundan sonra eklenen uçlar için kendiliğinden çalışıyor.
+    /// <b>WHY HERE.</b> This filter is the shared gate for every admin
+    /// endpoint; recording here keeps it in one place and covers endpoints
+    /// added later automatically.
     ///
-    /// <b>YANIT GÖVDESİ OKUNMUYOR, DÖNEN SONUÇ NESNESİ OKUNUYOR.</b>
-    /// Alternatif, yanıt akışını tampona alıp gövdeyi ayrıştırmaktı; her
-    /// istekte kopyalama demek olurdu ve <c>Results.NotFound("mesaj")</c>
-    /// nesnesi mesajı zaten yapısal olarak taşıyor.
+    /// <b>THE RESPONSE BODY ISN'T READ; THE RETURNED RESULT OBJECT IS.</b>
+    /// The alternative was buffering the response stream and parsing the body,
+    /// a copy on every request, while <c>Results.NotFound("message")</c>
+    /// already carries the message structurally.
     ///
-    /// <b>YETKİSİZ DENEMELER BURAYA GİRMİYOR</b> — bu noktaya yalnızca
-    /// kimliği doğrulanmış istek ulaşıyor. 401'ler zaten SecurityEvents'te
-    /// ve oraya ait: onlar yönetim hatası değil, dışarıdan gelen deneme.
+    /// <b>UNAUTHORIZED ATTEMPTS DON'T GET HERE</b>: only authenticated
+    /// requests reach this point. 401s already live in SecurityEvents, where
+    /// they belong: they're attempts from outside, not admin failures.
     /// </remarks>
-    private static async ValueTask<object?> KaydederekCalistir(
+    private static async ValueTask<object?> RunAndRecordFailures(
         EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
-        object? sonuc;
+        object? result;
         try
         {
-            sonuc = await next(context);
+            result = await next(context);
         }
         catch (Exception ex)
         {
-            // İstemci bağlantıyı kestiyse bu bir arıza değil; kaydetmek
-            // paneli gürültüyle doldururdu.
+            // A client dropping the connection isn't a failure; recording it
+            // would fill the panel with noise.
             if (ex is not OperationCanceledException || !context.HttpContext.RequestAborted.IsCancellationRequested)
-                await Kaydet(context.HttpContext, StatusCodes.Status500InternalServerError, AdminFailureReason.Istisnadan(ex));
+                await Record(context.HttpContext, StatusCodes.Status500InternalServerError, AdminFailureReason.Istisnadan(ex));
 
-            // Davranış DEĞİŞMİYOR: istisna olduğu gibi yukarı gidiyor.
+            // Behavior DOESN'T CHANGE: the exception propagates as is.
             throw;
         }
 
-        if (sonuc is IStatusCodeHttpResult { StatusCode: >= 400 } durum)
-            await Kaydet(context.HttpContext, durum.StatusCode!.Value, MesajCikar(sonuc));
+        if (result is IStatusCodeHttpResult { StatusCode: >= 400 } status)
+            await Record(context.HttpContext, status.StatusCode!.Value, ExtractMessage(result));
 
-        return sonuc;
+        return result;
     }
 
-    private static async Task Kaydet(HttpContext http, int durumKodu, string? sebep)
+    private static async Task Record(HttpContext http, int statusCode, string? reason)
     {
         var recorder = http.RequestServices.GetService<AdminFailureRecorder>();
         if (recorder is null)
             return;
 
-        var kayit = new AdminOperationFailure
+        var failure = new AdminOperationFailure
         {
             OccurredAt = DateTimeOffset.UtcNow,
             Method = http.Request.Method,
-            // Sorgu dizesi SecurityEvents'teki gerekçeyle burada da
-            // saklanmıyor: yol olayı tanımlamaya yetiyor.
-            Path = Yol(http.Request.Path.Value),
-            StatusCode = durumKodu,
-            Reason = sebep,
+            // The query string isn't stored, for the same reason as in
+            // SecurityEvents: the path identifies the event.
+            Path = TrimPath(http.Request.Path.Value),
+            StatusCode = statusCode,
+            Reason = reason,
             Ip = RequestLoggingExtensions.GetClientIp(http),
         };
 
-        await recorder.RecordAsync(kayit, CancellationToken.None);
+        await recorder.RecordAsync(failure, CancellationToken.None);
     }
 
-    /// <summary>Sonuç nesnesinin taşıdığı hata metni; yoksa null.</summary>
-    private static string? MesajCikar(object? sonuc)
+    /// <summary>The error text carried by the result object; null if none.</summary>
+    private static string? ExtractMessage(object? result)
     {
-        if (sonuc is not IValueHttpResult deger)
+        if (result is not IValueHttpResult value)
             return null;
 
-        // ProblemDetails BURADA çözülüyor, AdminFailureReason'da değil: o tip
-        // ASP.NET'e ait, sebep üretimi ise Infrastructure'da duruyor — yani
-        // test projesinin görebildiği yerde.
-        return deger.Value is ProblemDetails problem
+        // ProblemDetails is unwrapped HERE, not in AdminFailureReason: that
+        // type belongs to ASP.NET, while reason extraction lives in
+        // Infrastructure, where the test project can see it.
+        return value.Value is ProblemDetails problem
             ? AdminFailureReason.Degerden(problem.Detail ?? problem.Title)
-            : AdminFailureReason.Degerden(deger.Value);
+            : AdminFailureReason.Degerden(value.Value);
     }
 
-    private static string Yol(string? yol)
+    private static string TrimPath(string? path)
     {
-        if (string.IsNullOrEmpty(yol))
+        if (string.IsNullOrEmpty(path))
             return "/";
 
-        return yol.Length <= 500 ? yol : yol[..500];
+        return path.Length <= 500 ? path : path[..500];
     }
 }
 
-// 2026-08-15 güvenlik olayı sonrası eklendi: e-posta gönderen/yazma yapan
-// uçlarda hiç istek logu yoktu, kötüye kullanım olduğunda Render loglarında
-// hiçbir iz kalmıyordu. IP + yöntem + yol + zaman `app.Logger` üzerinden
-// (Render'ın stdout'u yakaladığı standart kanal) logluyor — ayrı bir log
-// servisi/DB tablosu kurmak burada aşırı mühendislik olurdu.
+// Logs IP + method + path + time for endpoints that send email or write data,
+// so abuse leaves a trace. A separate log service or table would be
+// over-engineering here; the security event log covers the persistent side.
 internal static class RequestLoggingExtensions
 {
     public static RouteHandlerBuilder LogSensitiveRequest(this RouteHandlerBuilder builder, ILogger logger)
@@ -153,21 +151,19 @@ internal static class RequestLoggingExtensions
         return builder.AddEndpointFilter(async (context, next) =>
         {
             var ip = GetClientIp(context.HttpContext);
-            logger.LogInformation("Hassas istek: {Ip} {Method} {Path}",
+            logger.LogInformation("Sensitive request: {Ip} {Method} {Path}",
                 ip, context.HttpContext.Request.Method, context.HttpContext.Request.Path);
             return await next(context);
         });
     }
 
-    // 2026-08-15: Render + Cloudflare çift proxy zincirinde RemoteIpAddress
-    // (ForwardedHeaders middleware'den sonra bile) Render'ın kendi iç ağındaki
-    // bir IP'yi döndürüyordu (10.x.x.x), gerçek ziyaretçi IP'si kayboluyordu —
-    // bu da rate limiter'ın ve istek loglarının işe yaramamasına yol açıyordu
-    // (tüm istekler aynı "IP" gibi görünüp ortak bir limiti paylaşıyordu).
-    // Cloudflare'in CF-Connecting-IP header'ı tam bunun için var — Cloudflare
-    // bunu kendi edge'inde üretip origin'e gönderiyor, dışarıdan sahtesi
-    // yazılamaz (Cloudflare kendi değerini her zaman ezer). Cloudflare
-    // arkasında değilsek (yerel geliştirme) normal RemoteIpAddress'e düşer.
+    // Behind a chain of proxies, RemoteIpAddress (even after the
+    // ForwardedHeaders middleware) can be an internal proxy address, losing
+    // the real visitor; every request then looks like one "IP" sharing one
+    // rate limit. Cloudflare's CF-Connecting-IP header exists for exactly
+    // this: Cloudflare sets it at its edge and always overwrites any value a
+    // client sends. Without Cloudflare (local development) we fall back to
+    // RemoteIpAddress.
     public static string GetClientIp(HttpContext context)
     {
         var cfConnectingIp = context.Request.Headers["CF-Connecting-IP"].FirstOrDefault();

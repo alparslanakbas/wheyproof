@@ -3,142 +3,130 @@ import { Routes, UrlSegment } from '@angular/router';
 import { DealsList } from './deals-list/deals-list';
 import { BODY_CALCULATORS } from './core/body-calculators';
 
-// Ana sayfa (DealsList) BİLİNÇLİ OLARAK eager (statik import) kaldı — hem SSR'ın
-// ilk isteği hem de en sık ziyaret edilen route bu, lazy yapmak ilk yükte bir
-// round-trip daha eklerdi. Diğer TÜM sayfalar `loadComponent` ile lazy —
-// hiçbiri ilk ziyaretin kritik yolunda değil (kategori/marka/rehber/hesaplama/
-// karşılaştırma/statik sayfalar), `withPreloading(PreloadAllModules)` sayesinde
-// (bkz. app.config.ts) ana sayfa yüklendikten hemen sonra arka planda zaten
-// indiriliyor olacaklar — kullanıcı tıkladığında ekstra bir gecikme olmuyor.
+// The home page (DealsList) stays eager on purpose: it is the first SSR
+// request and the most visited route, and lazy loading would add a round
+// trip to the first load. Every other page is lazy; PreloadAllModules (see
+// app.config.ts) fetches them in the background once the home page is idle,
+// so a click does not wait on the network.
 export const routes: Routes = [
   { path: '', component: DealsList },
-  { path: 'urun/:id', component: DealsList },
-  { path: 'urun/:id/:slug', component: DealsList },
+  { path: 'product/:id', component: DealsList },
+  { path: 'product/:id/:slug', component: DealsList },
   {
-    path: 'marka/:brandSlug/indirim-kodu',
+    path: 'brand/:brandSlug',
     loadComponent: () => import('./brand-page/brand-page').then((m) => m.BrandPage),
   },
-  // Marka × kategori kesişimi ("hardline protein tozu fiyatları" gibi
-  // aramalar için). SIRA ÖNEMLİ: 'indirim-kodu' bu satırdan ÖNCE tanımlı
-  // olmalı, yoksa o da bir kategori slug'ı sanılır.
+  // Brand x category pages, for searches such as "transparent labs protein
+  // powder".
   {
-    path: 'marka/:brandSlug/:categorySlug',
+    path: 'brand/:brandSlug/:categorySlug',
     loadComponent: () => import('./brand-page/brand-page').then((m) => m.BrandPage),
   },
   {
-    path: 'kategoriler',
+    path: 'categories',
     loadComponent: () => import('./category-list-page/category-list-page').then((m) => m.CategoryListPage),
   },
   {
-    path: 'markalar',
+    path: 'brands',
     loadComponent: () => import('./brand-list-page/brand-list-page').then((m) => m.BrandListPage),
   },
   {
-    path: 'kategori/:categorySlug',
+    path: 'category/:categorySlug',
     loadComponent: () => import('./category-page/category-page').then((m) => m.CategoryPage),
   },
   {
-    path: 'gizlilik-politikasi',
+    path: 'privacy',
     loadComponent: () => import('./privacy-policy-page/privacy-policy-page').then((m) => m.PrivacyPolicyPage),
   },
   {
-    path: 'cerez-politikasi',
+    path: 'cookies',
     loadComponent: () => import('./cookie-policy-page/cookie-policy-page').then((m) => m.CookiePolicyPage),
   },
   {
-    path: 'rehber',
+    path: 'guides',
     loadComponent: () => import('./article-list-page/article-list-page').then((m) => m.ArticleListPage),
   },
   {
-    path: 'rehber/:slug',
+    path: 'guides/:slug',
     loadComponent: () => import('./article-page/article-page').then((m) => m.ArticlePage),
   },
   {
-    path: 'nasil-calisiyoruz',
+    path: 'how-it-works',
     loadComponent: () => import('./how-it-works-page/how-it-works-page').then((m) => m.HowItWorksPage),
   },
   {
-    path: 'hakkimizda',
+    path: 'about',
     loadComponent: () => import('./about-page/about-page').then((m) => m.AboutPage),
   },
   {
-    path: 'iletisim',
+    path: 'contact',
     loadComponent: () => import('./contact-page/contact-page').then((m) => m.ContactPage),
   },
   {
-    path: 'sozluk',
+    path: 'glossary',
     loadComponent: () => import('./glossary-page/glossary-page').then((m) => m.GlossaryPage),
   },
   {
-    path: 'urun-inceleme/:id/:slug',
+    path: 'review/:id/:slug',
     loadComponent: () => import('./product-review-page/product-review-page').then((m) => m.ProductReviewPage),
   },
   {
-    path: 'hesaplama',
+    path: 'calculators',
     loadComponent: () => import('./calculator-list-page/calculator-list-page').then((m) => m.CalculatorListPage),
   },
-  // SIRA ÖNEMLİ: spesifik hesaplayıcı route'ları, en alttaki generic
-  // 'hesaplama/:slug'dan ÖNCE gelmeli.
+  // ORDER MATTERS: the specific calculator routes come before the generic
+  // 'calculators/:slug' below.
   {
-    path: 'hesaplama/protein-ihtiyaci',
+    path: 'calculators/protein',
     loadComponent: () => import('./protein-calculator-page/protein-calculator-page').then((m) => m.ProteinCalculatorPage),
   },
-  // Vücut hesaplayıcıları (kalori/TDEE, BMI, su) — route'lar konfigürasyondan
-  // üretiliyor, yeni bir araç eklemek için burayı düzenlemeye gerek yok.
-  // Slug'ı bileşene ROUTE PARAMETRESİ olarak veriyoruz (':slug'), path'i
-  // sabit yazıp `data` ile geçirmek denendi ama bileşene ulaşmadı.
-  // 'hesaplama/:slug' generic route'undan önce geldikleri için doğru
-  // bileşene düşüyorlar.
+  // Body calculators (calories/TDEE, BMI, water) are generated from config,
+  // so adding a tool does not touch this file. The slug reaches the component
+  // as a ROUTE PARAMETER (':slug'); passing it through `data` on a fixed path
+  // was tried and never arrived.
   ...BODY_CALCULATORS.map((calc) => ({
     matcher: (segments: UrlSegment[]) =>
-      segments.length === 2 && segments[0].path === 'hesaplama' && segments[1].path === calc.slug
+      segments.length === 2 && segments[0].path === 'calculators' && segments[1].path === calc.slug
         ? { consumed: segments, posParams: { slug: segments[1] } }
         : null,
     loadComponent: () => import('./body-calculator-page/body-calculator-page').then((m) => m.BodyCalculatorPage),
   })),
-  // Takviye doz + maliyet hesaplayıcıları (kreatin, beta-alanine, sitrülin,
-  // EAA) — hepsi tek bileşen, konfigürasyonla ayrışıyor. Generic olduğu için
-  // EN SONDA: eşleşmeyen bir slug burada yakalanıp /hesaplama'ya yönleniyor.
+  // Supplement dose and cost calculators (creatine, beta-alanine, citrulline,
+  // EAA) share one component, configured per slug. Generic, so LAST: an
+  // unknown slug is caught here and sent back to /calculators.
   {
-    path: 'hesaplama/:slug',
+    path: 'calculators/:slug',
     loadComponent: () => import('./supplement-dosage-page/supplement-dosage-page').then((m) => m.SupplementDosagePage),
   },
   {
-    path: 'favorilerim',
+    path: 'watchlist',
     loadComponent: () => import('./favorites-page/favorites-page').then((m) => m.FavoritesPage),
   },
   {
-    path: 'karsilastir/:pair',
+    path: 'compare/:pair',
     loadComponent: () => import('./brand-comparison-page/brand-comparison-page').then((m) => m.BrandComparisonPage),
   },
-  // Ürün karşılaştırma — marka karşılaştırmasından ('karsilastir/:pair')
-  // ayrı bir adres, ikisi karışmasın diye.
+  // Product comparison has its own address, separate from brand comparison.
   {
-    path: 'karsilastir-urun/:pair',
+    path: 'compare-products/:pair',
     loadComponent: () => import('./product-comparison-page/product-comparison-page').then((m) => m.ProductComparisonPage),
   },
-  // Yonetim paneli. Siteden HICBIR YERDEN baglanti almiyor ve sitemap'te de
-  // yok; ayrica bilesen noIndex veriyor. Asil koruma bunlar degil, onundeki
-  // Cloudflare Access ve ardindaki oturum cerezi - bunlar yalnizca sayfanin
-  // arama sonuclarinda gorunmemesi icin.
+  // Admin panel. Linked from nowhere, absent from the sitemap and noindex.
+  // The real protection is Cloudflare Access in front of it and the session
+  // cookie behind it; these only keep it out of search results.
   {
-    path: 'yonetim',
-    loadComponent: () => import('./yonetim-page/yonetim-page').then((m) => m.YonetimPage),
+    path: 'admin',
+    loadComponent: () => import('./admin-page/admin-page').then((m) => m.AdminPage),
   },
-  // İçeriği bulunamayan sayfalar buraya `skipLocationChange` ile geliyor
-  // (bkz. core/not-found-navigation.ts) — adres çubuğunda istenen adres
-  // kalıyor, yalnızca gösterilen bileşen değişiyor.
+  // Pages whose content is missing arrive here with `skipLocationChange`
+  // (see core/not-found-navigation.ts): the address bar keeps the requested
+  // URL, only the rendered component changes.
   {
-    path: 'bulunamadi',
+    path: 'not-found',
     loadComponent: () => import('./not-found-page/not-found-page').then((m) => m.NotFoundPage),
   },
-  // EN SONDA OLMAK ZORUNDA: yakalayıcı rota, kendinden sonraki hiçbir rotanın
-  // eşleşmesine izin vermez.
-  //
-  // 4 Eylül'e kadar bu rota YOKTU ve sonucu görünmez bir hataydı: Angular
-  // adresi eşleştiremeyince istek SSR katmanına düşüyor, Express'in çıplak
-  // varsayılanı basılıyordu ("Cannot GET /...", <title>Error</title>).
-  // Durum kodu doğruydu ama sayfa sitenin hiçbir öğesini taşımıyordu.
+  // MUST STAY LAST: the catch-all lets no later route match. Without it an
+  // unmatched URL fell through to Express's bare "Cannot GET /..." page.
   {
     path: '**',
     loadComponent: () => import('./not-found-page/not-found-page').then((m) => m.NotFoundPage),

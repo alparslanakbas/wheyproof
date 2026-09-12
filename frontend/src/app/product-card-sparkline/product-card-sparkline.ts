@@ -3,11 +3,10 @@ import { Component, computed, input } from '@angular/core';
 import { PricePoint } from '../core/price-history.model';
 import { buildAreaPath, buildLinePath, toCoordinates } from '../core/spark-chart';
 
-// Faz 1'de bilinçli olarak ertelenmişti (bkz. CLAUDE.md — N+1 istek riski,
-// toplu bir endpoint gerektiriyordu). Ürün kartlarındaki (ana sayfa + marka
-// sayfası) küçük fiyat grafiği — hero kartındaki tam sürümün çok daha küçük,
-// sabit ölçülü hali. Veri çekme her sayfanın kendi yükleme akışına bağlı
-// olduğu için burada değil, çağıran bileşende (deals-list.ts, brand-page.ts).
+// The small price chart on product cards (home and brand pages): a much
+// smaller, fixed-size version of the full chart. It needs a batch endpoint to
+// avoid N+1 requests, so data loading lives in the calling component
+// (deals-list.ts, brand-page.ts), not here.
 const CARD_CHART = { width: 100, height: 28, paddingY: 3 };
 
 @Component({

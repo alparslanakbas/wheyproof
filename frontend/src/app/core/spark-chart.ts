@@ -1,9 +1,9 @@
 import { PricePoint } from './price-history.model';
 
-// product-modal.ts'in tam boyutlu fiyat grafiğiyle ana sayfadaki küçük
-// sparkline'ların (hero kartı, ileride ürün kartları) ORTAK, saf koordinat/
-// path matematiği — DI'a veya bir bileşen örneğine bağımlı değil, sadece
-// (points, min, max, boyut) alıp SVG koordinatı/path string'i üretiyor.
+// Shared, pure coordinate/path math for product-modal.ts's full price chart
+// and the home page's small sparklines. Depends on no DI or component
+// instance: it takes (points, min, max, size) and returns SVG coordinates or
+// path strings.
 export interface SparkChartDimensions {
   width: number;
   height: number;
@@ -23,9 +23,9 @@ export function toCoordinates(
   const maxTime = Math.max(...times);
   const timeSpan = maxTime - minTime || 1;
 
-  // Fiyat hiç değişmemişse (min===max) çizgi grafiğin dibine yapışıp "boş"
-  // görünüyordu — bu durumda görsel aralığı fiyatın etrafında yapay olarak
-  // genişletip çizgiyi dikeyde ortalıyoruz.
+  // With a price that never changed (min === max) the line stuck to the
+  // bottom and looked "empty"; the visual range is widened around the price
+  // so the line sits in the middle.
   let effectiveMin = min;
   let effectiveMax = max;
   if (max - min < 0.01) {

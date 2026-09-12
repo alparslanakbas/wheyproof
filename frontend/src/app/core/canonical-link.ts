@@ -1,12 +1,10 @@
 import { environment } from '../../environments/environment';
 
-// Site artık iki domain'de erişilebilir (gerçek domain + eski onrender.com
-// alt domain'i, geriye dönük uyumluluk için bilinçli olarak açık bırakıldı) —
-// Google'ın bunu "duplicate content" sanmaması için hangi domain'den
-// geldiğine bakılmaksızın hep GERÇEK domain'e işaret eden bir <link
-// rel="canonical"> ekliyoruz. environment.canonicalOrigin production'da
-// sabit gerçek domain, yerel geliştirmede null (o zaman document.location
-// kullanılır, localhost testinde yanlış URL üretmesin diye).
+// The site can be reachable on more than one host. So Google doesn't treat
+// that as duplicate content, <link rel="canonical"> always points to the REAL
+// domain, whichever host the request came in on. environment.canonicalOrigin
+// is the fixed production domain, and null in local development (then
+// document.location is used, so localhost tests don't produce wrong URLs).
 export function canonicalOrigin(document: Document): string {
   return environment.canonicalOrigin ?? document.location.origin;
 }

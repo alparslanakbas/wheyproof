@@ -3,36 +3,49 @@
 
   <main class="mx-auto max-w-[1280px] px-[28px] py-[22px]">
     <nav class="mb-2 text-xs text-[var(--noc-neutral-500)]">
-      <a routerLink="/" class="hover:text-[var(--noc-accent)]">Ana Sayfa</a> / Protein İhtiyacı Hesaplama
+      <a routerLink="/" class="hover:text-[var(--noc-accent)]">Home</a> /
+      <a routerLink="/calculators" class="hover:text-[var(--noc-accent)]">Calculators</a> / Protein
     </nav>
-    <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">Günlük Protein İhtiyacı Hesaplama</h1>
+    <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">Daily Protein Calculator</h1>
     <p class="mt-2 max-w-2xl text-[15px] text-[var(--noc-neutral-300)]">
-      Kilonu ve antrenman yoğunluğunu gir, günlük protein hedefini gör. Sonucu doğrudan güncel fiyatlarla
-      karşılaştırıyoruz — servis başı maliyeti en uygun ürünleri aşağıda listeliyoruz.
+      Enter your weight and training load to see your daily protein target. We compare the result with current
+      prices and list the products with the lowest cost per serving below.
     </p>
 
     <div class="mt-[22px] grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr]">
-      <!-- Hesaplama formu -->
+      <!-- Calculator form -->
       <section class="rounded-[14px] bg-[var(--noc-card)] p-5 shadow-[var(--noc-shadow-sm)]">
-        <label class="block">
-          <span class="text-sm font-medium">Kilon</span>
-          <div class="mt-2 flex items-center gap-2">
-            <input
-              type="number"
-              inputmode="numeric"
-              min="30"
-              max="250"
-              placeholder="örn. 75"
-              [ngModel]="weight()"
-              (ngModelChange)="weight.set($event)"
-              class="w-full rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-3 py-2 text-[15px] text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none"
-            />
-            <span class="text-sm text-[var(--noc-neutral-500)]">kg</span>
+        <div class="flex items-center justify-between gap-2">
+          <label for="protein-weight" class="text-sm font-medium">Your weight</label>
+          <div class="inline-flex rounded-[8px] border border-[var(--noc-divider)] p-0.5 text-xs" role="group" aria-label="Weight unit">
+            @for (unit of ['lb', 'kg']; track unit) {
+              <button
+                type="button"
+                class="rounded-[6px] px-2.5 py-1"
+                [class]="weightUnit() === unit ? 'bg-[var(--noc-accent)] text-white' : 'text-[var(--noc-neutral-300)]'"
+                [attr.aria-pressed]="weightUnit() === unit"
+                (click)="setWeightUnit($any(unit))"
+              >{{ unit }}</button>
+            }
           </div>
-        </label>
+        </div>
+        <div class="mt-2 flex items-center gap-2">
+          <input
+            id="protein-weight"
+            type="number"
+            inputmode="decimal"
+            [attr.min]="weightUnit() === 'lb' ? 66 : 30"
+            [attr.max]="weightUnit() === 'lb' ? 550 : 250"
+            [placeholder]="weightUnit() === 'lb' ? 'e.g. 165' : 'e.g. 75'"
+            [ngModel]="weight()"
+            (ngModelChange)="weight.set($event)"
+            class="w-full rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] px-3 py-2 text-[15px] text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none"
+          />
+          <span class="text-sm text-[var(--noc-neutral-500)]">{{ weightUnit() }}</span>
+        </div>
 
         <fieldset class="mt-5">
-          <legend class="text-sm font-medium">Antrenman yoğunluğun</legend>
+          <legend class="text-sm font-medium">Your training load</legend>
           <div class="mt-2 space-y-2">
             @for (level of activityLevels; track level.id) {
               <label
@@ -60,46 +73,44 @@
 
         @if (dailyProtein(); as result) {
           <div class="mt-5 rounded-[10px] border border-[var(--noc-accent)] bg-[color-mix(in_srgb,var(--noc-accent)_8%,transparent)] p-4">
-            <div class="text-xs text-[var(--noc-neutral-300)]">Günlük protein hedefin</div>
+            <div class="text-xs text-[var(--noc-neutral-300)]">Your daily protein target</div>
             <div class="mt-1 text-[28px] font-medium leading-none">
-              {{ result.min }}–{{ result.max }} <span class="text-[16px] text-[var(--noc-neutral-300)]">gram</span>
+              {{ result.min }}–{{ result.max }} <span class="text-[16px] text-[var(--noc-neutral-300)]">grams</span>
             </div>
             <p class="mt-2 text-xs leading-relaxed text-[var(--noc-neutral-300)]">
-              Bu aralık, kilo başına {{ selectedActivity().minPerKg }}–{{ selectedActivity().maxPerKg }} gram
-              üzerinden hesaplandı. Hedefin büyük kısmını normal öğünlerden karşılamak esas — takviye, kalan
-              açığı kapatmak için.
+              This range uses {{ selectedActivity().minPerKg }}–{{ selectedActivity().maxPerKg }} g per kg of body weight
+              ({{ perLbRange().min }}–{{ perLbRange().max }} g per lb). Most of it should come from regular meals;
+              supplements are there to close the gap.
             </p>
           </div>
         } @else {
-          <p class="mt-5 text-sm text-[var(--noc-neutral-500)]">Hesaplamak için kilonu gir.</p>
+          <p class="mt-5 text-sm text-[var(--noc-neutral-500)]">Enter your weight to calculate.</p>
         }
 
         <p class="mt-4 border-t border-[var(--noc-divider)] pt-3 text-xs leading-relaxed text-[var(--noc-neutral-500)]">
-          Bu hesaplama genel beslenme kaynaklarında yaygın kullanılan aralıklara dayanan bilgilendirme amaçlı bir
-          tahmindir, kişiye özel tıbbi tavsiye değildir. Böbrek rahatsızlığı, gebelik gibi özel durumlarda ya da
-          kesin bir plan için bir diyetisyen/hekime danışmak gerekir.
+          This is an informational estimate based on ranges commonly used in nutrition sources, not personal medical
+          advice. With kidney disease, during pregnancy, or for a precise plan, talk to a registered dietitian or doctor.
         </p>
       </section>
 
-      <!-- Ürün önerisi -->
+      <!-- Product suggestions -->
       <section>
         @if (loadError()) {
           <div class="rounded-[14px] bg-[var(--noc-card)] px-6 py-8 text-center text-sm">
-            Ürün fiyatları şu anda yüklenemedi. Lütfen biraz sonra tekrar dene.
+            We couldn't load product prices right now. Please try again in a moment.
           </div>
         } @else if (loading()) {
           <div class="rounded-[14px] bg-[var(--noc-card)] px-6 py-8 text-center text-sm text-[var(--noc-neutral-500)]">
-            Güncel fiyatlar yükleniyor…
+            Loading current prices…
           </div>
         } @else {
-          <h2 class="text-[20px] font-medium">Servis başı en uygun protein tozları</h2>
+          <h2 class="text-[20px] font-medium">Best value protein powders per serving</h2>
           <p class="mt-1 text-sm text-[var(--noc-neutral-300)]">
-            Paket fiyatına değil, <strong>bir servisin gerçek maliyetine</strong> göre sıralı. Yalnızca porsiyon
-            büyüklüğünü markanın kendi verisinden bildiğimiz ürünler listeleniyor — tahmini hesap yapmıyoruz.
+            Sorted by <strong>the real cost of one serving</strong>, not the package price. Only products whose serving
+            size we know from the brand's own data are listed; we don't estimate.
           </p>
 
-          <!-- Arama + marka çipleri: tablo ilk halinde yalnızca 6 ürün
-               gösteriyordu ve hepsi tek markadan çıkıyordu. -->
+          <!-- Search and brand chips -->
           <div class="mt-3 flex flex-wrap items-center gap-2">
             <label class="relative min-w-[200px] flex-1 sm:max-w-[280px]">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--noc-neutral-500)]">
@@ -108,7 +119,7 @@
               </svg>
               <input
                 type="search"
-                placeholder="Ürün ara"
+                placeholder="Search products"
                 [ngModel]="searchQuery()"
                 (ngModelChange)="onSearchChange($event)"
                 class="w-full rounded-[8px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] py-[6px] pl-9 pr-3 text-sm text-[var(--noc-text)] placeholder:text-[var(--noc-neutral-500)] focus:border-[var(--noc-accent)] focus:outline-none"
@@ -130,7 +141,7 @@
 
             @if (hasActiveFilters()) {
               <button type="button" class="text-xs text-[var(--noc-neutral-500)] underline hover:text-[var(--noc-accent)]" (click)="clearFilters()">
-                Filtreleri temizle
+                Clear filters
               </button>
             }
           </div>
@@ -138,10 +149,10 @@
           @if (bestValueProducts().length === 0) {
             <div class="mt-3 rounded-[14px] bg-[var(--noc-card)] px-6 py-8 text-center text-sm text-[var(--noc-neutral-500)]">
               @if (hasActiveFilters()) {
-                Aramanla eşleşen ürün bulunamadı.
-                <button type="button" class="mt-2 block w-full text-[var(--noc-accent)]" (click)="clearFilters()">Filtreleri temizle</button>
+                No product matches your search.
+                <button type="button" class="mt-2 block w-full text-[var(--noc-accent)]" (click)="clearFilters()">Clear filters</button>
               } @else {
-                Şu anda servis başı maliyeti hesaplanabilen bir protein tozu ürünü bulunamadı.
+                There's no protein powder with a known cost per serving right now.
               }
             </div>
           } @else {
@@ -149,11 +160,11 @@
             <table class="w-full min-w-[560px] text-sm">
               <thead class="border-b border-[var(--noc-divider)] text-left text-xs text-[var(--noc-neutral-500)]">
                 <tr>
-                  <th class="px-4 py-3 font-normal">Ürün</th>
-                  <th class="px-4 py-3 font-normal">Servis başı</th>
-                  <th class="px-4 py-3 font-normal">Paket</th>
+                  <th class="px-4 py-3 font-normal">Product</th>
+                  <th class="px-4 py-3 font-normal">Per serving</th>
+                  <th class="px-4 py-3 font-normal">Package</th>
                   @if (dailyProtein()) {
-                    <th class="px-4 py-3 font-normal">Kaç servis</th>
+                    <th class="px-4 py-3 font-normal">Servings</th>
                   }
                 </tr>
               </thead>
@@ -167,15 +178,15 @@
                       <span class="block text-xs text-[var(--noc-neutral-500)]">{{ item.deal.brandName }}</span>
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap font-medium text-[var(--noc-accent)]">
-                      {{ item.pricePerServing | number: '1.2-2' }} ₺
+                      {{ item.pricePerServing | price }}
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap text-[var(--noc-neutral-300)]">
-                      {{ item.deal.currentPrice | number: '1.2-2' }} ₺
+                      {{ item.deal.currentPrice | price }}
                       <span class="block text-xs text-[var(--noc-neutral-500)]">{{ item.deal.size }}</span>
                     </td>
                     @if (dailyProtein()) {
                       <td class="px-4 py-3 whitespace-nowrap text-[var(--noc-neutral-300)]">
-                        {{ item.proteinServings | number: '1.0-0' }} servis
+                        {{ item.servings | number: '1.0-0' }} servings
                       </td>
                     }
                   </tr>
@@ -192,10 +203,10 @@
                 [disabled]="currentPage() === 1"
                 (click)="goToPage(currentPage() - 1)"
               >
-                ← Önceki
+                ← Previous
               </button>
               <span class="text-xs text-[var(--noc-neutral-500)]">
-                Sayfa {{ currentPage() }} / {{ totalPages() }} ({{ totalCount() }} ürün)
+                Page {{ currentPage() }} of {{ totalPages() }} ({{ totalCount() | number }} products)
               </span>
               <button
                 type="button"
@@ -203,27 +214,23 @@
                 [disabled]="currentPage() === totalPages()"
                 (click)="goToPage(currentPage() + 1)"
               >
-                Sonraki →
+                Next →
               </button>
             </div>
           }
           }
 
           <p class="mt-3 text-xs leading-relaxed text-[var(--noc-neutral-500)]">
-            Servis başı maliyet, paket fiyatının paketteki toplam servis sayısına bölünmesiyle hesaplanıyor.
-            Bir servisin içerdiği protein miktarı ürüne göre değişir — bu tablo maliyeti karşılaştırır,
-            protein oranını değil.
+            Cost per serving is the package price divided by the total servings in the package. How much protein a
+            serving contains varies by product; this table compares cost, not protein content.
           </p>
 
           <div class="mt-4 flex flex-wrap gap-2">
-            <a routerLink="/kategori/protein-tozu" class="rounded-[6px] border border-[var(--noc-accent)] px-3 py-1.5 text-xs text-[var(--noc-accent)]">
-              Tüm protein tozu fiyatları
+            <a routerLink="/category/protein-powder" class="rounded-[6px] border border-[var(--noc-accent)] px-3 py-1.5 text-xs text-[var(--noc-accent)]">
+              All protein powder prices
             </a>
-            <a routerLink="/rehber/whey-protein-nasil-secilir" class="rounded-[6px] border border-[var(--noc-divider)] px-3 py-1.5 text-xs text-[var(--noc-neutral-300)] hover:text-[var(--noc-accent)]">
-              Whey protein nasıl seçilir?
-            </a>
-            <a routerLink="/rehber/protein-tozu-nasil-kullanilir" class="rounded-[6px] border border-[var(--noc-divider)] px-3 py-1.5 text-xs text-[var(--noc-neutral-300)] hover:text-[var(--noc-accent)]">
-              Protein tozu nasıl kullanılır?
+            <a routerLink="/guides/how-to-choose-whey-protein" class="rounded-[6px] border border-[var(--noc-divider)] px-3 py-1.5 text-xs text-[var(--noc-neutral-300)] hover:text-[var(--noc-accent)]">
+              How to choose a whey protein
             </a>
           </div>
         }

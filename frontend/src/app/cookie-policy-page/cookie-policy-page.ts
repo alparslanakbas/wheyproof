@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { PageMetaService } from '../core/page-meta.service';
+import { SITE_NAME } from '../core/site-identity';
 import { SiteHeader } from '../site-header/site-header';
 
 @Component({
@@ -15,9 +16,9 @@ export class CookiePolicyPage implements OnInit {
 
   ngOnInit(): void {
     this.pageMeta.set({
-      title: 'Çerez Politikası | ProteinAvcısı',
-      description: 'ProteinAvcısı hangi çerezleri/yerel depolama teknolojilerini kullanıyor, ne zaman izin isteyeceğiz — açıkça anlatıyoruz.',
-      canonicalPath: '/cerez-politikasi',
+      title: `Cookie Policy | ${SITE_NAME}`,
+      description: `Which cookies and local storage ${SITE_NAME} uses, and when we'd ask for your permission, explained plainly.`,
+      canonicalPath: '/cookies',
     });
   }
 }

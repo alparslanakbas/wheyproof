@@ -21,12 +21,16 @@ import { DealsQuery, DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
 import { FavoritesService } from '../core/favorites.service';
 import { HomepageStats } from '../core/homepage-stats.model';
+import { MARKET } from '../core/market';
+import { pricePerServing } from '../core/value-metrics';
 import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
-import { sayfaliBaslik, sayfaPenceresi } from '../core/pagination-window';
+import { paginatedTitle, pageWindow } from '../core/pagination-window';
 import { PricePoint } from '../core/price-history.model';
 import { PriceHistoryService } from '../core/price-history.service';
+import { PricePipe } from '../core/price.pipe';
 import { PwaInstallService } from '../core/pwa-install.service';
 import { formatRelativeTime } from '../core/relative-time';
+import { SITE_NAME } from '../core/site-identity';
 import { slugify } from '../core/slugify';
 import { productPath } from '../core/product-link';
 import { buildPageTitle, buildProductDescription, formatPriceText } from '../core/meta-description';
@@ -40,98 +44,77 @@ import { showNotFound } from '../core/not-found-navigation';
 
 type ViewMode = 'deals' | 'all' | 'store';
 
-// Adrese yalnızca varsayılandan SAPAN görünüm yazılıyor; bu sabit iki yerde
-// (yazma ve okuma) aynı olmak zorunda.
+// Only a view that DIFFERS from the default is written to the URL; this
+// constant must be the same where the URL is written and where it is read.
 const DEFAULT_VIEW_MODE: ViewMode = 'store';
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const PAGE_SIZE = 24;
 const SEARCH_DEBOUNCE_MS = 350;
 
-function tekSecimEtiketi(
-  secilenler: Set<string>,
-  tekil: (ad: string) => string,
-  cogul: (adet: number) => string,
-): string {
-  const [ilk] = secilenler;
-  return secilenler.size === 1 ? tekil(ilk) : cogul(secilenler.size);
+/** A single selection shows its own name; several show a count. */
+function selectionLabel(selected: Set<string>, single: (name: string) => string, many: (count: number) => string): string {
+  const [first] = selected;
+  return selected.size === 1 ? single(first) : many(selected.size);
 }
 
-
-
-// Hero kartındaki küçük fiyat grafiği — product-modal'ın tam boyutlu
-// grafiğinden çok daha küçük, kendi ölçüleri (Nocturne referansı: 280×90).
+// Small price chart on the hero card, much smaller than the product modal's.
 const HERO_CHART = { width: 280, height: 90, paddingY: 8 };
 
-// timeZone sabit Europe/Istanbul — bkz. product-modal.ts'teki aynı gerekçe
-// (kullanıcının cihaz saat dilimine bırakılırsa aynı an farklı ziyaretçilere
-// farklı "gün/saat" gösterebilirdi, site sadece TR pazarına hizmet ediyor).
-const SCAN_TIME_FORMATTER = new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
-const SCAN_DATE_FORMATTER = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', timeZone: 'Europe/Istanbul' });
+const SCAN_TIME_FORMATTER = new Intl.DateTimeFormat(MARKET.locale, { hour: 'numeric', minute: '2-digit', timeZone: MARKET.timeZone });
+const SCAN_DATE_FORMATTER = new Intl.DateTimeFormat(MARKET.locale, { month: 'long', day: 'numeric', timeZone: MARKET.timeZone });
 
-// Title/description'da bilinçli olarak "Protein Avcısı" (boşluklu) kullanılıyor
-// — logodaki bitişik "ProteinAvcısı" yazımı marka kimliği olarak kalıyor, ama
-// insanlar arama kutusuna doğal olarak boşluklu yazıyor; arama motoruna dönük
-// metinlerde bu ayrımı güçlendirmek ucuz ve düşük riskli bir SEO düzeltmesi.
-// SIRA ÖNEMLİ: anahtar kelimeler ÖNDE, marka kuyrukta.
-//
-// Eski hâli "Protein Avcısı | Güncel İndirim ve Kampanyalar — Spor Takviyesi
-// Fiyat Takibi" idi: marka BAŞTAYDI ve başlık 76 karakterdi. clampTitle
-// sığmayan başlıkta son " | " işaretinden SONRASINI atıyor (kuyruktaki marka
-// eki hedef alınarak yazılmış bir kural), dolayısıyla canlıda geriye yalnızca
-// "Protein Avcısı" kalıyordu — sitenin en önemli sayfasında 14 karakterlik
-// saf marka, sıfır anahtar kelime. Yeni başlık 54 karakter, hiç kırpılmıyor.
-const DEFAULT_TITLE = 'Gerçek Protein ve Takviye İndirimleri | Protein Avcısı';
+// ORDER MATTERS: keywords first, brand at the end. clampTitle drops whatever
+// follows the last " | " when a title is too long (it assumes a trailing
+// brand suffix); with the brand first, the Turkish site's home page was once
+// left titled with the brand alone.
+const DEFAULT_TITLE = `Real Protein and Supplement Deals | ${SITE_NAME}`;
 const DEFAULT_DESCRIPTION =
-  'Protein Avcısı; protein tozu, kreatin, pre-workout ve diğer spor takviyelerinde markanın beyanına değil, gerçek fiyat geçmişine dayanan doğrulanmış indirimleri gösterir. HIQ, SSN, Hardline ve ProteinOcean tek yerde.';
+  'WheyProof tracks protein powder, creatine, pre-workout and other supplement prices every day and shows which discounts are real, based on price history rather than the store\'s own "was" price.';
 
-// Tasarım güncellemesi (bir geliştiricinin "daha fazla içerik/güven
-// unsuru" geri bildirimi üzerine): gerçek, uydurma olmayan sorular —
-// hepsi zaten sitede var olan davranışları açıklıyor, pazarlama amaçlı
-// abartı yok. Aynı zamanda FAQPage structured data için de kullanılıyor.
+// Real questions only, each describing something the site already does; no
+// marketing claims. Also used for the FAQPage structured data.
 const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
-    question: '"İndirimdekiler" ile "Mağaza Kampanyaları" arasındaki fark nedir?',
+    question: 'What is the difference between "Real price drops" and "Store sales"?',
     answer:
-      '"İndirimdekiler", bizim topladığımız gerçek fiyat geçmişine dayanır — bir ürünün güncel fiyatı son 30 günün en yüksek fiyatından düşükse burada listelenir. "Mağaza Kampanyaları" ise markanın kendi sitesinde beyan ettiği eski/yeni fiyat farkıdır, henüz bizim tarafımızdan doğrulanmamıştır.',
+      '"Real price drops" are based on the price history we collect: a product is listed when its current price is below its highest price in the last 30 days. "Store sales" show the old and new prices a store displays on its own site, which we have not verified yet.',
   },
   {
-    question: 'Fiyatlar ne sıklıkla güncelleniyor?',
-    answer: 'Takip ettiğimiz markalar günde 4 kez otomatik olarak taranıyor, fiyat değişiklikleri buna göre güncelleniyor.',
+    question: 'How often are prices updated?',
+    answer: 'The stores we track are checked automatically four times a day, and prices update as they change.',
   },
   {
-    question: 'Ürünü ProteinAvcısı üzerinden mi satın alıyorum?',
+    question: 'Do I buy the product from WheyProof?',
     answer:
-      'Hayır. ProteinAvcısı bir satış sitesi değil, fiyat takip sitesidir. "Mağazaya Git" butonuna tıklayınca doğrudan ilgili markanın kendi sitesine yönlendirilirsin, satış işlemi orada gerçekleşir.',
+      'No. WheyProof is a price tracker, not a store. "Go to store" takes you straight to the brand\'s or retailer\'s own site, and the purchase happens there.',
   },
   {
-    question: 'Kupon kodlarını nereden buluyorsunuz?',
+    question: 'Where do the coupon codes come from?',
     answer:
-      'Kupon kodları otomatik toplanmıyor — süresi geçmiş ya da hatalı bir kod göstermemek için yalnızca elle doğruladığımız kodları yayınlıyoruz.',
+      'Coupon codes are not collected automatically. To avoid showing expired or wrong codes, we only publish codes we have checked by hand.',
   },
   {
-    question: 'Neden bazı ürünlerde "servis başı fiyat" gösterilmiyor?',
+    question: 'Why do some products show no price per serving?',
     answer:
-      'Bu bilgiyi yalnızca markanın gerçek besin değeri tablosuna ulaşabildiğimiz ürünlerde gösteriyoruz; tahmini bir rakam paylaşmıyoruz.',
+      'We only show it when the brand publishes the serving size and the package weight; we never show an estimated number.',
   },
 ];
 
 @Component({
   selector: 'app-deals-list',
-  imports: [DecimalPipe, FormsModule, PreferredProducts, ProductCardSparkline, ProductModal, RouterLink],
+  imports: [PricePipe, DecimalPipe, FormsModule, PreferredProducts, ProductCardSparkline, ProductModal, RouterLink],
   templateUrl: './deals-list.html',
 })
 export class DealsList implements OnInit {
-  // Template'te (H1, kart başlıkları) ALL CAPS ürün isimlerini okunabilir
-  // Title Case'e çeviren saf fonksiyon — component metodu değil, doğrudan
-  // referans veriliyor.
+  // Turns ALL CAPS product names into readable Title Case in the template.
   protected readonly displayName = displayName;
   private readonly dealsService = inject(DealsService);
   private readonly couponsService = inject(CouponsService);
   private readonly articlesService = inject(ArticlesService);
   private readonly favoritesService = inject(FavoritesService);
-  // Kart üzerindeki karşılaştırma butonu için — seçim servis seviyesinde
-  // paylaşılıyor, alt çubuk ve diğer sayfalar aynı signal'i okuyor.
+  // The comparison selection is shared at service level; the bottom bar and
+  // the other pages read the same signal.
   protected readonly comparison = inject(ComparisonService);
   private readonly priceHistoryService = inject(PriceHistoryService);
   private readonly subscribeService = inject(SubscribeService);
@@ -140,22 +123,18 @@ export class DealsList implements OnInit {
   private readonly router = inject(Router);
   private readonly location = inject(Location);
 
-  // Bu oturumda uygulama içinde kaç kez gezinildi. Modalı kapatırken geri mi
-  // gideceğimizi buna bakarak seçiyoruz (bkz. closeDeal).
-  //
-  // Bayrakla ("openDeal çağrıldı mı") yapılamıyor: ürün kartı routerLink
-  // kullanıyor, openDeal hiç çalışmıyor. Bu, ilk denemede yazılan düzeltmenin
-  // sessizce işe yaramamasına yol açtı — tarayıcıda geçmiş uzunluğu ölçülünce
-  // görüldü.
-  private uygulamaIciGezinme = 0;
-  /** ngOnInit'teki ilk queryParamMap emisyonunu ayırt etmek için. */
+  // In-app navigations in this session. Closing the modal goes BACK only if
+  // there is one (see closeDeal). A flag set in openDeal did not work: product
+  // cards use routerLink, so openDeal never ran; that was found by measuring
+  // the history length in the browser.
+  private inAppNavigations = 0;
+  /** Tells the first queryParamMap emission in ngOnInit apart. */
   private initialLoadDone = false;
   private readonly destroyRef = inject(DestroyRef);
   private readonly pageMeta = inject(PageMetaService);
   private readonly document = inject(DOCUMENT);
-  // SSR sırasında gerçek HTTP status kodunu değiştirmek için — bkz.
-  // productLoadError üzerindeki yorum. Sadece platform-server'da dolu
-  // gelir, tarayıcıda `null` — optional injection bu yüzden gerekli.
+  // Sets the real HTTP status during SSR (see productLoadError). Only present
+  // on the server, null in the browser, hence the optional injection.
   private readonly responseInit = inject(RESPONSE_INIT, { optional: true });
   private readonly isServer = isPlatformServer(inject(PLATFORM_ID));
   protected readonly theme = inject(ThemeService);
@@ -168,45 +147,28 @@ export class DealsList implements OnInit {
   protected readonly shortcutLabel = isMac ? '⌘K' : 'Ctrl+K';
 
   protected readonly deals = signal<Deal[]>([]);
-  // Ürün kartlarındaki mini sparkline'lar — sayfa her yüklendiğinde tek bir
-  // toplu istekle dolduruluyor (bkz. loadSparklines), kart başına ayrı
-  // istek değil.
+  // Mini sparklines on the product cards, filled by one batched request per
+  // page load (see loadSparklines), not one request per card.
   protected readonly sparklines = signal<Map<number, PricePoint[]>>(new Map());
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
-  // Varsayılan sekme bilinçli olarak "store": "İndirimdekiler" (kendi
-  // doğruladığımız indirim) şu aşamada çoğunlukla boş geliyor — yeni bir
-  // ziyaretçinin ilk gördüğü şey boş bir sayfa olunca güven kırıcı oluyor
-  // (kullanıcı testinde gerçek geri bildirim). "Mağaza Kampanyaları" hep
-  // dolu, dürüstçe "doğrulanmamış" etiketli ama boş görünmüyor.
+  // The default tab is "store" on purpose: "Real price drops" is mostly empty
+  // while the price history is young, and an empty first screen breaks trust.
+  // Store sales are always populated and honestly labeled as unverified.
   protected readonly viewMode = signal<ViewMode>('store');
   protected readonly selectedDeal = signal<Deal | null>(null);
-  // Gerçek Search Console bulgusu (2026-08-17): /urun/:id yüklenirken
-  // OLUŞAN HERHANGİ bir hata (gerçek 404 de, backend'e geçici
-  // ulaşılamama da) aynı şekilde ana sayfaya 302 yönlendiriyordu — bir
-  // önceki Cloudflare Bot Fight Mode olayında backend'e giden SSR
-  // istekleri geçici engellenince bu, Googlebot'a "bu ürün artık yok,
-  // kalıcı olarak taşındı" yanlış sinyalini vermiş, Google 10 ürün
-  // sayfasını "Yönlendirmeli sayfa" diye işaretleyip indexlemeyi
-  // bırakmıştı. Artık sadece backend'in GERÇEKTEN 404 dönmesi ana
-  // sayfaya yönlendiriyor; ağ hatası/5xx gibi geçici sorunlarda bu
-  // sinyal set ediliyor — sayfa yönlendirmiyor, HTTP durumu 503
-  // (geçici, tekrar dene) oluyor, "kalıcı olarak yok" (302) DEMİYOR.
+  // Only a REAL 404 from the backend shows the not-found page. A temporary
+  // problem (network error, backend 5xx) sets this instead: the page does not
+  // redirect and SSR returns 503 ("try again"), never a "gone for good"
+  // signal. Redirecting on every error once made Google drop product pages
+  // after a brief backend outage.
   protected readonly productLoadError = signal(false);
 
-  // Gerçek SEO içerik denetimi bulgusu (2026-08-17): /urun/:id, route
-  // reuse sayesinde ana sayfayla aynı bileşeni paylaşıyor — modal
-  // açıldığında arka plandaki TÜM ana sayfa (hero, 24 ürünlük grid,
-  // kuponlar, rehber tanıtımı, SSS) SSR HTML'inden hiç çıkarılmıyordu.
-  // 20 ürün sayfası ikili karşılaştırıldığında ortalama %91.7 (maks
-  // %97) içerik benzerliği bulundu — muhtemelen Google'ın 559 ürün
-  // sayfasının çoğunu "keşfedildi ama indexlenmedi" bırakmasının asıl
-  // nedeni. Çözüm: SADECE SSR'da, bir ürün seçiliyken, arka plan
-  // içeriğini render'dan çıkarıyoruz — CSR'da (tarayıcıda) davranış
-  // HİÇ değişmiyor (modal zaten tüm ekranı kapladığı için kullanıcı
-  // arka planı görmüyor), sadece bot/SSR çıktısı artık sadece o ürüne
-  // özel içeriği taşıyor. H1 bu kuralın DIŞINDA tutuluyor (her zaman
-  // render edilmeli).
+  // /product/:id shares this component with the home page (route reuse). On
+  // the server, while a product is selected, the home page content behind the
+  // modal is left out of the HTML: otherwise product pages were ~92% identical
+  // to each other. In the browser nothing changes (the modal covers the whole
+  // screen). The H1 is always rendered.
   protected readonly showFullHomepageContent = computed(() => !this.isServer || !this.selectedDeal());
 
   protected readonly totalCount = signal(0);
@@ -215,9 +177,9 @@ export class DealsList implements OnInit {
 
   protected readonly searchQuery = signal('');
   protected readonly selectedBrands = signal<Set<string>>(new Set());
-  // Satıcı filtresi: aynı ürün hem markanın kendi sitesinden hem bir bayiden
-  // gelebiliyor (barkod olmadığı için eşleştirilmiyorlar). Kullanıcı hangisini
-  // istediğini seçebilmeli.
+  // Seller filter: the same product can come from the brand's own site and
+  // from a retailer (there is no barcode to match them), and people should be
+  // able to pick which one they want.
   protected readonly selectedSellers = signal<Set<string>>(new Set());
   protected readonly availableSellers = signal<string[]>([]);
   protected readonly selectedCategories = signal<Set<string>>(new Set());
@@ -225,79 +187,67 @@ export class DealsList implements OnInit {
   protected readonly priceMax = signal<number | null>(null);
   protected readonly sortBy = signal<string>('');
 
-  // Kutuda gösterilecek değer: filtre yoksa placeholder ("Tüm markalar"),
-  // varsa durum seçeneği. Boş dizeye dönmek = "tümü" = o boyutu temizle.
+  // What the select shows: the placeholder ("All brands") without a filter,
+  // otherwise a status option. Going back to the empty value clears it.
   protected readonly brandSelectValue = computed(() => filterSelectValue(this.selectedBrands().size));
   protected readonly categorySelectValue = computed(() => filterSelectValue(this.selectedCategories().size));
   protected readonly sellerSelectValue = computed(() => filterSelectValue(this.selectedSellers().size));
 
-  // Kutuda ne yazacağı. TEK seçimde sayı değil ADIN KENDİSİ gösteriliyor:
-  // "Markanın kendi sitesi" seçiliyken "1 satıcı seçili" yazması kullanıcıyı
-  // şaşırtıyordu (bildirildi) — seçtiği şey zaten tek ve adı kutuya sığıyor.
-  // Birden çoğunda ad listelemek kutuyu taşırdığı için sayıya düşülüyor.
+  // A single selection shows the NAME, not "1 selected", which confused people.
   protected readonly brandSelectLabel = computed(() =>
-    tekSecimEtiketi(this.selectedBrands(), (ad) => ad, (n) => `${n} marka seçili`));
+    selectionLabel(this.selectedBrands(), (name) => name, (n) => `${n} brands selected`));
   protected readonly categorySelectLabel = computed(() =>
-    tekSecimEtiketi(this.selectedCategories(), (ad) => this.categoryLabel(ad), (n) => `${n} kategori seçili`));
+    selectionLabel(this.selectedCategories(), (name) => this.categoryLabel(name), (n) => `${n} categories selected`));
   protected readonly sellerSelectLabel = computed(() =>
-    tekSecimEtiketi(this.selectedSellers(), (ad) => ad, (n) => `${n} satıcı seçili`));
+    selectionLabel(this.selectedSellers(), (name) => name, (n) => `${n} sellers selected`));
 
   protected readonly availableBrands = signal<string[]>([]);
   protected readonly availableCategories = signal<string[]>([]);
 
-  // Nav'daki "Kategoriler" açılır menüsü — kullanıcı geri bildirimi:
-  // footer'dan başka erişimi olmayan kategori sayfaları neredeyse hiç
-  // görünmüyordu. site-header.ts'teki aynı desen (bu sayfa kendi özel
-  // nav'ını koruyor, SiteHeader'ı kullanmıyor, bu yüzden burada ayrıca var).
+  // The nav's category dropdown. This page keeps its own nav (it holds the
+  // search box) instead of SiteHeader, so the pattern is repeated here.
   protected readonly categoriesOpen = signal(false);
 
   protected readonly hasActiveFilters = signal(false);
 
   protected readonly coupons = signal<Coupon[]>([]);
 
-  // Gerçek tercih metriği backend'e eklenene kadar bu bant mevcut ürün
-  // kataloğundan deterministik olarak karıştırılmış bir aday havuzu kullanır.
-  // Ayrı signal olması, liste sekmeleri/filtreleri değişirken keşif bandının
-  // içeriğinin zıplamamasını sağlar.
+  // Candidate pool for the discovery strip, a deterministic shuffle of the
+  // catalog. A separate signal keeps the strip from jumping when the list
+  // tabs or filters change.
   protected readonly preferredProductCandidates = signal<Deal[]>([]);
 
-  // Sayfa aşağı kaydırılınca sağ altta çıkan "yukarı çık" butonu için.
+  // "Back to top" button that appears after scrolling down.
   protected readonly showScrollTop = signal(false);
 
-  // Ana sayfadaki gerçek istatistik şeridi için — filtreden bağımsız,
-  // tüm katalog sayısı (mevcut sekme/filtreye göre değişen totalCount()'tan
-  // ayrı). Uydurma bir rakam değil, /api/products'tan gelen gerçek toplam.
+  // Total catalog size for the home page, independent of the current tab or
+  // filter, straight from /api/products.
   protected readonly siteProductCount = signal(0);
   protected readonly faqItems = FAQ_ITEMS;
 
-  // Canlı tarama şeridi — /api/stats'tan, sayfa yüklenince bir kez.
+  // Live scan strip, from /api/stats once per page load.
   protected readonly stats = signal<HomepageStats | null>(null);
   protected readonly lastScanLabel = computed(() => {
     const lastScanAt = this.stats()?.lastScanAt;
     if (!lastScanAt) return null;
     const d = new Date(lastScanAt);
-    return `${SCAN_TIME_FORMATTER.format(d)} · ${SCAN_DATE_FORMATTER.format(d)}`;
+    return `${SCAN_TIME_FORMATTER.format(d)} ET · ${SCAN_DATE_FORMATTER.format(d)}`;
   });
 
-  // Nav'daki "Takip listem" rozeti — servisteki paylaşılan signal'e
-  // doğrudan referans, favori eklenince/çıkarılınca (bu sayfadan ya da
-  // başka bir sayfadan) otomatik güncellenir.
+  // Watchlist badge, the service's shared signal.
   protected readonly favoritesCount = this.favoritesService.count;
 
-  // Rehber teaser — ilk 3 yazı.
+  // Guide teaser: the first three articles.
   protected readonly articles = signal<ArticleSummary[]>([]);
 
-  // "Fiyat düşünce ilk sen bil" bandı — footer'daki NewsletterSignup
-  // component'iyle AYNI SubscribeService'i kullanıyor, kendi (Nocturne
-  // görünümlü) formu var; footer'daki form Faz 1'de dokunulmadığı için
-  // ikisi birlikte kalıyor (küçük bir tekrar, zararsız).
-  protected readonly alarmEmail = signal('');
-  protected readonly alarmSubmitting = signal(false);
-  protected readonly alarmStatusMessage = signal<string | null>(null);
+  // "Know first when the price drops" band. Uses the same SubscribeService as
+  // the footer's NewsletterSignup, with its own form.
+  protected readonly alertEmail = signal('');
+  protected readonly alertSubmitting = signal(false);
+  protected readonly alertStatusMessage = signal<string | null>(null);
 
-  // Hero — "Günün en sert düşüşü": view mode/filtrelerden bağımsız, en
-  // yüksek gerçek indirimli ürün (hiç yoksa en yüksek mağaza kampanyasına
-  // düşer — "store sekmesi hep dolu" mantığıyla aynı, hero boş kalmasın diye).
+  // Hero: the biggest real discount, independent of the tab and filters;
+  // falls back to the biggest store sale so the hero is never empty.
   protected readonly heroDeal = signal<Deal | null>(null);
   protected readonly heroPoints = signal<PricePoint[]>([]);
   protected readonly heroCoordinates = computed(() => {
@@ -310,44 +260,37 @@ export class DealsList implements OnInit {
   protected readonly heroAreaPath = computed(() => buildAreaPath(this.heroCoordinates(), HERO_CHART.height));
 
   constructor() {
-    // Ürün modalı açıkken title/description/Open Graph o ürüne özel oluyor
-    // (SSR ile birleşince /urun/:id linki paylaşılınca veya Google'da
-    // gerçek ürün bilgisiyle görünüyor); kapanınca site geneline dönüyor.
+    // With the product modal open, title/description/Open Graph describe that
+    // product (with SSR, a shared /product/:id link or a search result shows
+    // the real product); closing it returns to the site-wide values.
     effect(() => {
       const deal = this.selectedDeal();
 
       if (!deal) {
-        // Sayfalanmış ana sayfa KENDİNİ canonical gösteriyor, yoksa
-        // "?page=2..205" tamamen kopya sayılır ve o sayfalardaki ürün
-        // bağlantıları taranmaz — sayfalamayı taranabilir yapmanın amacı
-        // tam olarak buydu.
+        // A paginated home page is its OWN canonical, or "?page=2..N" would
+        // count as duplicates and the product links on them would not be
+        // crawled, which was the point of crawlable pagination.
         //
-        // FİLTRELİ adresler bunun DIŞINDA: marka/kategori/fiyat/arama
-        // kombinasyonları sonsuz sayıda adres üretir, hepsi ayrı sayfa
-        // sayılırsa tarama bütçesi anlamsız yere dağılır. Onlarda
-        // canonical kök adres olarak kalıyor (mevcut davranış).
-        const sayfa = this.currentPage();
-        const toplam = this.totalPages();
-        // Aralık dışı sayfa kendini canonical göstermemeli (bkz. kategori
-        // sayfasındaki aynı gerekçe). Burada ayrıca ucuz: bu bir effect,
-        // totalPages dolunca kendiliğinden yeniden çalışıyor.
-        const aralikta = toplam === 0 || sayfa <= toplam;
-        const sayfalanmisSade = sayfa > 1 && aralikta && !this.hasActiveFilters();
+        // FILTERED URLs are excluded: brand/category/price/search combinations
+        // produce endless addresses, and treating each as a page would scatter
+        // the crawl budget. Their canonical stays the root.
+        const page = this.currentPage();
+        const total = this.totalPages();
+        // An out-of-range page must not claim itself as canonical. Cheap here:
+        // this is an effect and re-runs once totalPages is known.
+        const inRange = total === 0 || page <= total;
+        const plainPaginated = page > 1 && inRange && !this.hasActiveFilters();
         this.pageMeta.set({
-          title: sayfalanmisSade ? sayfaliBaslik(DEFAULT_TITLE, sayfa) : DEFAULT_TITLE,
+          title: plainPaginated ? paginatedTitle(DEFAULT_TITLE, page) : DEFAULT_TITLE,
           description: DEFAULT_DESCRIPTION,
-          canonicalPath: sayfalanmisSade ? `/?page=${sayfa}` : '/',
+          canonicalPath: plainPaginated ? `/?page=${page}` : '/',
         });
         this.structuredDataEl?.remove();
         this.structuredDataEl = null;
         this.breadcrumbEl?.remove();
         this.breadcrumbEl = null;
-        // Gerçek SEO içerik denetimi bulgusu (2026-08-17): bu FAQPage
-        // JSON-LD'si eskiden ngOnInit'te KOŞULSUZ bir kez ekleniyordu —
-        // /urun/:id ilk yüklenen sayfa olduğunda bile SSR HTML'ine
-        // giriyordu (görünür SSS metni showFullHomepageContent() ile
-        // gizlense de, bu structured data ondan bağımsız bir mekanizmaydı).
-        // Artık selectedDeal()'e reaktif: sadece ana sayfa durumunda var.
+        // FAQPage JSON-LD only while the home page itself is shown; it used
+        // to be added unconditionally and leaked into product pages' SSR HTML.
         this.faqStructuredDataEl = upsertJsonLdScript(this.document, this.faqStructuredDataEl, {
           '@context': 'https://schema.org',
           '@type': 'FAQPage',
@@ -365,20 +308,12 @@ export class DealsList implements OnInit {
 
       const displayedName = displayName(deal.productName);
       const priceText = formatPriceText(deal.currentPrice);
-      // Title'da fiyat BİLİNÇLİ OLARAK yok — fiyat günde 4 kez değişebiliyor,
-      // her değişimde title'ı yeniden yazmak Google'ın snippet'i sürekli
-      // güncellemesine/tarama bütçesini boşa harcamasına yol açıyordu (dış
-      // kod incelemesinde bulunan bir madde, kodla doğrulandı). Fiyat artık
-      // sadece description'da ve JSON-LD Offer.price'ta kalıyor. Paylaşım
-      // kartında (WhatsApp/Twitter) fiyatlı görünmesi hâlâ isteniyor —
-      // ogTitle ayrı tutuluyor.
-      // Uzun ürün adlarında başlık 118 karaktere kadar çıkıyordu; Google o
-      // uzunlukta başlığı tamamen kendi yeniden yazıyor (bkz. buildPageTitle).
-      const title = buildPageTitle(displayedName, 'Fiyatı ve Fiyat Geçmişi', deal.brandName);
-      const ogTitle = `${displayedName} Fiyatı: ${priceText} | ${deal.brandName} — ProteinAvcısı`;
-      // Açıklama artık markanın kendi ürün metninden besleniyor (bkz.
-      // core/meta-description.ts) — arama sonucunda ürünün ne olduğunu
-      // söyleyen tek şey burasıydı ve yalnızca fiyat cümlesi taşıyordu.
+      // NO price in the title on purpose: prices change several times a day,
+      // and rewriting the title each time makes Google keep re-fetching the
+      // snippet. The price stays in the description, the JSON-LD Offer and the
+      // share card title (ogTitle).
+      const title = buildPageTitle(displayedName, 'Price & Price History', deal.brandName);
+      const ogTitle = `${displayedName} Price: ${priceText} | ${deal.brandName} — ${SITE_NAME}`;
       const description = buildProductDescription({
         displayName: displayedName,
         brandName: deal.brandName,
@@ -387,36 +322,30 @@ export class DealsList implements OnInit {
         description: deal.description,
       });
 
-      // Kopya bir kayıtsak canonical ASIL sayfayı göstermeli. Slug aynı —
-      // zaten aynı ürün adını taşıdıkları için kopya sayılıyorlar — yalnızca
-      // Id değişiyor. (bkz. DealDto.CanonicalProductId)
+      // A duplicate record points its canonical at the MAIN page. The slug is
+      // the same (they share the product name), only the id differs.
       const canonicalId = deal.canonicalProductId ?? deal.productId;
-      const canonicalProductPath = `/urun/${canonicalId}/${slugify(deal.productName)}`;
+      const canonicalProductPath = `/product/${canonicalId}/${slugify(deal.productName)}`;
 
       this.pageMeta.set({
         title,
         ogTitle,
         description,
         canonicalPath: canonicalProductPath,
-        // og:type 'product' resmi bir Open Graph tipi değil (Facebook'un
-        // katalog entegrasyonu için ayrı ek alanlar gerektiriyor, biz onları
-        // hiç doldurmuyoruz) — asıl ürün sinyali zaten aşağıdaki JSON-LD
-        // Product/Offer'da veriliyor.
+        // og:type 'product' needs catalog fields we do not fill; the product
+        // signal is the JSON-LD Product/Offer below.
         ogType: 'website',
         ogImage: deal.imageUrl ?? undefined,
-        // Markanın taramada artık döndürmediği ve yerine geçen güncel bir
-        // kaydı da bulunmayan ürün: sayfa çalışmaya devam ediyor (biriktirdiği
-        // fiyat geçmişi hâlâ değerli ve paylaşılmış linkler bozulmuyor) ama
-        // dizine girmemesi gerekiyor — site içinde hiçbir listede
-        // görünmediği için oraya giden hiçbir bağlantı yok.
+        // A product the store stopped returning, with no current replacement:
+        // the page keeps working (its price history still has value and shared
+        // links do not break) but stays out of the index, since no list links
+        // to it any more.
         noIndex: deal.isStale === true,
       });
 
-      // schema.org Product/Offer — Google'ın arama sonucunda fiyat gösterme
-      // ihtimali için. "availability" bilinçli olarak yok: 4 markanın
-      // hepsinde güvenilir stok bilgisi çekmiyoruz (SSN/Hardline stok
-      // durumunu hiç kontrol etmiyor), olmayan veriyi "InStock" diye
-      // iddia etmektense alanı hiç eklememeyi tercih ettik.
+      // schema.org Product/Offer. No "availability": not every store reports
+      // stock reliably, and claiming "InStock" without data is worse than
+      // leaving the field out.
       const jsonLd = {
         '@context': 'https://schema.org',
         '@type': 'Product',
@@ -424,19 +353,16 @@ export class DealsList implements OnInit {
         sku: String(deal.productId),
         ...(deal.imageUrl ? { image: deal.imageUrl } : {}),
         brand: { '@type': 'Brand', name: deal.brandName },
-        // GSC "description alanı eksik" diyordu. Metin markanın tanıtım
-        // yazısından değil kendi ölçümlerimizden üretiliyor.
+        // Written from our own measurements, not the brand's marketing copy.
         description: buildProductJsonLdDescription(deal),
         offers: {
           '@type': 'Offer',
           url: `${canonicalOrigin(this.document)}${canonicalProductPath}`,
-          priceCurrency: 'TRY',
+          priceCurrency: MARKET.currency,
           price: deal.currentPrice.toFixed(2),
         },
-        // Markanın kendi sitesindeki müşteri puanı. YALNIZCA veri gerçekten
-        // varsa ekleniyor ve sayfada da görünür durumda (bilgi listesinde,
-        // markanın adıyla etiketli) — Google, işaretlemedeki puanın sayfada
-        // gösterilmesini şart koşuyor.
+        // The store's own customer rating, ONLY when it exists, and shown on
+        // the page too: Google requires marked-up ratings to be visible.
         ...(deal.ratingValue !== null && deal.ratingCount !== null
           ? {
               aggregateRating: {
@@ -456,8 +382,8 @@ export class DealsList implements OnInit {
         this.document,
         this.breadcrumbEl,
         buildBreadcrumbJsonLd(this.document, [
-          { name: 'Ana Sayfa', path: '/' },
-          ...(categoryLabel && deal.category ? [{ name: categoryLabel, path: `/kategori/${deal.category}` }] : []),
+          { name: 'Home', path: '/' },
+          ...(categoryLabel && deal.category ? [{ name: categoryLabel, path: `/category/${deal.category}` }] : []),
           { name: deal.productName, path: canonicalProductPath },
         ]),
       );
@@ -475,108 +401,99 @@ export class DealsList implements OnInit {
       next: (products) => this.preferredProductCandidates.set(products),
       error: () => this.preferredProductCandidates.set([]),
     });
-    // pageSize:1 — sadece toplam sayıyı okumak için, tüm ürünleri çekmeye gerek yok.
+    // pageSize 1: only the total count is needed.
     this.dealsService.getAllProducts({ pageSize: 1 }).subscribe((result) => this.siteProductCount.set(result.totalCount));
     this.dealsService.getStats().subscribe((stats) => this.stats.set(stats));
     this.favoritesService.ensureCount();
     this.articlesService.getArticles().subscribe((articles) => this.articles.set(articles.slice(0, 3)));
     this.loadHeroDeal();
-    // İlk yükleme bilinçli olarak BURADA DEĞİL, aşağıdaki queryParamMap
-    // aboneliğinin içinde: abonelik kurulur kurulmaz senkron bir kez
-    // tetikleniyor, yani ?search= / ?page= varsa daha ilk istekte
-    // uygulanıyor. Burada ayrıca load() çağırmak iki paralel istek
-    // başlatıyordu ve filtresiz olan sonra dönüp filtreli sonucu eziyordu.
+    // The first load is deliberately NOT here but inside the queryParamMap
+    // subscription below, which fires synchronously once, so ?search= or
+    // ?page= apply to the very first request. Calling load() here too
+    // started two parallel requests, and the unfiltered one could overwrite
+    // the filtered result.
 
-    // Sayfa numarası URL'de ?page= olarak tutuluyor — tarayıcının geri/ileri
-    // (mouse yan tuşları dahil) butonlarının sayfalama geçmişinde doğru
-    // gezinebilmesi için. goToPage() zaten currentPage'i set edip load()
-    // çağırdığından, bu abonelik asıl olarak URL DIŞARIDAN değiştiğinde
-    // (geri/ileri tuşu, paylaşılan link) devreye giriyor — sayfa zaten
-    // eşleşiyorsa tekrar yüklemiyor.
+    // The whole list state lives in the URL, so the browser's back/forward
+    // buttons (mouse side buttons too) and shared links work. This
+    // subscription mainly reacts when the URL changes FROM OUTSIDE; it does
+    // not reload when nothing differs.
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
-      // Diğer sayfalardaki üst menüden yapılan arama buraya ?search= ile
-      // geliyor (o menüde ürün listesi olmadığı için arama ana sayfada
-      // sonuçlanıyor). Önceden üstteki kutu yalnızca ana sayfaya giden bir
-      // bağlantıydı: tıklayan kişi arama yaptığını sanıp ana sayfaya
-      // düşüyordu.
+      // Searches from the header on other pages arrive here as ?search=.
       const search = (params.get('search') ?? '').trim();
-      // İlk emisyon her zaman yüklemeli — o an değerler zaten eşit olduğu
-      // için aşağıdaki karşılaştırmalar false döner, liste hiç dolmazdı.
+      // The first emission must always load: the values are equal then, so
+      // the comparisons below are false and the list would never fill.
       let needsLoad = !this.initialLoadDone;
       this.initialLoadDone = true;
 
       if (search !== this.searchQuery()) {
         this.searchQuery.set(search);
         needsLoad = true;
-        // Dışarıdan arama ile gelindiğinde "Tümü" sekmesine geçiyoruz.
-        // Varsayılan sekme mağaza kampanyaları; aranan ürünün o an bir
-        // kampanyası yoksa (ör. magnezyum) kişi sonuç varken boş ekran
-        // görürdü. Kullanıcının kendi seçtiği sekme korunuyor: bu satır
-        // yalnızca URL'den yeni bir arama geldiğinde çalışıyor.
+        // A search from outside switches to "All": the default tab is store
+        // sales, and a product with no current sale would show an empty list
+        // even though results exist. A tab the visitor picked is kept; this
+        // only runs when a new search arrives in the URL.
         if (search) this.viewMode.set('all');
       }
 
-      // Filtreler de adresten geri yükleniyor. Bu, GERİ tuşunun çalışması
-      // için şart: kullanıcı arama/filtre yapıp başka bir sayfaya (ürün,
-      // karşılaştırma) gidip geri döndüğünde bileşen yeniden kuruluyor ve
-      // signal'ler varsayılana düşüyordu — durum yalnızca adreste yaşıyorsa
-      // kurtarılabiliyor.
-      const kume = (ad: string) => {
-        const ham = params.get(ad);
-        return new Set((ham ?? '').split(',').map((x) => x.trim()).filter(Boolean));
+      // Filters are restored from the URL too. This is what makes BACK work:
+      // returning from a product or comparison rebuilds the component and the
+      // signals would fall back to their defaults.
+      const readSet = (name: string) => {
+        const raw = params.get(name);
+        return new Set((raw ?? '').split(',').map((x) => x.trim()).filter(Boolean));
       };
-      const sayi = (ad: string) => {
-        const ham = params.get(ad);
-        if (ham === null || ham.trim() === '') return null;
-        const deger = Number(ham);
-        return Number.isFinite(deger) ? deger : null;
+      const readNumber = (name: string) => {
+        const raw = params.get(name);
+        if (raw === null || raw.trim() === '') return null;
+        const value = Number(raw);
+        return Number.isFinite(value) ? value : null;
       };
 
-      const kumeFarkli = (a: Set<string>, b: Set<string>) =>
+      const setsDiffer = (a: Set<string>, b: Set<string>) =>
         a.size !== b.size || [...a].some((x) => !b.has(x));
 
-      const markalar = kume('brands');
-      if (kumeFarkli(markalar, this.selectedBrands())) {
-        this.selectedBrands.set(markalar);
+      const brands = readSet('brands');
+      if (setsDiffer(brands, this.selectedBrands())) {
+        this.selectedBrands.set(brands);
         needsLoad = true;
       }
 
-      const kategoriler = kume('categories');
-      if (kumeFarkli(kategoriler, this.selectedCategories())) {
-        this.selectedCategories.set(kategoriler);
+      const categories = readSet('categories');
+      if (setsDiffer(categories, this.selectedCategories())) {
+        this.selectedCategories.set(categories);
         needsLoad = true;
       }
 
-      const saticilar = kume('sellers');
-      if (kumeFarkli(saticilar, this.selectedSellers())) {
-        this.selectedSellers.set(saticilar);
+      const sellers = readSet('sellers');
+      if (setsDiffer(sellers, this.selectedSellers())) {
+        this.selectedSellers.set(sellers);
         needsLoad = true;
       }
 
-      const enAz = sayi('min');
-      if (enAz !== this.priceMin()) {
-        this.priceMin.set(enAz);
+      const min = readNumber('min');
+      if (min !== this.priceMin()) {
+        this.priceMin.set(min);
         needsLoad = true;
       }
 
-      const enCok = sayi('max');
-      if (enCok !== this.priceMax()) {
-        this.priceMax.set(enCok);
+      const max = readNumber('max');
+      if (max !== this.priceMax()) {
+        this.priceMax.set(max);
         needsLoad = true;
       }
 
-      const siralama = params.get('sort') ?? '';
-      if (siralama !== this.sortBy()) {
-        this.sortBy.set(siralama);
+      const sort = params.get('sort') ?? '';
+      if (sort !== this.sortBy()) {
+        this.sortBy.set(sort);
         needsLoad = true;
       }
 
-      // Görünüm sekmesi listeyi değiştirdiği için adresten geri geliyor; ama
-      // yukarıdaki "dışarıdan arama gelince Tümü'ne geç" kuralını EZMEMELİ,
-      // o yüzden yalnızca adreste açıkça yazılıysa uygulanıyor.
-      const gorunum = params.get('view') as ViewMode | null;
-      if (gorunum && gorunum !== this.viewMode()) {
-        this.viewMode.set(gorunum);
+      // The view tab changes the list, so it is restored too, but only when
+      // the URL states it, so it does not override the "search from outside
+      // switches to All" rule above.
+      const view = params.get('view') as ViewMode | null;
+      if (view && view !== this.viewMode()) {
+        this.viewMode.set(view);
         needsLoad = true;
       }
 
@@ -589,13 +506,13 @@ export class DealsList implements OnInit {
       if (needsLoad) this.load();
     });
 
-    // Ürün modalı artık URL'e bağlı (/urun/:id) — bileşen '' ve 'urun/:id'
-    // arasında yeniden kurulmadan yaşadığı için (bkz. DealsRouteReuseStrategy)
-    // parametre değişikliklerine burada tek seferlik abone oluyoruz.
+    // The product modal is bound to the URL (/product/:id). The component
+    // lives on between '' and 'product/:id' without being rebuilt (see
+    // DealsRouteReuseStrategy), so parameter changes are handled here.
     this.router.events
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((event) => {
-        if (event instanceof NavigationEnd) this.uygulamaIciGezinme++;
+        if (event instanceof NavigationEnd) this.inAppNavigations++;
       });
 
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
@@ -626,9 +543,8 @@ export class DealsList implements OnInit {
             showNotFound(this.router);
             return;
           }
-          // Geçici sorun (ağ hatası, backend 5xx/erişilemez) — "artık yok"
-          // sinyali (302) vermiyoruz, "şu an geçici olarak yüklenemedi"
-          // diyoruz. SSR'da bu gerçek bir HTTP 503 olarak dönüyor.
+          // Temporary problem (network error, backend 5xx): say "could not
+          // load right now", not "gone". On the server this is a real 503.
           this.productLoadError.set(true);
           if (this.responseInit) this.responseInit.status = 503;
         },
@@ -636,22 +552,17 @@ export class DealsList implements OnInit {
     });
   }
 
-  // URL'deki slug segmenti eksikse (eski /urun/:id linkleri, elle yazılan
-  // adresler) ya da ürün adı değiştiği için eskiyse, kanonik slug'a
-  // replaceUrl ile yönlendiriyor. SSR'da bu, /urun/:id ↔ / arası geçersiz-ID
-  // yönlendirmesiyle AYNI mekanizmayla (Angular Universal'ın render sırasında
-  // yakalanan navigate() çağrısını gerçek bir HTTP 302'ye çevirmesi) gerçek
-  // bir yönlendirmeye dönüşüyor — Google'ın zaten indexlediği çıplak /urun/:id
-  // linklerinin ranking sinyalini kanonik (slug'lı) URL'e taşıması için.
-  // Slug zaten doğruysa hiçbir şey yapmıyor (sonsuz döngü riski yok).
+  // Redirects to the canonical slug with replaceUrl when the slug is missing
+  // (old /product/:id links, typed addresses) or stale because the product
+  // name changed. During SSR this becomes a real HTTP redirect, which moves
+  // the ranking signal of bare /product/:id links to the canonical URL. A
+  // correct slug does nothing (no redirect loop).
   private ensureCanonicalSlug(deal: Deal, slugParam: string | null): void {
-    // Marka bu kaydın adresini değiştirmiş ve aynı ürünün güncel bir kaydı
-    // var — iki sayfanın arama sonuçlarında birbiriyle çakışmaması için eski
-    // adres güncel kayda taşınıyor. Aynı yönlendirme mekanizması (SSR'da
-    // gerçek bir HTTP yönlendirmesine dönüşüyor) slug düzeltmesinde de
-    // kullanılıyor.
+    // The store moved this record's address and a current record of the
+    // same product exists: the old address moves to the current one, so the
+    // two pages do not compete in search results.
     if (deal.replacementProductId) {
-      this.router.navigate(['/urun', deal.replacementProductId, slugify(deal.productName)], {
+      this.router.navigate(['/product', deal.replacementProductId, slugify(deal.productName)], {
         replaceUrl: true,
         queryParamsHandling: 'preserve',
       });
@@ -660,7 +571,7 @@ export class DealsList implements OnInit {
 
     const canonicalSlug = slugify(deal.productName);
     if (slugParam === canonicalSlug) return;
-    this.router.navigate(['/urun', deal.productId, canonicalSlug], {
+    this.router.navigate(['/product', deal.productId, canonicalSlug], {
       replaceUrl: true,
       queryParamsHandling: 'preserve',
     });
@@ -782,10 +693,9 @@ export class DealsList implements OnInit {
     this.priceMin.set(null);
     this.priceMax.set(null);
     this.searchQuery.set('');
-    // Sıralama teknik olarak bir filtre değil (hasActiveFilters'a da dahil
-    // değil), ama kullanıcı "temizle" dediğinde listenin tümüyle varsayılan
-    // görünüme dönmesini bekliyor — sıralama kutusu eski seçimde kalırsa
-    // liste temizlenmemiş gibi duruyor.
+    // Sorting is not strictly a filter, but "clear" should bring the whole
+    // list back to its default view; a leftover sort looks like nothing was
+    // cleared.
     this.sortBy.set('');
     this.currentPage.set(1);
     this.load();
@@ -793,49 +703,41 @@ export class DealsList implements OnInit {
   }
 
   /**
-   * Sayfalama çubuğunda gösterilecek numaralar (null = "…").
-   *
-   * Ana sayfada ~205 sayfa var; yalnızca ileri/geri bağlantısı olsaydı
-   * son sayfa o kadar tıklama derinliğinde kalırdı. Bkz.
+   * Page numbers for the pagination bar (null = "…"). With only prev/next
+   * links, the last of many pages would sit that many clicks deep. See
    * `core/pagination-window.ts`.
    */
-  protected readonly sayfaOgeleri = computed(() => sayfaPenceresi(this.currentPage(), this.totalPages()));
+  protected readonly pageItems = computed(() => pageWindow(this.currentPage(), this.totalPages()));
 
   /**
-   * Sayfalama artık `<a href>` ile yapılıyor (şablona bak): gezinmeyi
-   * routerLink, durum güncellemesini de adresi dinleyen abonelik yapıyor.
-   * Burada yalnızca listenin başına dönülüyor.
+   * Pagination uses `<a href>` (see the template): routerLink navigates and
+   * the URL subscription updates the state; this only scrolls to the top.
    */
-  protected sayfayaKaydir(): void {
+  protected scrollToListTop(): void {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   /**
-   * Liste durumunun TAMAMINI adrese yazar.
+   * Writes the WHOLE list state to the URL. With only `page` in the URL, a
+   * search followed by a visit to a product and BACK landed on an empty,
+   * reset home page. Now the browser's own back/forward logic is enough, and
+   * the list is shareable and survives a reload.
    *
-   * Eskiden adreste yalnızca `page` vardı; arama ve filtreler saf signal'di.
-   * Sonuç: kullanıcı "magnezyum" arayıp bir ürüne/karşılaştırmaya gidip GERİ
-   * döndüğünde her şey sıfırlanmış boş bir ana sayfa buluyordu (kullanıcı
-   * mobilde bildirdi). Durum adreste olduğu için artık tarayıcının kendi
-   * geri/ileri mantığı yeterli — ayrıca liste paylaşılabilir ve yenilemeye
-   * dayanıklı hale geliyor.
-   *
-   * Varsayılan değerler adrese YAZILMIYOR (null veriliyor, Angular parametreyi
-   * düşürüyor): filtresiz ana sayfanın adresi sade kalsın ve kanonik adres
-   * bozulmasın diye.
+   * Defaults are NOT written (null drops the parameter), so the unfiltered
+   * home page keeps a clean, canonical address.
    */
   private syncUrlState(page: number, push: boolean): void {
-    const dizi = (deger: Set<string>) => (deger.size > 0 ? [...deger].join(',') : null);
-    const arama = this.searchQuery().trim();
+    const list = (value: Set<string>) => (value.size > 0 ? [...value].join(',') : null);
+    const search = this.searchQuery().trim();
 
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: {
         page: page > 1 ? page : null,
-        search: arama || null,
-        brands: dizi(this.selectedBrands()),
-        categories: dizi(this.selectedCategories()),
-        sellers: dizi(this.selectedSellers()),
+        search: search || null,
+        brands: list(this.selectedBrands()),
+        categories: list(this.selectedCategories()),
+        sellers: list(this.selectedSellers()),
         min: this.priceMin(),
         max: this.priceMax(),
         sort: this.sortBy() || null,
@@ -887,7 +789,7 @@ export class DealsList implements OnInit {
         this.loadSparklines(result.items);
       },
       error: () => {
-        this.error.set('Veriler yüklenemedi. API çalışıyor mu kontrol et.');
+        this.error.set("We couldn't load the products. Please try again in a moment.");
         this.loading.set(false);
       },
     });
@@ -906,14 +808,14 @@ export class DealsList implements OnInit {
   }
 
   protected discountBadge(deal: Deal): string {
-    return `-%${deal.discountPercent}`;
+    return `-${deal.discountPercent}%`;
   }
 
   protected storeDiscountBadge(deal: Deal): string {
-    return `Mağaza -%${deal.storeDiscountPercent}`;
+    return `Store sale -${deal.storeDiscountPercent}%`;
   }
 
-  // Hero kartı: gerçek indirim varsa onu, yoksa mağaza kampanyasını gösterir.
+  // Hero card: the real discount when there is one, otherwise the store sale.
   protected heroBadgeText(deal: Deal): string {
     return deal.discountPercent > 0 ? this.discountBadge(deal) : this.storeDiscountBadge(deal);
   }
@@ -922,9 +824,9 @@ export class DealsList implements OnInit {
     return this.priceHistoryService.goToStoreUrl(deal.productId, deal.storeUrl);
   }
 
-  /** Mağaza tıklamasını sayar; bağlantı doğrudan mağazaya gittiği için
-   *  sayacı artık /go/{id} artıramıyor (bkz. PriceHistoryService). */
-  protected magazaTiklamasi(productId: number): void {
+  /** Counts the store click; the link goes straight to the store, so /go/{id}
+   *  can no longer count it (see PriceHistoryService). */
+  protected trackStoreClick(productId: number): void {
     this.priceHistoryService.trackStoreClick(productId);
   }
 
@@ -935,8 +837,8 @@ export class DealsList implements OnInit {
           this.setHeroDeal(result.items[0]);
           return;
         }
-        // Hiç gerçek indirim yoksa (fiyat geçmişi henüz yeniyken sık
-        // rastlanan bir durum) mağaza kampanyalarının en yükseğine düş.
+        // No real discount yet (common while the price history is young):
+        // fall back to the biggest store sale.
         this.dealsService.getStoreDeals({ pageSize: 1 }).subscribe((storeResult) => {
           if (storeResult.items.length > 0) this.setHeroDeal(storeResult.items[0]);
         });
@@ -949,20 +851,20 @@ export class DealsList implements OnInit {
     this.priceHistoryService.get(deal.productId, 30).subscribe((history) => this.heroPoints.set(history.points));
   }
 
-  protected onAlarmSubmit(): void {
-    const value = this.alarmEmail().trim();
+  protected onAlertSubmit(): void {
+    const value = this.alertEmail().trim();
     if (!value) return;
 
-    this.alarmSubmitting.set(true);
+    this.alertSubmitting.set(true);
     this.subscribeService.subscribe(value).subscribe({
       next: (result) => {
-        this.alarmStatusMessage.set(result.message);
-        this.alarmEmail.set('');
-        this.alarmSubmitting.set(false);
+        this.alertStatusMessage.set(result.message);
+        this.alertEmail.set('');
+        this.alertSubmitting.set(false);
       },
       error: () => {
-        this.alarmStatusMessage.set('Bir şeyler ters gitti, birazdan tekrar dener misin?');
-        this.alarmSubmitting.set(false);
+        this.alertStatusMessage.set('Something went wrong. Please try again in a moment.');
+        this.alertSubmitting.set(false);
       },
     });
   }
@@ -971,21 +873,18 @@ export class DealsList implements OnInit {
     return formatRelativeTime(deal.scrapedAt);
   }
 
-  // CATEGORY_LABELS'ta (footer/kategori sayfası ile paylaşılan tek kaynak)
-  // tanımlı doğru Türkçe etiket varsa onu kullan; yoksa (beklenmeyen bir
-  // slug gelirse) eski basit tire→boşluk dönüşümüne düş.
+  // The label from CATEGORY_LABELS (shared with the footer and category
+  // pages); an unexpected slug falls back to dashes turned into spaces.
   protected categoryLabel(category: string): string {
     return (
       CATEGORY_LABELS[category] ??
       category
         .split('-')
-        .map((word) => word.charAt(0).toLocaleUpperCase('tr') + word.slice(1))
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ')
     );
   }
 
-  // Kategoriler dropdown'ındaki ikon — kullanıcı geri bildirimi: liste
-  // sadece düz metindi (bkz. site-header.ts'teki aynı desen).
   protected categoryIconPath(category: string): string {
     return CATEGORY_ICON_PATHS[category] ?? DEFAULT_CATEGORY_ICON;
   }
@@ -1006,41 +905,32 @@ export class DealsList implements OnInit {
     this.categoriesOpen.set(false);
   }
 
-  // Kartlardaki bağlantılar RouterLink ile kuruluyor (bkz. core/product-link.ts):
-  // gerçek bir <a href> üretiyor — arama motorları takip edebiliyor, orta tık ve
-  // "yeni sekmede aç" çalışıyor — ama tıklandığında yine SPA gezinmesi yapıyor,
-  // yani aşağıdaki openDeal ile birebir aynı sonucu veriyor.
+  // Card links are RouterLinks (see core/product-link.ts): a real <a href>
+  // that crawlers follow and middle-click opens in a new tab, while a normal
+  // click still navigates inside the SPA, exactly like openDeal.
   protected productPath(deal: Deal): string {
     return productPath(deal);
   }
 
   protected openDeal(deal: Deal): void {
-    this.router.navigate(['/urun', deal.productId, slugify(deal.productName)], { queryParamsHandling: 'preserve' });
+    this.router.navigate(['/product', deal.productId, slugify(deal.productName)], { queryParamsHandling: 'preserve' });
   }
 
   /**
-   * Modalı kapat.
+   * Closes the modal.
    *
-   * Uygulama içinden girildiyse GERİ gidiyoruz, '/' adresine yeni bir
-   * navigasyon YAPMIYORUZ. Eskiden navigate(['/']) çağrılıyordu ve bu
-   * geçmişe ÜÇÜNCÜ bir kayıt ekliyordu: [/] -> [/urun/123] -> [/]. Sonuç,
-   * telefonun geri tuşunun tersine çalışması: kullanıcı modalı kapattıktan
-   * sonra geri tuşuna basınca kapattığı modal yeniden açılıyordu. Aynı
-   * kalıp birkaç ürün gezildiğinde geçmişi tamamen şişiriyor ve "geri"
-   * kullanıcıyı gezdiği ürünlerin arasında ileri geri dolaştırıyordu.
+   * Arrived from inside the app: go BACK, do NOT navigate to '/'. A new
+   * navigation added a THIRD history entry ([/] -> [/product/123] -> [/]) and
+   * the phone's back button then reopened the modal just closed.
    *
-   * Doğrudan /urun/:id ile girildiyse (arama motorundan gelen ziyaretçi,
-   * paylaşılan bağlantı) geride bu sitenin bir sayfası YOK — orada
-   * location.back() kullanıcıyı siteden tamamen çıkarırdı, bu yüzden ana
-   * sayfaya gerçek bir navigasyon yapılıyor. Ayrımı `uygulamaIciGezinme`
-   * sayacı veriyor. Bileşen İLK navigasyon sırasında oluştuğu için o
-   * navigasyonun NavigationEnd'ini KAÇIRIYOR; dolayısıyla sayaç 0 ise
-   * kullanıcı doğrudan /urun/:id ile gelmiş, 1+ ise uygulama içinde en az
-   * bir kez gezinmiş demektir. (İlk denemede eşik 1 yazılmıştı ve düzeltme
-   * sessizce çalışmadı — tarayıcıda geçmiş uzunluğu ölçülerek bulundu.)
+   * Arrived directly on /product/:id (search result, shared link): there is
+   * no page of this site behind it, and location.back() would leave the site,
+   * so navigate home instead. The component is created DURING the first
+   * navigation and misses its NavigationEnd, so a count of 0 means the visitor
+   * came in directly.
    */
   protected closeDeal(): void {
-    if (this.uygulamaIciGezinme > 0) {
+    if (this.inAppNavigations > 0) {
       this.location.back();
       return;
     }
@@ -1048,23 +938,10 @@ export class DealsList implements OnInit {
     this.router.navigate(['/'], { queryParamsHandling: 'preserve' });
   }
 
-  // Gerçek besin değeri verisi olan ürünlerde (şimdilik sadece HIQ) servis
-  // başı fiyat gösteriyoruz. Sadece paket boyutu gram cinsindeyse hesaplıyoruz
-  // — "adet/kapsül" gibi birimlerde gram varsayımı yanlış olur, o yüzden
-  // uydurmak yerine null dönüp göstermiyoruz.
-  protected pricePerServing(deal: Deal): number | null {
-    if (!deal.servingSizeGrams || deal.servingSizeGrams <= 0 || !deal.size) return null;
-
-    const match = /^(\d+(?:[.,]\d+)?)\s*Gr$/i.exec(deal.size.trim());
-    if (!match) return null;
-
-    const packageGrams = Number(match[1].replace(',', '.'));
-    if (!packageGrams) return null;
-
-    const servings = packageGrams / deal.servingSizeGrams;
-    if (!servings) return null;
-
-    return deal.currentPrice / servings;
+  // Only when the product states its serving size and the package is sold by
+  // weight; counts such as capsules would need a guess, so they show nothing.
+  protected perServing(deal: Deal): number | null {
+    return pricePerServing(deal);
   }
 
   @HostListener('document:keydown', ['$event'])

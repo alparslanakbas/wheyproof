@@ -1,13 +1,14 @@
-// Site ve kurucu kimliği — Person/Organization schema.org işaretlemesi
-// ve "Hakkımızda" sayfası burada tek yerden besleniyor. YMYL (Your Money
-// Your Life) niteliğindeki bir konuda (takviye/sağlık) Google'ın E-E-A-T
-// değerlendirmesinde ciddiye aldığı bir sinyal — rakip analizinde ismi
-// açık bir "Kurucu" profili taşıyorlardı, bizde hiç yoktu.
-export const SITE_NAME = 'ProteinAvcısı';
+// Site and founder identity, feeding the Person/Organization schema.org
+// markup and the About page from one place. Supplements are a YMYL ("Your
+// Money or Your Life") topic, where Google's E-E-A-T review weighs a named,
+// verifiable author.
+export const SITE_NAME = 'WheyProof';
+
+export const SITE_URL = 'https://www.wheyproof.com';
 
 export const FOUNDER = {
   name: 'Alparslan Akbaş',
-  jobTitle: 'Kurucu',
+  jobTitle: 'Founder',
   linkedInUrl: 'https://www.linkedin.com/in/alparslanakbas/',
   blogUrl: 'https://alparslanakbas.github.io',
 };

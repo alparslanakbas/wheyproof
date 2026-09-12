@@ -5,10 +5,9 @@ export interface BreadcrumbItem {
   path: string;
 }
 
-// schema.org BreadcrumbList — kategori/marka/ürün/rehber sayfalarında
-// ortak kullanılıyor. Google arama sonucunda çıplak URL yerine
-// "Ana Sayfa › Kategori › Ürün" gösterebiliyor (rakip analizinde eksik
-// olduğumuz, göze çarpan bir sinyaldi).
+// schema.org BreadcrumbList, shared by category, brand, product and guide
+// pages. Search results can show "Home › Category › Product" instead of a
+// bare URL.
 export function buildBreadcrumbJsonLd(document: Document, items: BreadcrumbItem[]): object {
   const origin = canonicalOrigin(document);
   return {

@@ -1,32 +1,21 @@
-// Ürün adından URL-güvenli bir slug üretir (/urun/:id/:slug için, SEO amaçlı
-// — CTR ve URL'de anahtar kelime sinyali). Türkçe karakterler backend'in
-// ProductAttributeParser'ında yaşanan aynı dersle (CultureInfo'lu
-// ToLower()'ın "İ" harfinde beklenmedik davranışı) tutarlı olsun diye,
-// genel/locale'e bağlı bir küçültmeye güvenmeden ELLE eşleniyor — sonrasında
-// kullanılan toLowerCase() sadece düz ASCII harfleri işliyor, culture-bağımsız.
-const TURKISH_CHAR_MAP: Record<string, string> = {
-  ç: 'c',
-  Ç: 'c',
-  ğ: 'g',
-  Ğ: 'g',
-  ı: 'i',
-  İ: 'i',
-  ö: 'o',
-  Ö: 'o',
-  ş: 's',
-  Ş: 's',
-  ü: 'u',
-  Ü: 'u',
-};
+// A URL-safe slug from a product name (/product/:id/:slug, for SEO: keywords
+// in the URL and a readable link). Accents are stripped rather than trusting
+// a locale-aware lower-casing (NFD, then combining marks removed; dotless "ı"
+// doesn't decompose and is mapped by hand), so "Açaí" becomes "acai".
+// toLowerCase() then only touches plain ASCII, culture-independent.
+//
+// Must produce the same slug as the server wherever both build one, or the
+// generated address won't match the canonical and falls into a redirect.
 
-// Bazı bundle/kombinasyon ürün isimleri çok uzun ("SSN Whey Refuel 1800g
-// Çikolatalı + SSN Creatine 300g + ..." gibi) — aşırı uzun bir URL segmenti
-// istemiyoruz, kelime ortasından kesmemek için son tire sınırına kadar kırpılıyor.
+// Some bundle names are very long; the slug is cut at the last dash before
+// the limit so no word is cut in half.
 const MAX_SLUG_LENGTH = 80;
 
 export function slugify(text: string): string {
-  const mapped = text.replace(/[çÇğĞıİöÖşŞüÜ]/g, (ch) => TURKISH_CHAR_MAP[ch] ?? ch);
-  const normalized = mapped
+  const normalized = text
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/ı/g, 'i')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');

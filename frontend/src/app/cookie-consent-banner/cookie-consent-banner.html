@@ -2,10 +2,10 @@
   <div class="noc-shell fixed inset-x-0 bottom-[66px] z-40 px-3 pb-3 text-[var(--noc-text)] sm:bottom-0 sm:px-6">
     <div class="pa-card mx-auto flex max-w-[960px] flex-col items-center gap-3 px-4 py-3 shadow-[var(--noc-shadow-lg)] sm:flex-row sm:justify-between">
       <p class="text-center text-xs text-[var(--noc-neutral-500)] sm:text-left">
-        Yalnızca tema ve çerez tercihini cihazında saklıyoruz. Ziyaretçi sayımız çerezsiz ve
-        kimseyi tanımlamıyor. Reklam çerezi eklenirse bu seçimine uyacağız.
-        <a routerLink="/cerez-politikasi" class="font-medium text-[var(--noc-accent)] hover:underline">
-          Çerez Politikası
+        We only store your theme and cookie choice on your device. Our visitor count is cookie-free and
+        identifies no one. If advertising cookies are ever added, we will respect this choice.
+        <a routerLink="/cookies" class="font-medium text-[var(--noc-accent)] hover:underline">
+          Cookie Policy
         </a>
       </p>
       <div class="flex shrink-0 items-center gap-2">
@@ -14,14 +14,14 @@
           (click)="consent.reject()"
           class="pa-secondary-button px-4 py-2 text-xs"
         >
-          Reddet
+          Decline
         </button>
         <button
           type="button"
           (click)="consent.accept()"
           class="pa-primary-button px-4 py-2 text-xs"
         >
-          Kabul Et
+          Accept
         </button>
       </div>
     </div>

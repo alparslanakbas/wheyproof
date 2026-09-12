@@ -16,12 +16,19 @@ import { ComparisonService } from '../core/comparison.service';
 import { Deal } from '../core/deal.model';
 import { DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
+import { MARKET, formatWholePrice } from '../core/market';
 import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
+import { PricePipe } from '../core/price.pipe';
 import { PricePoint } from '../core/price-history.model';
 import { PriceHistoryService } from '../core/price-history.service';
 import { formatRelativeTime } from '../core/relative-time';
 import { slugify } from '../core/slugify';
-import { PROTEIN_REFERENCE_GRAMS, proteinRatioPercent, proteinReferenceCost } from '../core/value-metrics';
+import {
+  PROTEIN_REFERENCE_GRAMS,
+  pricePerServing,
+  proteinRatioPercent,
+  proteinReferenceCost,
+} from '../core/value-metrics';
 import { buildAreaPath, buildLinePath, toCoordinates } from '../core/spark-chart';
 import { SiteHeader } from '../site-header/site-header';
 import { showNotFound } from '../core/not-found-navigation';
@@ -37,18 +44,15 @@ interface NutritionRow {
   value: string;
 }
 
-// Ürün incelemesi sayfası — rakip analizinde görülen bir fırsat
-// (rakipte sadece 2 tane var, biz 500+ ürünle bu alanı domine edebiliriz).
-// BİLİNÇLİ SINIR: rakibin yaptığı gibi "test ettik, şöyle hissettirdi" öznel
-// bir iddia YAPMIYORUZ — elimizde gerçek kullanım deneyimi yok. Bunun yerine
-// tamamen kendi verimize (fiyat geçmişi, besin değeri, kategori konumu)
-// dayanan nesnel bir analiz sunuyoruz. Eksik veri SESSİZCE gizlenmiyor —
-// kullanıcı isteğiyle: markadan gelmeyen her alan için dürüst bir not
-// gösteriliyor ("bu bilgi X markası tarafından paylaşılmıyor" gibi),
-// taraflı görünmeyelim diye.
+// Product review page.
+// DELIBERATE LIMIT: we make NO subjective "we tested it, here's how it felt"
+// claims; we have no hands-on experience. The analysis rests entirely on our
+// own data (price history, nutrition facts, category position). Missing data
+// is NOT hidden silently: every field the brand doesn't provide gets an
+// honest note, so we don't look one-sided.
 @Component({
   selector: 'app-product-review-page',
-  imports: [DecimalPipe, RouterLink, SiteHeader],
+  imports: [PricePipe, DecimalPipe, RouterLink, SiteHeader],
   templateUrl: './product-review-page.html',
 })
 export class ProductReviewPage implements OnInit {
@@ -66,8 +70,8 @@ export class ProductReviewPage implements OnInit {
   protected readonly loadError = signal(false);
   protected readonly deal = signal<Deal | null>(null);
 
-  // Markanın tanıtım metninin yerini alan, tamamen kendi verimizden türeyen
-  // bilgi listesi — gerekçe için core/product-facts.ts'teki nota bak.
+  // A list built entirely from our own data, in place of the brand's copy;
+  // see the note in core/product-facts.ts.
   protected readonly productFacts = computed(() => {
     const deal = this.deal();
     return deal ? buildProductFacts(deal) : [];
@@ -75,24 +79,19 @@ export class ProductReviewPage implements OnInit {
   protected readonly points = signal<PricePoint[]>([]);
   protected readonly categoryStats = signal<CategoryPriceStats | null>(null);
   protected readonly similarProducts = signal<Deal[]>([]);
-  // "Bu kategoride servis başı en uygun ürünler" mini-tablosu —
-  // /api/best-value-per-serving zaten servis başı fiyata göre sıralı
-  // döndürüyor (aynı hesaplayıcı sayfasının kullandığı uç nokta), burada
-  // mevcut ürün listeden çıkarılıp ilk 3'ü alınıyor. Amaç: "GI+ vs X" gibi
-  // karşılaştırma niyetini de bu sayfada karşılamak (dış bir kod
-  // incelemesinde önerildi, kullanıcı onayladı) — canonical'ı /urun'a
-  // birleştirip bu sayfayı Google'dan gizlemek yerine, gerçekten
-  // farklılaştırıp indekslenebilir tutmak.
+  // "Best value per serving in this category": /api/best-value-per-serving
+  // already returns items sorted by price per serving (the same endpoint as
+  // the calculator); the current product is removed and the top 3 kept. It
+  // answers "X vs Y" comparison intent on this page too, keeping the page
+  // genuinely different and indexable.
   protected readonly bestValueInCategory = signal<Deal[]>([]);
 
   protected readonly chart = CHART;
   protected readonly historyDays = HISTORY_DAYS;
 
-  protected readonly servings = computed(() => this.calculateServings(this.deal()));
   protected readonly pricePerServing = computed(() => {
     const d = this.deal();
-    const s = this.servings();
-    return d && s && s >= 1 ? d.currentPrice / s : null;
+    return d ? pricePerServing(d) : null;
   });
 
   protected readonly nutritionRows = computed<NutritionRow[]>(() => {
@@ -106,9 +105,8 @@ export class ProductReviewPage implements OnInit {
     }
   });
 
-  // Bu ürünün kategori ortalamasına göre konumu — uydurma bir "puan" değil,
-  // gerçek fiyat farkının yüzdesi. Ortalama 0'sa (teorik olarak imkansız
-  // ama savunmacı) hesap yapılmıyor.
+  // The product's position against the category average: a real price
+  // difference in percent, not an invented "score".
   protected readonly categoryPricePosition = computed(() => {
     const d = this.deal();
     const stats = this.categoryStats();
@@ -139,8 +137,8 @@ export class ProductReviewPage implements OnInit {
     }).subscribe({
       next: ({ deal, history }) => {
         this.deal.set(deal);
-        // Aynı gün + aynı fiyat tekrarlarını ele — yoksa hover art arda
-        // aynı tarihi gösteriyor (modalda yaşanan hatanın aynısı).
+        // Drop same-day/same-price repeats, or hover shows the same date over
+        // and over (the same bug the modal had).
         this.points.set(dedupeSameDaySamePrice(history.points));
         this.setMeta(deal, this.points().length);
         this.loading.set(false);
@@ -155,18 +153,18 @@ export class ProductReviewPage implements OnInit {
             .getBestValuePerServing({ category: deal.category, pageSize: BEST_VALUE_LIMIT + 1 })
             .subscribe({
               next: (result) => this.bestValueInCategory.set(result.items.filter((d) => d.productId !== id).slice(0, BEST_VALUE_LIMIT)),
-              // Kategoride porsiyon verisi olan hiçbir ürün yoksa endpoint
-              // 404 dönebilir — bölüm bu durumda sessizce görünmüyor,
-              // ana içerik (fiyat/besin değeri) etkilenmiyor.
+              // With no serving data in the category the endpoint can return
+              // 404; the section then stays hidden and the main content is
+              // unaffected.
               error: () => this.bestValueInCategory.set([]),
             });
         }
       },
       error: (err: HttpErrorResponse) => {
         this.loading.set(false);
-        // deals-list.ts / product-comparison-page.ts'teki aynı ayrım:
-        // ürün gerçekten yoksa 404, geçici bir hataysa 503. Ayrım korunuyor —
-        // geçici bir sorunda "artık yok" sinyali vermek kalıcı zarar verirdi.
+        // Same split as deals-list.ts: a product that really doesn't exist is
+        // a 404, a temporary error a 503. Saying "gone" on a temporary
+        // problem would do lasting harm.
         if (err.status === 404) {
           showNotFound(this.router);
           return;
@@ -177,65 +175,37 @@ export class ProductReviewPage implements OnInit {
     });
   }
 
-  // Backend'deki DealsQueryService.CalculateServings ile aynı öncelik.
-  private calculateServings(deal: Deal | null): number | null {
-    if (!deal) return null;
-    if (deal.servingsPerPackage && deal.servingsPerPackage > 0) return deal.servingsPerPackage;
-
-    const packageGrams = this.parsePackageGrams(deal.size);
-    if (packageGrams && deal.servingSizeGrams && deal.servingSizeGrams > 0) {
-      return packageGrams / deal.servingSizeGrams;
-    }
-    return null;
-  }
-
-  private parsePackageGrams(size: string | null): number | null {
-    if (!size) return null;
-    const match = /^(\d+(?:[.,]\d+)?)\s*(Gr|Kg)$/i.exec(size.trim());
-    if (!match) return null;
-    const value = Number(match[1].replace(',', '.'));
-    if (!value) return null;
-    return match[2].toLowerCase() === 'kg' ? value * 1000 : value;
-  }
-
-  // Servis başı fiyat — herhangi bir Deal için (mevcut ürün ile
-  // sınırlı olan yukarıdaki servings/pricePerServing computed'lerinin
-  // aksine, mini-karşılaştırma tablosundaki HER satır için ayrı ayrı
-  // hesaplanması gerekiyor).
+  // Price per serving for any Deal (every row of the comparison tables),
+  // with the same rules as the backend's CalculateServings.
   protected pricePerServingFor(deal: Deal): number | null {
-    const servings = this.calculateServings(deal);
-    return servings && servings >= 1 ? deal.currentPrice / servings : null;
+    return pricePerServing(deal);
   }
 
-  // Sabit miktarda proteinin maliyeti. Hesap artık paylaşılan modülde
-  // (core/value-metrics.ts) — karşılaştırma sayfası da aynı fonksiyonu
-  // kullanıyor, böylece iki sayfa aynı ürün için farklı rakam gösteremiyor.
+  // Cost of a fixed amount of protein, from the shared module
+  // (core/value-metrics.ts): the comparison page uses the same function, so
+  // the two pages can't show different numbers for the same product.
   protected readonly proteinReferenceGrams = PROTEIN_REFERENCE_GRAMS;
 
-  protected proteinCostPerServing30g(deal: Deal): number | null {
+  protected proteinReferenceCostFor(deal: Deal): number | null {
     return proteinReferenceCost(deal);
   }
 
-  // Porsiyonun yüzde kaçı protein — "ödediğin paranın ne kadarı etken
-  // maddeye gidiyor" sorusunun cevabı.
+  // What share of a serving is protein: "how much of what you pay goes to
+  // the active ingredient".
   protected proteinRatio(deal: Deal): number | null {
     return proteinRatioPercent(deal);
   }
 
-  // "Servis başına en uygun" tablosu (bestValueInCategory) boş kaldığında
-  // — ürünün kategorisi yok, ya da kategoride porsiyon verisi olan hiçbir
-  // ürün yok — TAMAMEN İNCE bir sayfa yerine en azından FİYATA dayalı bir
-  // karşılaştırma göstermek için (dış bir kod incelemesinde bulundu: "GI+
-  // incelemesinde hiçbir karşılaştırma bloğu çıkmıyor"). similarProducts
-  // zaten kategori bazlı çekiliyor (servis verisi şartı olmadan), burada
-  // sadece fiyata göre sıralanıp ilk 3'ü alınıyor.
+  // When the per-serving table (bestValueInCategory) is empty (no category,
+  // or no product in it with serving data), show at least a PRICE comparison
+  // rather than a thin page. similarProducts is fetched by category without
+  // requiring serving data; here it is sorted by price and the top 3 kept.
   protected readonly priceFallbackProducts = computed(() =>
     [...this.similarProducts()].sort((a, b) => a.currentPrice - b.currentPrice).slice(0, 3),
   );
 
-  // Aynı kategorideki ürünler arasından mevcut ürüne FİYATÇA en yakın
-  // olanları — "en yakın alternatif" burada bilinçli olarak sadece
-  // sayısal bir yakınlık, öznel bir "benzer ürün" yorumu değil.
+  // Products in the same category CLOSEST IN PRICE to this one: a purely
+  // numeric closeness, not a subjective "similar product" judgment.
   protected readonly closestAlternatives = computed(() => {
     const current = this.deal();
     if (!current) return [];
@@ -244,9 +214,9 @@ export class ProductReviewPage implements OnInit {
       .slice(0, CLOSEST_ALTERNATIVES_LIMIT);
   });
 
-  // Bir alternatifin mevcut ürüne göre farkını dürüst bir cümleyle özetliyor
-  // — sadece ölçülebilir farklar (fiyat, indirim durumu, servis başı fiyat),
-  // hiçbir öznel "daha iyi/kötü" yorumu yok.
+  // An alternative's difference from this product in one honest sentence:
+  // only measurable differences (price, discount, price per serving), never
+  // a subjective "better/worse".
   protected comparisonNote(alt: Deal): string {
     const current = this.deal();
     if (!current) return '';
@@ -254,28 +224,28 @@ export class ProductReviewPage implements OnInit {
     const parts: string[] = [];
     const priceDiff = alt.currentPrice - current.currentPrice;
     if (Math.abs(priceDiff) >= 1) {
-      parts.push(priceDiff < 0 ? `${Math.abs(priceDiff).toFixed(0)} ₺ daha ucuz` : `${priceDiff.toFixed(0)} ₺ daha pahalı`);
+      parts.push(priceDiff < 0 ? `${formatWholePrice(Math.abs(priceDiff))} cheaper` : `${formatWholePrice(priceDiff)} more expensive`);
     }
 
     const altPerServing = this.pricePerServingFor(alt);
     const currentPerServing = this.pricePerServingFor(current);
-    if (altPerServing && currentPerServing && Math.abs(altPerServing - currentPerServing) >= 0.5) {
-      parts.push(altPerServing < currentPerServing ? 'servis başına daha uygun' : 'servis başına daha pahalı');
+    if (altPerServing && currentPerServing && Math.abs(altPerServing - currentPerServing) >= 0.05) {
+      parts.push(altPerServing < currentPerServing ? 'better value per serving' : 'more expensive per serving');
     }
 
     if (alt.discountPercent > 0 && current.discountPercent === 0) {
-      parts.push(`şu an %${alt.discountPercent} indirimde`);
+      parts.push(`${alt.discountPercent}% off right now`);
     }
 
-    return parts.length > 0 ? parts.join(', ') : 'fiyatı neredeyse aynı';
+    return parts.length > 0 ? parts.join(', ') : 'about the same price';
   }
 
-  // /karsilastir-urun/{id}-vs-{id} — mevcut ürün karşılaştırma sayfasıyla
-  // aynı kanonik (alfabetik) URL kuralı.
+  // /compare-products/{id}-vs-{id}, with the same canonical (ascending) rule
+  // as the product comparison page.
   protected comparisonLink(other: Deal): string[] {
     const current = this.deal();
     if (!current) return ['/'];
-    return ['/karsilastir-urun', ComparisonService.pairSlug(current.productId, other.productId)];
+    return ['/compare-products', ComparisonService.pairSlug(current.productId, other.productId)];
   }
 
   protected chartPath(): string {
@@ -293,11 +263,9 @@ export class ProductReviewPage implements OnInit {
     return toCoordinates(pts, Math.min(...prices), Math.max(...prices), CHART);
   }
 
-  // --- Grafik etkileşimi ---
-  // Önceden bu sayfada grafik yalnızca çizgiydi; üzerine gelince hiçbir bilgi
-  // vermiyordu. Hesaplar core/chart-hover.ts'te paylaşılıyor — ürün modalında
-  // aynı mantık üç ayrı üretim hatası vermişti, ikinci bir kopya o hataların
-  // geri gelmesini garanti ederdi.
+  // --- Chart interaction ---
+  // The math is shared in core/chart-hover.ts: the same logic caused three
+  // production bugs in the product modal, and a second copy would bring them back.
   protected readonly hoverIndex = signal<number | null>(null);
 
   protected readonly hoverInfo = computed(() => {
@@ -325,13 +293,13 @@ export class ProductReviewPage implements OnInit {
     this.hoverIndex.set(null);
   }
 
-  // Mobilde mousemove tetiklenmiyor; parmağın grafiği kesintisiz takip etmesi
-  // için touch olaylarına ayrıca bağlanıyor. touchend'de bilinçli olarak
-  // sıfırlanmıyor — parmak kalkınca son değer görünür kalıyor.
+  // mousemove doesn't fire on touch screens; touch events are bound so a
+  // finger can follow the chart. touchend doesn't clear it on purpose: the
+  // last value stays visible.
   protected onChartTouchMove(event: TouchEvent): void {
     const touch = event.touches[0];
     if (!touch) return;
-    // Grafik içindeyken sayfanın kaymasını engelle.
+    // Stop the page scrolling while on the chart.
     event.preventDefault();
     this.updateHover(event.currentTarget as SVGSVGElement, touch.clientX);
   }
@@ -355,38 +323,36 @@ export class ProductReviewPage implements OnInit {
     return d ? this.priceHistoryService.goToStoreUrl(d.productId, d.storeUrl) : '#';
   }
 
-  /** Mağaza tıklamasını sayar (bkz. PriceHistoryService). */
-  protected magazaTiklamasi(): void {
+  /** Counts the store click (see PriceHistoryService). */
+  protected trackStoreClick(): void {
     const d = this.deal();
     if (d) this.priceHistoryService.trackStoreClick(d.productId);
   }
 
   protected productLink(d: Deal): string[] {
-    return ['/urun', String(d.productId), slugify(d.productName)];
+    return ['/product', String(d.productId), slugify(d.productName)];
   }
 
-  private setMeta(deal: Deal, gecmisGunSayisi: number): void {
+  private setMeta(deal: Deal, historyDays: number): void {
     const slug = slugify(deal.productName);
     const name = displayName(deal.productName);
-    // Yıl bilinçli olarak title'da YOK — hardcode "2026" 2027'de tüm
-    // title'ları bakımsız/yalan gösterirdi, Google zaten tarihi lastmod/
-    // yayın tarihinden okuyor (dış kod incelemesinde bulundu).
-    const title = buildPageTitle(name, 'İncelemesi', deal.brandName);
-    // Açıklama artık ÜRÜNE ÖZEL. Eskiden 247 sayfanın hepsinde birebir aynı
-    // cümle vardı ve içinde tek bir somut sayı yoktu; arama yapan kişi ürün
-    // adını yazıp fiyat arıyor. Gün sayısı ve indirim iddiası ancak veriyle
-    // destekleniyorsa yazılıyor — bkz. core/meta-description.ts.
+    // No year in the title on purpose: a hard-coded year makes every title
+    // look stale the following year, and Google reads dates elsewhere.
+    const title = buildPageTitle(name, 'Review', deal.brandName);
+    // A PRODUCT-SPECIFIC description: a searcher types the product name and
+    // wants the price. The day count and discount claim only appear when
+    // the data supports them (see core/meta-description.ts).
     const description = buildReviewDescription({
       displayName: name,
       priceText: formatPriceText(deal.currentPrice),
       discountPercent: deal.discountPercent,
-      gecmisGunSayisi,
+      historyDays,
     });
 
     this.pageMeta.set({
       title,
       description,
-      canonicalPath: `/urun-inceleme/${deal.productId}/${slug}`,
+      canonicalPath: `/review/${deal.productId}/${slug}`,
       ogType: 'article',
       ogImage: deal.imageUrl ?? undefined,
     });
@@ -402,8 +368,8 @@ export class ProductReviewPage implements OnInit {
       description: buildProductJsonLdDescription(deal),
       offers: {
         '@type': 'Offer',
-        url: `${origin}/urun/${deal.productId}/${slug}`,
-        priceCurrency: 'TRY',
+        url: `${origin}/product/${deal.productId}/${slug}`,
+        priceCurrency: MARKET.currency,
         price: deal.currentPrice.toFixed(2),
       },
       ...(deal.ratingValue !== null && deal.ratingCount !== null
@@ -432,9 +398,9 @@ export class ProductReviewPage implements OnInit {
       this.document,
       null,
       buildBreadcrumbJsonLd(this.document, [
-        { name: 'Ana Sayfa', path: '/' },
-        ...(deal.category ? [{ name: this.categoryLabel(deal.category), path: `/kategori/${deal.category}` }] : []),
-        { name: `${name} İncelemesi`, path: `/urun-inceleme/${deal.productId}/${slug}` },
+        { name: 'Home', path: '/' },
+        ...(deal.category ? [{ name: this.categoryLabel(deal.category), path: `/category/${deal.category}` }] : []),
+        { name: `${name} Review`, path: `/review/${deal.productId}/${slug}` },
       ]),
     );
   }

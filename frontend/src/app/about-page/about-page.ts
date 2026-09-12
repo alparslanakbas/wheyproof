@@ -18,20 +18,21 @@ export class AboutPage implements OnInit {
   private readonly document = inject(DOCUMENT);
 
   protected readonly founder = FOUNDER;
+  protected readonly siteName = SITE_NAME;
 
   ngOnInit(): void {
     this.pageMeta.set({
-      title: `Hakkımızda | ${SITE_NAME}`,
-      description: `${SITE_NAME}'yı kim, neden kurdu? Kurucu ${FOUNDER.name} ve platformun gerçek fiyat geçmişine dayanan yaklaşımı hakkında.`,
-      canonicalPath: '/hakkimizda',
+      title: `About Us | ${SITE_NAME}`,
+      description: `Who built ${SITE_NAME} and why: founder ${FOUNDER.name} and an approach based on real price history.`,
+      canonicalPath: '/about',
     });
 
     upsertJsonLdScript(
       this.document,
       null,
       buildBreadcrumbJsonLd(this.document, [
-        { name: 'Ana Sayfa', path: '/' },
-        { name: 'Hakkımızda', path: '/hakkimizda' },
+        { name: 'Home', path: '/' },
+        { name: 'About Us', path: '/about' },
       ]),
     );
   }

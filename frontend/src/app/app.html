@@ -1,70 +1,67 @@
 <app-update-banner />
 <router-outlet />
 
-@if (!yonetimSayfasi()) {
+@if (!adminPage()) {
 <footer class="pa-footer noc-shell border-t border-white/10">
   <div class="pa-container pb-[92px] pt-10 sm:pb-8">
     <div class="grid gap-9 border-b border-white/10 pb-9 md:grid-cols-[1.35fr_1fr_1fr_1.15fr]">
       <div>
         <a routerLink="/" class="inline-flex items-center gap-2.5">
-          <span class="pa-brand-mark" aria-hidden="true">PA</span>
-          <span class="text-[19px] font-bold tracking-[-0.035em]">PROTEİN<span class="text-[#8f80ff]">AVCISI</span></span>
+          <span class="pa-brand-mark" aria-hidden="true">WP</span>
+          <span class="text-[19px] font-bold tracking-[-0.035em]">WHEY<span class="text-[#8f80ff]">PROOF</span></span>
         </a>
-        <p class="mt-4 max-w-sm text-sm leading-6 text-[#aeb4ce]">Spor takviyesi fiyatlarını markaların beyanından bağımsız, topladığımız gerçek fiyat geçmişiyle takip ediyoruz.</p>
-        <a href="mailto:destek@proteinavcisi.com.tr" class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#a89dff]"><i class="ph ph-envelope-simple" aria-hidden="true"></i>destek&#64;proteinavcisi.com.tr</a>
+        <p class="mt-4 max-w-sm text-sm leading-6 text-[#aeb4ce]">We track supplement prices every day and judge discounts by the price history we collect, not by the store's own "was" price.</p>
+        <a href="mailto:support@wheyproof.com" class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#a89dff]"><i class="ph ph-envelope-simple" aria-hidden="true"></i>support&#64;wheyproof.com</a>
       </div>
 
       <div>
-        <h2 class="text-xs font-bold uppercase tracking-[0.1em] text-white">Keşfet</h2>
+        <h2 class="text-xs font-bold uppercase tracking-[0.1em] text-white">Explore</h2>
         <nav class="mt-4 grid justify-items-start gap-2.5 text-sm text-[#aeb4ce]">
-          <a routerLink="/" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Güncel indirimler</a>
-          <a routerLink="/kategoriler" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Tüm kategoriler</a>
-          <a routerLink="/rehber" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Takviye rehberi</a>
-          <a routerLink="/sozluk" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Takviye sözlüğü</a>
-          <a routerLink="/hesaplama" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Hesaplama araçları</a>
+          <a routerLink="/" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Today's deals</a>
+          <a routerLink="/categories" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">All categories</a>
+          <a routerLink="/guides" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Supplement guides</a>
+          <a routerLink="/glossary" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Supplement glossary</a>
+          <a routerLink="/calculators" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Calculators</a>
         </nav>
       </div>
 
       <div>
-        <h2 class="text-xs font-bold uppercase tracking-[0.1em] text-white">Şeffaflık</h2>
+        <h2 class="text-xs font-bold uppercase tracking-[0.1em] text-white">Transparency</h2>
         <nav class="mt-4 grid justify-items-start gap-2.5 text-sm text-[#aeb4ce]">
-          <a routerLink="/nasil-calisiyoruz" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Nasıl çalışıyoruz?</a>
-          <a routerLink="/hakkimizda" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Hakkımızda</a>
-          <a routerLink="/iletisim" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">İletişim</a>
-          <a routerLink="/gizlilik-politikasi" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Gizlilik politikası</a>
-          <a routerLink="/cerez-politikasi" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Çerez politikası</a>
-          <a routerLink="/favorilerim" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Takip listem</a>
+          <a routerLink="/how-it-works" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">How it works</a>
+          <a routerLink="/about" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">About</a>
+          <a routerLink="/contact" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Contact</a>
+          <a routerLink="/privacy" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Privacy policy</a>
+          <a routerLink="/cookies" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">Cookie policy</a>
+          <a routerLink="/watchlist" class="rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8f80ff]">My watchlist</a>
         </nav>
       </div>
 
       <div>
-        <h2 class="text-xs font-bold uppercase tracking-[0.1em] text-white">Fırsat özeti</h2>
-        <p class="mt-4 text-sm leading-6 text-[#aeb4ce]">Öne çıkan gerçek fiyat düşüşlerini e-postana gönderelim.</p>
+        <h2 class="text-xs font-bold uppercase tracking-[0.1em] text-white">Deal digest</h2>
+        <p class="mt-4 text-sm leading-6 text-[#aeb4ce]">Get the week's real price drops by email.</p>
         <div class="mt-4"><app-newsletter-signup /></div>
       </div>
     </div>
 
     @if (brands().length > 0 || categories().length > 0) {
-      <!-- Marka listesi TAM GENİŞLİK. Eskiden iki eşit sütundu (md:grid-cols-2)
-           ama iki taraf hiç dengeli değil: 69 marka bağlantısı sol yarıya
-           sıkışıp ~20 satıra yayılırken sağ yarıdaki 9 kategori 2 satır
-           tutuyor ve altı bomboş kalıyordu. Provitamin 24 marka daha
-           ekleyince göze battı. Tam genişlikte aynı liste yaklaşık yarı
-           yüksekte bitiyor. -->
+      <!-- The brand list spans the FULL WIDTH. Two equal columns left ~70
+           brand links squeezed into one half over ~20 rows while the nine
+           categories took two rows and left the other half empty. -->
       <div class="space-y-6 border-b border-white/10 py-7">
-        @if (brands().length > 0 && footerMarkaListesi()) {
+        @if (brands().length > 0 && showFooterBrands()) {
           <div>
-            <h2 class="text-[11px] font-bold uppercase tracking-[0.1em] text-white">Marka kampanyaları</h2>
+            <h2 class="text-[11px] font-bold uppercase tracking-[0.1em] text-white">Brand deals</h2>
             <div class="mt-3 flex flex-wrap gap-x-4 gap-y-2">
-              @for (brand of brands(); track brand) { <a [routerLink]="['/marka', brandSlug(brand), 'indirim-kodu']" class="inline-block py-1.5 text-xs text-[#aeb4ce] hover:text-white">{{ brand }} İndirim Kodu</a> }
+              @for (brand of brands(); track brand) { <a [routerLink]="['/brand', brandSlug(brand)]" class="inline-block py-1.5 text-xs text-[#aeb4ce] hover:text-white">{{ brand }} deals &amp; coupons</a> }
             </div>
           </div>
         }
         @if (categories().length > 0) {
           <div>
-            <h2 class="text-[11px] font-bold uppercase tracking-[0.1em] text-white">Popüler kategoriler</h2>
+            <h2 class="text-[11px] font-bold uppercase tracking-[0.1em] text-white">Popular categories</h2>
             <div class="mt-3 flex flex-wrap gap-x-4 gap-y-2">
-              @for (category of categories(); track category.slug) { <a [routerLink]="['/kategori', category.slug]" class="inline-block py-1.5 text-xs text-[#aeb4ce] hover:text-white">{{ category.label }}</a> }
+              @for (category of categories(); track category.slug) { <a [routerLink]="['/category', category.slug]" class="inline-block py-1.5 text-xs text-[#aeb4ce] hover:text-white">{{ category.label }}</a> }
             </div>
           </div>
         }
@@ -72,9 +69,10 @@
     }
 
     <div class="flex flex-col gap-2 pt-6 text-xs leading-5 text-[#858ca9] sm:flex-row sm:items-center sm:justify-between">
-      <p>© {{ currentYear }} ProteinAvcısı. Satış ilgili markanın resmi sitesinde tamamlanır.</p>
-      <p>Fiyatlar otomatik toplanır; satın almadan önce mağazada tekrar kontrol et.</p>
+      <p>© {{ currentYear }} WheyProof. Purchases are completed on the brand's or retailer's own site.</p>
+      <p>Prices are collected automatically; check the price in the store before you buy.</p>
     </div>
+    <p class="pt-3 text-xs leading-5 text-[#858ca9]">WheyProof may earn a commission when you buy through links on this site. It never changes which deals we show or how we rank them.</p>
   </div>
 </footer>
 

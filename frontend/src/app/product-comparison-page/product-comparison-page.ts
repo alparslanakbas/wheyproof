@@ -1,7 +1,6 @@
-import { DOCUMENT, DecimalPipe, isPlatformServer } from '@angular/common';
+import { DOCUMENT, DecimalPipe, Location, isPlatformServer } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, PLATFORM_ID, RESPONSE_INIT, computed, inject, signal } from '@angular/core';
-import { Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -11,17 +10,25 @@ import { ComparisonService } from '../core/comparison.service';
 import { Deal } from '../core/deal.model';
 import { DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
-import { PROTEIN_REFERENCE_GRAMS, proteinRatioPercent, proteinReferenceCost } from '../core/value-metrics';
+import {
+  PROTEIN_REFERENCE_GRAMS,
+  pricePerServing,
+  proteinRatioPercent,
+  proteinReferenceCost,
+  servingsInPackage,
+} from '../core/value-metrics';
 import { PageMetaService } from '../core/page-meta.service';
+import { PricePipe } from '../core/price.pipe';
 import { PricePoint } from '../core/price-history.model';
 import { PriceHistoryService } from '../core/price-history.service';
 import { formatRelativeTime } from '../core/relative-time';
+import { SITE_NAME } from '../core/site-identity';
 import { slugify } from '../core/slugify';
 import { buildAreaPath, buildLinePath, toCoordinates } from '../core/spark-chart';
 import { SiteHeader } from '../site-header/site-header';
 import { showNotFound } from '../core/not-found-navigation';
 
-// Karşılaştırma grafiği — iki ürün için aynı ölçüler, yan yana okunabilsin.
+// Comparison chart: the same dimensions for both products so they read side by side.
 const CHART = { width: 320, height: 100, paddingY: 10 };
 const HISTORY_DAYS = 30;
 
@@ -30,24 +37,24 @@ interface ComparedProduct {
   points: PricePoint[];
   servings: number | null;
   pricePerServing: number | null;
-  // Porsiyonun yüzde kaçı protein ve sabit 25 g proteinin maliyeti —
-  // paket boyutundan arındırılmış, iki ürünü doğrudan kıyaslayan ölçüler
-  // (bkz. core/value-metrics.ts).
+  // Share of a serving that is protein, and the cost of a fixed amount of
+  // protein: measures free of package size that compare two products
+  // directly (see core/value-metrics.ts).
   proteinRatio: number | null;
   proteinCost: number | null;
 }
 
-// İki ürünü yan yana karşılaştıran sayfa. Verinin TAMAMI taze çekiliyor —
-// alt çubuktaki seçim yalnızca hangi ürünler olduğunu taşıyor, fiyat gibi
-// alanlar oradan okunmuyor (bayatlamış olabilir).
+// Two products side by side. ALL data is fetched fresh: the comparison bar
+// only carries which products were picked; fields like price aren't read
+// from it (they may be stale).
 //
-// SEO NOTU: bu sayfalar sitemap'e EKLENMİYOR. 600 üründen ~180 bin çift
-// çıkıyor; hepsini taranmaya sunmak, GSC'de zaten uğraştığımız "keşfedildi
-// ama indekslenmedi" sorununu büyütürdü. Paylaşılan linkler yine çalışıyor
-// ve sunucuda render ediliyor.
+// SEO NOTE: these pages are NOT in the sitemap. A few thousand products make
+// millions of pairs; offering all of them to crawlers would only grow the
+// "discovered, not indexed" pile. Shared links still work and render on the
+// server.
 @Component({
   selector: 'app-product-comparison-page',
-  imports: [DecimalPipe, RouterLink, SiteHeader],
+  imports: [PricePipe, DecimalPipe, RouterLink, SiteHeader],
   templateUrl: './product-comparison-page.html',
 })
 export class ProductComparisonPage implements OnInit {
@@ -70,22 +77,20 @@ export class ProductComparisonPage implements OnInit {
   protected readonly chart = CHART;
   protected readonly historyDays = HISTORY_DAYS;
 
-  // İki üründen hangisinin daha ucuz olduğu gibi karşılaştırmalar; eşitse
-  // hiçbiri vurgulanmıyor.
+  // Which of the two is better on each measure; a tie highlights neither.
   protected readonly cheaperIndex = computed(() => this.betterIndex((p) => p.deal.currentPrice, 'min'));
   protected readonly cheaperPerServingIndex = computed(() =>
     this.betterIndex((p) => p.pricePerServing, 'min'),
   );
   protected readonly biggerPackageIndex = computed(() => this.betterIndex((p) => p.servings, 'max'));
-  // Protein oranında YÜKSEK, sabit protein maliyetinde DÜŞÜK olan iyidir.
+  // A HIGHER protein ratio and a LOWER fixed-protein cost are better.
   protected readonly denserProteinIndex = computed(() => this.betterIndex((p) => p.proteinRatio, 'max'));
   protected readonly cheaperProteinIndex = computed(() => this.betterIndex((p) => p.proteinCost, 'min'));
   protected readonly proteinReferenceGrams = PROTEIN_REFERENCE_GRAMS;
 
-  // Her iki ürünün besin değeri tablosunu (varsa) tek bir satır listesine
-  // birleştiriyor — sıra, A ürününün kendi tablosundaki sırayı korur, B'de
-  // olup A'da olmayan satırlar sona ekleniyor. Bir markanın vermediği satır
-  // (JSON'da hiç yoksa) "—" gösteriyor, uydurma yok.
+  // Merges both products' nutrition tables (when present) into one row list:
+  // product A's own order is kept, rows only B has are appended. A row a
+  // brand doesn't provide shows "—"; nothing is invented.
   protected readonly nutritionRows = computed(() => {
     const list = this.products();
     if (list.length < 2) return [];
@@ -137,7 +142,7 @@ export class ProductComparisonPage implements OnInit {
   }
 
   protected productLink(deal: Deal): string[] {
-    return ['/urun', String(deal.productId), slugify(deal.productName)];
+    return ['/product', String(deal.productId), slugify(deal.productName)];
   }
 
   protected categoryLabel(slug: string | null): string {
@@ -153,9 +158,9 @@ export class ProductComparisonPage implements OnInit {
     return this.priceHistoryService.goToStoreUrl(deal.productId, deal.storeUrl);
   }
 
-  /** Mağaza tıklamasını sayar; bağlantı doğrudan mağazaya gittiği için
-   *  sayacı artık /go/{id} artıramıyor (bkz. PriceHistoryService). */
-  protected magazaTiklamasi(productId: number): void {
+  /** Counts the store click; the link goes straight to the store, so /go/{id}
+   *  can no longer count it (see PriceHistoryService). */
+  protected trackStoreClick(productId: number): void {
     this.priceHistoryService.trackStoreClick(productId);
   }
 
@@ -171,8 +176,8 @@ export class ProductComparisonPage implements OnInit {
     });
   }
 
-  // "29-vs-603" → [29, 603]. Geçersiz biçim null döner (sayfa ana sayfaya
-  // yönlenir; soft-404 yerine gerçek yönlendirme — projedeki yerleşik desen).
+  // "29-vs-603" → [29, 603]. An invalid shape returns null and shows the
+  // 404 page.
   private parsePair(pair: string | null): [number, number] | null {
     if (!pair) return null;
 
@@ -207,11 +212,10 @@ export class ProductComparisonPage implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.loading.set(false);
 
-        // Ürünlerden biri gerçekten yoksa (404) bu çift hiçbir zaman geçerli
-        // olmayacak — ana sayfaya yönlendiriyoruz. Geçici bir hataysa (ağ
-        // hatası, backend 5xx) 503 ile "sonra tekrar dene" diyoruz; kalıcı
-        // olmayan bir sorun için "artık yok" sinyali vermiyoruz.
-        // deals-list.ts'teki aynı ayrım.
+        // If one of the products really doesn't exist (404), this pair will
+        // never be valid. A temporary error (network, backend 5xx) gets a 503
+        // "try again later" instead: no "gone" signal for a passing problem.
+        // Same split as deals-list.ts.
         if (err.status === 404) {
           showNotFound(this.router);
           return;
@@ -223,76 +227,43 @@ export class ProductComparisonPage implements OnInit {
     });
   }
 
+  // Servings and price per serving come from the shared module, so the
+  // review page and this page can't disagree on the same product.
   private build(deal: Deal, points: PricePoint[]): ComparedProduct {
-    const servings = this.calculateServings(deal);
     return {
       deal,
       points,
-      servings,
-      pricePerServing: servings && servings >= 1 ? deal.currentPrice / servings : null,
+      servings: servingsInPackage(deal),
+      pricePerServing: pricePerServing(deal),
       proteinRatio: proteinRatioPercent(deal),
       proteinCost: proteinReferenceCost(deal),
     };
   }
 
-  // Backend'deki DealsQueryService.CalculateServings ile aynı öncelik:
-  // markanın doğrudan beyan ettiği servis sayısı varsa o, yoksa paket
-  // gramajı ÷ porsiyon büyüklüğü.
-  private calculateServings(deal: Deal): number | null {
-    if (deal.servingsPerPackage && deal.servingsPerPackage > 0) return deal.servingsPerPackage;
-
-    const packageGrams = this.parsePackageGrams(deal.size);
-    if (packageGrams && deal.servingSizeGrams && deal.servingSizeGrams > 0) {
-      return packageGrams / deal.servingSizeGrams;
-    }
-
-    return null;
-  }
-
-  private parsePackageGrams(size: string | null): number | null {
-    if (!size) return null;
-    const match = /^(\d+(?:[.,]\d+)?)\s*(Gr|Kg)$/i.exec(size.trim());
-    if (!match) return null;
-
-    const value = Number(match[1].replace(',', '.'));
-    if (!value) return null;
-
-    return match[2].toLowerCase() === 'kg' ? value * 1000 : value;
-  }
-
-
   /**
-   * Mağaza butonunun ikinci satırı — ürünü ayırt eden kısım.
+   * The store button's first line: the part that tells the products apart.
    *
-   * Buton eskiden yalnızca "{marka} mağazasına git" yazıyordu. Aynı markanın
-   * iki ürünü karşılaştırıldığında (mobilde kullanıcı bunu bildirdi:
-   * ProteinOcean vs ProteinOcean) yan yana BİREBİR AYNI iki buton çıkıyor ve
-   * hangisinin hangi ürüne gittiği anlaşılmıyordu.
-   *
-   * Butonun ALT satırı "{marka} mağazasına git" olarak duruyor (eylem
-   * kaybolmamalı); bu metin ÜST satırda, küçük ve soluk gösteriliyor.
-   *
-   * Ayırt edici olarak boyut/aroma tercih ediliyor (kısa ve tam da iki ürünü
-   * ayıran şey); ikisi de yoksa ürün adına düşülüyor.
+   * With only "Go to {brand}" on it, comparing two products from the same
+   * brand showed two IDENTICAL buttons side by side, and it was unclear which
+   * went where. The action stays on the second line; this text sits above
+   * it, small and muted. Size/flavor is preferred (short, and exactly what
+   * separates the two); without either it falls back to the product name.
    */
-  protected magazaButonEtiketi(deal: Deal): string {
-    const ayirtEdici = [deal.size, deal.flavor].filter(Boolean).join(' · ');
-    return ayirtEdici || displayName(deal.productName);
+  protected storeButtonLabel(deal: Deal): string {
+    const distinguishing = [deal.size, deal.flavor].filter(Boolean).join(' · ');
+    return distinguishing || displayName(deal.productName);
   }
 
   /**
-   * "Karşılaştırmayı temizle".
+   * "Clear comparison".
    *
-   * Eskiden yalnızca `comparison.clear()` çağrılıyordu ve kullanıcı için
-   * HİÇBİR ŞEY OLMUYORDU: bu sayfa ürünleri servisten değil ROTA
-   * PARAMETRESİNDEN yüklüyor, dolayısıyla seçim temizlense de ekran aynı
-   * kalıyordu. Kullanıcı bunu "aksiyon yok" diye bildirdi.
-   *
-   * Seçim temizlendikten sonra sayfanın kendisi de anlamsızlaşıyor; geldiği
-   * yere dönülüyor. Doğrudan bu adresle gelinmişse (paylaşılan link) geri
-   * gidilecek bir yer olmadığı için ana sayfaya alınıyor.
+   * Calling only `comparison.clear()` did nothing visible: this page loads
+   * its products from the ROUTE, not the service, so the screen stayed the
+   * same. Once the selection is cleared the page itself is pointless, so it
+   * goes back where the visitor came from, or to the home page when the link
+   * was opened directly and there's nowhere to go back to.
    */
-  protected karsilastirmayiTemizle(): void {
+  protected clearComparison(): void {
     this.comparison.clear();
 
     if (this.location.getState() && window.history.length > 1) {
@@ -306,11 +277,11 @@ export class ProductComparisonPage implements OnInit {
   private setMeta(a: Deal, b: Deal): void {
     const nameA = displayName(a.productName);
     const nameB = displayName(b.productName);
-    const title = `${nameA} vs ${nameB} — Fiyat Karşılaştırması | ProteinAvcısı`;
+    const title = `${nameA} vs ${nameB}: Price Comparison | ${SITE_NAME}`;
     this.pageMeta.set({
       title,
-      description: `${a.brandName} ${nameA} ile ${b.brandName} ${nameB} ürünlerini güncel fiyat, servis başı maliyet ve 30 günlük fiyat geçmişiyle yan yana karşılaştır.`,
-      canonicalPath: `/karsilastir-urun/${ComparisonService.pairSlug(a.productId, b.productId)}`,
+      description: `Compare ${a.brandName} ${nameA} and ${b.brandName} ${nameB} side by side: current price, cost per serving and 30-day price history.`,
+      canonicalPath: `/compare-products/${ComparisonService.pairSlug(a.productId, b.productId)}`,
     });
   }
 }

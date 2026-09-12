@@ -1,27 +1,19 @@
 import { slugify } from './slugify';
 
 /**
- * Marka adını adres parçasına çevirir.
+ * Turns a brand name into a URL segment.
  *
- * Marka adları boşluk içerebiliyor ("Torq Nutrition"); ad doğrudan adrese
- * konulunca sitemap'e `%20` taşıyan adresler giriyordu. Boşluk yerine tire
- * kullanmak hem alışılmış hem de okunur bir adres veriyor.
- *
- * Ürün adreslerinde kullanılan slugify'ın aynısı: Türkçe karakterler de
- * çevriliyor, "Yeşilmarka" adresi "yesilmarka" oluyor. Mevcut dört markanın
- * adresi değişmiyor (zaten tek kelime ve ASCII), yani dizindeki adresler
- * etkilenmiyor.
+ * Brand names can contain spaces ("Transparent Labs"); put into the address
+ * as-is, they put `%20` addresses into the sitemap. Dashes give a familiar,
+ * readable address. Same slugify as product addresses.
  */
 export function brandSlug(brandName: string): string {
   return slugify(brandName);
 }
 
 /**
- * Adres parçasından gerçek marka adını bulur.
- *
- * Geriye dönük uyumluluk: tire yerine boşluk taşıyan eski adresler
- * (`torq nutrition-vs-...`) hâlâ çözülüyor — o adresler bir süre sitemap'te
- * yer aldı, kırılmamalılar.
+ * Finds the real brand name from a URL segment. Old addresses with spaces
+ * instead of dashes (`transparent labs-vs-...`) still resolve.
  */
 export function resolveBrandFromSlug(slug: string, brands: readonly string[]): string | null {
   const normalized = brandSlug(slug);

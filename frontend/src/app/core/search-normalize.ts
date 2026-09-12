@@ -1,78 +1,48 @@
-// Arama kutusundaki metni karşılaştırmaya hazırlar.
+// Prepares search box text for comparison.
 //
-// NEDEN AYRI BİR DOSYA: markalar dizinindeki arama, metni
-// `toLocaleLowerCase('tr-TR')` ile küçültüyordu ve bu, büyük ASCII "I"yı
-// NOKTASIZ "ı"ya çeviriyor: "HIQ" -> "hıq", "Imperium" -> "ımperium".
-// Kullanıcı doğal olarak küçük harfle "hiq" yazdığında arama 0 sonuç
-// veriyordu; ürün yalnızca "HIQ" diye büyük yazılınca bulunuyordu.
-// Bu, depoda daha önce iki kez yaşanan hatanın aynısı (bkz. `c59acb3`:
-// backend'de `.ToLower()` invariant kültürde "İ"yi küçültmüyordu ve
-// "VİTAMİN" araması 0 sonuç veriyordu).
+// Accents are stripped (NFD, then combining marks removed) so "acai" finds
+// "Açaí" and vice versa. Dotless "ı" does not decompose under NFD, so it is
+// mapped by hand. Lower-casing uses the culture-independent toLowerCase():
+// a locale-aware one turned "I" into "ı" under tr-TR on the Turkish site, and
+// "hiq" stopped matching "HIQ".
 //
-// YAKLAŞIM `slugify.ts` ile AYNI: locale'e bağlı küçültmeye hiç güvenilmiyor,
-// Türkçe'ye özgü harfler ELLE eşleniyor, sonra kalan düz ASCII için
-// culture-bağımsız `toLowerCase()` kullanılıyor.
-//
-// slugify DOĞRUDAN KULLANILAMADI: o fonksiyon slug'ı 80 karakterde kırpıyor
-// (URL için doğru), oysa buradaki aranabilir metin marka adı + tüm kategori
-// etiketlerinden oluşuyor ve rahatlıkla 80 karakteri aşıyor — kırpılsaydı
-// sondaki kategoriler aranamaz hâle gelirdi.
-const TURKCE_HARF_ESLEMESI: Record<string, string> = {
-  ç: 'c',
-  Ç: 'c',
-  ğ: 'g',
-  Ğ: 'g',
-  ı: 'i',
-  İ: 'i',
-  ö: 'o',
-  Ö: 'o',
-  ş: 's',
-  Ş: 's',
-  ü: 'u',
-  Ü: 'u',
-};
-
-/**
- * Türkçe harfleri ASCII karşılıklarına indirger, küçültür ve ardışık
- * boşlukları teke düşürür.
- *
- * Aynı dönüşüm hem aranan metne hem aranacak metne uygulandığı için iki
- * taraf her yazımda buluşuyor: "hiq" / "HIQ" / "Hiq" aynı sonucu verir,
- * "fit carsi" yazarak "Fit Çarşı" bulunur.
- */
+// slugify can't be reused: it cuts at 80 characters (right for a URL), while
+// the searchable text here is a brand name plus all its category labels and
+// easily longer; the trailing categories would become unsearchable.
 export function normalizeSearchText(value: string): string {
   return value
-    .replace(/[çÇğĞıİöÖşŞüÜ]/g, (ch) => TURKCE_HARF_ESLEMESI[ch] ?? ch)
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/ı/g, 'i')
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 /**
- * Aranan metin, hedef metinle eşleşiyor mu?
+ * Does the query match the target text?
  *
- * <b>NEDEN DÜZ `includes` YETMİYOR.</b> Marka adları boşluk konusunda tutarsız
- * yazılıyor: "ProteinOcean" bitişik, "Swiss Nutrition" ayrık. Kullanıcı
- * "protein ocean" yazdığında hiçbir sonuç çıkmıyordu, çünkü "proteinocean"
- * içinde "protein ocean" geçmiyor. Kullanıcı bunu bildirdi: "diğer markaları
- * buluyor ama ProteinOcean'ı bulmuyor".
+ * <b>WHY PLAIN `includes` IS NOT ENOUGH.</b> Brand names are inconsistent
+ * about spaces: "BulkSupplements" is one word, "Transparent Labs" two. A
+ * search for "bulk supplements" found nothing, because "bulksupplements"
+ * doesn't contain "bulk supplements".
  *
- * İki yönlü çözüm — biri tutarsa eşleşiyor:
- * 1. <b>Kelime kelime:</b> aranan metnin HER kelimesi hedefte geçiyorsa.
- *    "protein ocean" -> "protein" ✓ ve "ocean" ✓ -> ProteinOcean bulunur.
- *    Sıra da önemsizleşir: "nutrition swiss" -> Swiss Nutrition.
- * 2. <b>Boşluksuz:</b> iki taraftan da boşluklar atılıp karşılaştırılır.
- *    "swissnutrition" -> "swissnutrition" ✓ -> Swiss Nutrition bulunur.
+ * Either of two rules matches:
+ * 1. <b>Word by word:</b> EVERY word of the query appears in the target.
+ *    "bulk supplements" -> "bulk" ✓ and "supplements" ✓. Order stops
+ *    mattering too: "labs transparent" -> Transparent Labs.
+ * 2. <b>Without spaces:</b> both sides compared with spaces removed.
+ *    "transparentlabs" -> Transparent Labs.
  *
- * Ürün aramasındaki (backend) mantıkla aynı ruhta: kelimeler arası AND.
+ * Same spirit as the backend product search: AND between words.
  */
 export function matchesSearch(searchable: string, query: string): boolean {
-  const hedef = normalizeSearchText(searchable);
-  const aranan = normalizeSearchText(query);
-  if (!aranan) return true;
+  const target = normalizeSearchText(searchable);
+  const needle = normalizeSearchText(query);
+  if (!needle) return true;
 
-  const kelimeler = aranan.split(' ').filter(Boolean);
-  if (kelimeler.every((kelime) => hedef.includes(kelime))) return true;
+  const words = needle.split(' ').filter(Boolean);
+  if (words.every((word) => target.includes(word))) return true;
 
-  return hedef.replace(/ /g, '').includes(aranan.replace(/ /g, ''));
+  return target.replace(/ /g, '').includes(needle.replace(/ /g, ''));
 }

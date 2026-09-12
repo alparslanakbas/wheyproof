@@ -1,48 +1,45 @@
+import { MARKET } from './market';
 import { PricePoint } from './price-history.model';
 
 /**
- * Fiyat grafiğindeki fare/dokunma etkileşiminin paylaşılan mantığı.
+ * Shared logic for mouse/touch interaction on price charts.
  *
- * NEDEN AYRI DOSYA: bu hesaplar (en yakın nokta bulma, kenarda tooltip
- * hizalama, aynı gün içindeki noktaların etiketi) ürün modalında ÜÇ ayrı
- * üretim hatasına yol açtı — tekrar eden eksen etiketleri, kenardaki
- * tooltip'in kırpılması, aynı gün/aynı fiyat noktalarının hover'da
- * tekrarlaması. İnceleme sayfasına da grafik eklenirken bu mantığı
- * kopyalamak, aynı hataların bir kopyada geri gelmesini garanti ederdi.
+ * WHY A SEPARATE FILE: these calculations (nearest point, edge alignment of
+ * the tooltip, labels for points on the same day) caused THREE production
+ * bugs in the product modal: repeated axis labels, a clipped tooltip at the
+ * edge, and repeated same-day/same-price points on hover. Copying them into
+ * the review page's chart would have brought the same bugs back in a copy.
  *
- * Grafik ölçüleri parametre: modal 600×220 ızgaralı, inceleme sayfası daha
- * sade ve alçak. Ortak olan matematik, farklı olan görünüm.
+ * Chart dimensions are parameters: the modal is 600×220 with a grid, the
+ * review page lower and plainer. The math is shared, the look is not.
  */
 
-// timeZone sabit Europe/Istanbul — kullanıcının cihaz saat dilimine
-// bırakılırsa aynı an farklı ziyaretçilere farklı "gün" gösterebilirdi.
-// Site yalnızca TR pazarına hizmet ediyor.
-const TZ = 'Europe/Istanbul';
-
-const dayFormatter = new Intl.DateTimeFormat('tr-TR', {
-  day: '2-digit',
-  month: '2-digit',
+// A fixed zone (MARKET.timeZone) rather than the device zone, or the same
+// moment could show a different "day" to different visitors.
+const dayFormatter = new Intl.DateTimeFormat(MARKET.locale, {
+  month: 'short',
+  day: 'numeric',
   year: 'numeric',
-  timeZone: TZ,
+  timeZone: MARKET.timeZone,
 });
 
-// Aynı gün içinde fiyat gerçekten değiştiyse yalnızca tarih yetersiz kalıyor;
-// o durumda saat de ekleniyor ki hangi anda değiştiği görünsün.
-const dayTimeFormatter = new Intl.DateTimeFormat('tr-TR', {
-  day: '2-digit',
-  month: '2-digit',
+// When the price really changed within a day, the date alone is not enough;
+// the time shows when it changed.
+const dayTimeFormatter = new Intl.DateTimeFormat(MARKET.locale, {
+  month: 'short',
+  day: 'numeric',
   year: 'numeric',
-  hour: '2-digit',
+  hour: 'numeric',
   minute: '2-digit',
-  timeZone: TZ,
+  timeZone: MARKET.timeZone,
 });
 
 export type HoverAlign = 'left' | 'center' | 'right';
 
 /**
- * İmlecin ekran koordinatından en yakın veri noktasının indeksini bulur.
- * SVG `preserveAspectRatio="none"` ile esnediği için ekran genişliğinden
- * viewBox genişliğine ölçekleme şart.
+ * Index of the data point nearest to the pointer's screen coordinate. The SVG
+ * stretches with `preserveAspectRatio="none"`, so screen width has to be
+ * scaled to the viewBox width.
  */
 export function nearestPointIndex(
   svg: SVGSVGElement,
@@ -70,8 +67,8 @@ export function nearestPointIndex(
 }
 
 /**
- * Tooltip hizalaması. Kenara yakınken ortalı hizalama tooltip'in yarısını
- * taşırıp kırpılmasına yol açıyordu — kenara yakınsa o yöne yaslıyoruz.
+ * Tooltip alignment. Centered near an edge, half the tooltip overflowed and
+ * was clipped, so near an edge it leans that way.
  */
 export function hoverAlign(x: number, viewBoxWidth: number): HoverAlign {
   if (x < viewBoxWidth * 0.12) return 'left';
@@ -79,7 +76,7 @@ export function hoverAlign(x: number, viewBoxWidth: number): HoverAlign {
   return 'center';
 }
 
-/** Tooltip'te gösterilecek tarih; aynı güne ait birden fazla nokta varsa saat de eklenir. */
+/** Tooltip date; adds the time when several points fall on the same day. */
 export function tooltipDateLabel(points: readonly PricePoint[], idx: number): string {
   const point = points[idx];
   if (!point) return '';
@@ -92,12 +89,11 @@ export function tooltipDateLabel(points: readonly PricePoint[], idx: number): st
 }
 
 /**
- * Aynı gün + aynı fiyat olan ardışık noktaları teke indirir.
+ * Collapses consecutive points with the same day and the same price.
  *
- * Tarama günde birkaç kez çalıştığı için fiyat hiç değişmese bile aynı güne
- * ait çok sayıda nokta birikiyor; hover bunların her birine ayrı ayrı
- * yapışınca kullanıcı art arda aynı tarihi görüyordu. Fiyat o gün içinde
- * gerçekten değiştiyse iki nokta da korunuyor.
+ * Prices are checked several times a day, so an unchanged price piles up many
+ * points per day, and hovering showed the same date over and over. A price
+ * that really changed within the day keeps both points.
  */
 export function dedupeSameDaySamePrice(points: readonly PricePoint[]): PricePoint[] {
   const result: PricePoint[] = [];

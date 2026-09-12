@@ -125,7 +125,7 @@
   padding: 7px;
 }
 
-/* Açık renk + şeffaf logolar açık dairede kayboluyordu — bkz. brand-logo.ts */
+/* Light, transparent logos disappear on a light circle; see brand-logo.ts */
 .pa-brand-tile-logo.is-dark-backdrop,
 .pa-brand-preview-logo.is-dark-backdrop {
   border-color: #23242c;

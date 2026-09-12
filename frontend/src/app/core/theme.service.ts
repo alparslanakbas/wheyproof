@@ -11,8 +11,9 @@ export class ThemeService {
 
   readonly preference = signal<ThemePreference>(this.readStoredPreference());
 
-  // SSR'da window/matchMedia yok — sunucuda her zaman "koyu değil" varsayıyoruz,
-  // istemci hydrate olunca gerçek sistem tercihiyle düzeltiliyor.
+  // There is no window/matchMedia in SSR: the server always assumes "not
+  // dark", and the client corrects it with the real system preference on
+  // hydration.
   private readonly systemPrefersDark = this.isBrowser ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
   constructor() {

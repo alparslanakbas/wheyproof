@@ -1,5 +1,7 @@
 import { Deal } from './deal.model';
 import { CATEGORY_LABELS } from './category-labels';
+import { MARKET, formatPrice } from './market';
+import { SITE_NAME } from './site-identity';
 import {
   PROTEIN_REFERENCE_GRAMS,
   pricePerServing,
@@ -9,84 +11,72 @@ import {
 } from './value-metrics';
 
 /**
- * Ürün sayfalarında gösterilen "bizim ölçtüğümüz" bilgi listesi.
+ * The "what we measured" list on product pages.
  *
- * Neden var: daha önce bu alanda markanın kendi sitesinden çektiğimiz
- * açıklama metni birebir yayınlanıyordu. Metni ÇEKMEYE devam ediyoruz
- * (porsiyon ve besin değeri çıkarımı ona dayanıyor) ama artık
- * göstermiyoruz — başkasının pazarlama metnini olduğu gibi yeniden
- * yayınlamak hem bize ait olmayan bir içerik hem de arama motorlarının
- * "kopyalanmış içerik" saydığı bir kalıp.
+ * Why: the store's own description used to be published here word for word.
+ * We still COLLECT it (serving and nutrition extraction rely on it) but no
+ * longer show it: republishing someone else's marketing copy is content that
+ * isn't ours and a pattern search engines treat as duplicate content.
  *
- * Yerine geçen bu liste tamamen kendi verimizden türüyor: fiyat geçmişi,
- * paket başına servis, servis maliyeti, protein yoğunluğu. Hiçbiri
- * tahmin değil — bir alan hesaplanamıyorsa satır hiç üretilmiyor,
- * uydurma bir değer yazılmıyor.
+ * This list comes entirely from our own data: price history, servings per
+ * package, cost per serving, protein density. Nothing is estimated; a value
+ * that can't be calculated produces no row at all.
  */
 export interface ProductFact {
   label: string;
   value: string;
 }
 
-const priceFormatter = new Intl.NumberFormat('tr-TR', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const ratingFormatter = new Intl.NumberFormat('tr-TR', {
+const ratingFormatter = new Intl.NumberFormat(MARKET.locale, {
   minimumFractionDigits: 1,
   maximumFractionDigits: 2,
 });
 
-function formatPrice(value: number): string {
-  return `${priceFormatter.format(value)} ₺`;
-}
-
 /**
- * @param discountEventCount Seçili dönemde ölçülen gerçek fiyat düşüşü
- *   sayısı. Fiyat geçmişi elde olmayan çağrılarda (kart, liste) verilmez.
+ * @param discountEventCount Real price drops measured in the selected period.
+ *   Not given where no price history is loaded (cards, lists).
  */
 export function buildProductFacts(deal: Deal, discountEventCount?: number): ProductFact[] {
   const facts: ProductFact[] = [];
 
   if (deal.category) {
     facts.push({
-      label: 'Kategori',
+      label: 'Category',
       value: CATEGORY_LABELS[deal.category] ?? deal.category,
     });
   }
 
   if (deal.size) {
-    facts.push({ label: 'Paket', value: deal.size });
+    facts.push({ label: 'Package', value: deal.size });
   }
 
   const servings = servingsInPackage(deal);
   if (servings !== null) {
     const source =
       deal.servingsPerPackage !== null
-        ? `${deal.brandName} beyanı`
-        : `${deal.size} ÷ ${deal.servingSizeGrams} g porsiyon`;
-    // Paket ağırlığı ÷ porsiyon nadiren tam sayı çıkıyor (2 Kg ÷ 30 g gibi);
-    // ondalıklı ham değeri basmak yerine yuvarlayıp "yaklaşık" diyoruz.
+        ? `stated by ${deal.brandName}`
+        : `${deal.size} ÷ ${deal.servingSizeGrams} g serving`;
+    // Package weight ÷ serving is rarely a whole number (5 lb ÷ 31 g); it is
+    // rounded and called "about" instead of printing the raw decimal.
     const isExact = Number.isInteger(servings);
     facts.push({
-      label: 'Paketten çıkan servis',
-      value: `${isExact ? '' : 'yaklaşık '}${Math.round(servings)} servis (${source})`,
+      label: 'Servings per package',
+      value: `${isExact ? '' : 'about '}${Math.round(servings)} servings (${source})`,
     });
   }
 
   if (deal.servingSizeGrams !== null) {
-    facts.push({ label: 'Porsiyon', value: `${deal.servingSizeGrams} g` });
+    facts.push({ label: 'Serving size', value: `${deal.servingSizeGrams} g` });
   }
 
   const perServing = pricePerServing(deal);
   if (perServing !== null) {
-    facts.push({ label: 'Servis başına maliyet', value: formatPrice(perServing) });
+    facts.push({ label: 'Cost per serving', value: formatPrice(perServing) });
   }
 
   if (deal.proteinPerServingGrams !== null) {
     facts.push({
-      label: 'Porsiyon başına protein',
+      label: 'Protein per serving',
       value: `${deal.proteinPerServingGrams} g`,
     });
   }
@@ -94,87 +84,83 @@ export function buildProductFacts(deal: Deal, discountEventCount?: number): Prod
   const ratio = proteinRatioPercent(deal);
   if (ratio !== null) {
     facts.push({
-      label: 'Protein yoğunluğu',
-      value: `%${ratio} (porsiyonun ne kadarı protein)`,
+      label: 'Protein density',
+      value: `${ratio}% (how much of a serving is protein)`,
     });
   }
 
   const referenceCost = proteinReferenceCost(deal);
   if (referenceCost !== null) {
     facts.push({
-      label: `${PROTEIN_REFERENCE_GRAMS} g protein maliyeti`,
+      label: `Cost of ${PROTEIN_REFERENCE_GRAMS} g of protein`,
       value: formatPrice(referenceCost),
     });
   }
 
   facts.push({
-    label: 'Bizim ölçtüğümüz referans fiyat',
+    label: 'Reference price we measured',
     value:
       deal.referencePrice > deal.currentPrice
-        ? `${formatPrice(deal.referencePrice)} — güncel fiyat bunun %${deal.discountPercent} altında`
-        : `${formatPrice(deal.referencePrice)} — güncel fiyat referansla aynı seviyede`,
+        ? `${formatPrice(deal.referencePrice)} — the current price is ${deal.discountPercent}% below it`
+        : `${formatPrice(deal.referencePrice)} — the current price is at the reference level`,
   });
 
   if (deal.isAtThirtyDayLow) {
     facts.push({
-      label: '30 günlük seyir',
-      value: 'Güncel fiyat, son 30 günde ölçtüğümüz en düşük seviyede',
+      label: '30-day trend',
+      value: 'The current price is the lowest we measured in the last 30 days',
     });
   }
 
   if (discountEventCount !== undefined && discountEventCount > 0) {
     facts.push({
-      label: 'Ölçülen fiyat düşüşü',
-      value: `${discountEventCount} kez`,
+      label: 'Price drops measured',
+      value: discountEventCount === 1 ? 'once' : `${discountEventCount} times`,
     });
   }
 
-  // Markanın kendi sitesindeki müşteri puanı. Bizim ölçümümüz değil, bu
-  // yüzden etiketi markanın adıyla başlıyor — hemen aşağıdaki mağaza
-  // indirimi satırıyla aynı "markanın beyanı" grubunda.
+  // The customer rating on the store's own site. Not our measurement, so the
+  // label starts with the store's name, in the same "the store's claim" group
+  // as the store sale row below.
   if (deal.ratingValue !== null && deal.ratingCount !== null) {
     facts.push({
-      label: `${deal.brandName} sitesindeki müşteri puanı`,
-      value: `5 üzerinden ${ratingFormatter.format(deal.ratingValue)} (${deal.ratingCount} değerlendirme)`,
+      label: `Customer rating on ${deal.seller ?? deal.brandName}`,
+      value: `${ratingFormatter.format(deal.ratingValue)} out of 5 (${deal.ratingCount} reviews)`,
     });
   }
 
   if (deal.storeOldPrice !== null && deal.storeDiscountPercent !== null) {
     facts.push({
-      label: `${deal.brandName} kendi sitesinde ne diyor`,
-      value: `Eski fiyat ${formatPrice(deal.storeOldPrice)}, %${deal.storeDiscountPercent} indirim (markanın beyanı, bizim doğrulamamız değil)`,
+      label: `What ${deal.seller ?? deal.brandName} shows on its own site`,
+      value: `Was ${formatPrice(deal.storeOldPrice)}, ${deal.storeDiscountPercent}% off (the store's claim, not our verification)`,
     });
   }
 
   if (deal.flavor) {
-    facts.push({ label: 'Aroma', value: deal.flavor });
+    facts.push({ label: 'Flavor', value: deal.flavor });
   }
 
-  // Satıcı yalnızca bayi kaynaklarında dolu. Markanın kendi sitesinden
-  // gelen ürünlerde null ve satır hiç üretilmiyor — orada "Satıcı: HIQ"
-  // demek gereksiz gürültü olurdu.
+  // The seller is only set for retailer sources. On the brand's own store it
+  // is null and no row is produced; "Seller: Nutricost" would be noise.
   if (deal.seller) {
     facts.push({
-      label: 'Satıcı',
-      value: `${deal.brandName} ürünü, ${deal.seller} üzerinden satılıyor.`,
+      label: 'Seller',
+      value: `A ${deal.brandName} product sold by ${deal.seller}.`,
     });
   }
 
-  // Yalnızca stok bilgisi VEREN kaynaklarda gösteriliyor. `=== false`
-  // kontrolü zorunlu: null "bu kaynak stok bilgisi vermiyor" demek, "stokta
-  // yok" değil.
+  // Only for sources that REPORT stock. `=== false` is required: null means
+  // "this source doesn't report stock", not "out of stock".
   //
-  // Stokta olmayan ürün listeden çıkarılmıyor — fiyat geçmişi kesintisiz
-  // kalsın diye taranmaya devam ediyor — ama kullanıcı boşuna mağazaya
-  // gitmesin diye burada açıkça söyleniyor.
+  // An out-of-stock product stays in the list so its price history continues,
+  // but it is said plainly here so nobody visits the store for nothing.
   if (deal.inStock === false) {
-    // Tükenen yer SATICININ mağazası. Bayi ürünlerinde marka ile satıcı
-    // farklı: "BigJoy sitesinde tükenmişti" demek yanlış olurdu, ürün
-    // protein7'de tükenmiş olabilir ama BigJoy'un kendi sitesinde durabilir.
-    const magaza = deal.seller ?? deal.brandName;
+    // Stock runs out at the SELLER's store. For a retailer listing, the brand
+    // may still have it on its own site.
+    const store = deal.seller ?? deal.brandName;
     facts.push({
-      label: 'Stok durumu',
-      value: `Son kontrolümüzde ${magaza} sitesinde tükenmişti. Fiyatını izlemeye devam ediyoruz.`,
+      label: 'Stock',
+      value: `Out of stock on ${store} at our last check. We keep tracking its price.`,
     });
   }
 
@@ -182,12 +168,9 @@ export function buildProductFacts(deal: Deal, discountEventCount?: number): Prod
 }
 
 /**
- * Ürün sayfasının schema.org `description` alanı.
- *
- * Google Search Console "description alanı eksik" uyarısı veriyordu. Metin
- * markanın tanıtım yazısından DEĞİL, kendi ölçümlerimizden kuruluyor —
- * başkasının pazarlama metnini yeniden yayınlamama kararıyla tutarlı
- * (bkz. yukarıdaki not). Her üründe farklı çıkıyor çünkü sayılar farklı.
+ * The product page's schema.org `description`. Built from our own
+ * measurements, NOT the store's copy (see above). It differs per product
+ * because the numbers do.
  */
 export function buildProductJsonLdDescription(deal: Deal): string {
   const parts: string[] = [];
@@ -195,20 +178,20 @@ export function buildProductJsonLdDescription(deal: Deal): string {
   const category = deal.category ? (CATEGORY_LABELS[deal.category] ?? deal.category) : null;
   parts.push(
     category
-      ? `${deal.brandName} markasının ${category} kategorisindeki ürünü.`
-      : `${deal.brandName} markasının ürünü.`,
+      ? `A ${category.toLowerCase()} product by ${deal.brandName}.`
+      : `A product by ${deal.brandName}.`,
   );
 
-  if (deal.size) parts.push(`Paket: ${deal.size}.`);
-  if (deal.servingSizeGrams !== null) parts.push(`Porsiyon: ${deal.servingSizeGrams} g.`);
+  if (deal.size) parts.push(`Package: ${deal.size}.`);
+  if (deal.servingSizeGrams !== null) parts.push(`Serving size: ${deal.servingSizeGrams} g.`);
   if (deal.proteinPerServingGrams !== null) {
-    parts.push(`Porsiyon başına ${deal.proteinPerServingGrams} g protein.`);
+    parts.push(`${deal.proteinPerServingGrams} g of protein per serving.`);
   }
 
   const perServing = pricePerServing(deal);
-  if (perServing !== null) parts.push(`Servis başına ${formatPrice(perServing)}.`);
+  if (perServing !== null) parts.push(`${formatPrice(perServing)} per serving.`);
 
-  parts.push('Fiyat geçmişi ProteinAvcısı tarafından düzenli olarak ölçülüyor.');
+  parts.push(`Price history is measured regularly by ${SITE_NAME}.`);
 
   return parts.join(' ');
 }

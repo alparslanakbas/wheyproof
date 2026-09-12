@@ -1,3 +1,6 @@
+import { formatPrice } from './market';
+import { SITE_NAME } from './site-identity';
+
 export interface ProductDescriptionInput {
   displayName: string;
   brandName: string;
@@ -6,32 +9,26 @@ export interface ProductDescriptionInput {
   description: string | null | undefined;
 }
 
-// Arama sonucunda görünen açıklama. Önceden yalnızca fiyat cümlesinden
-// ibaretti; artık 500'den fazla üründe markanın kendi açıklama metni
-// veritabanında olduğu için ürünün NE OLDUĞUNU söyleyen bir cümle öne
-// alınıyor, fiyat arkasına ekleniyor.
-//
-// Ham metin doğrudan kullanılamıyor: her markanın kendine özgü bir gürültüsü
-// var (HIQ "Açıklama:" önekiyle, Hardline "... NEDİR ?:" başlığıyla, SSN ürün
-// adını tekrarlayarak başlıyor; hepsinde sert boşluk karakterleri geçiyor).
-// Aşağıdaki temizlik bu üç kalıba karşı gerçek üretim verisiyle denendi.
+// Search result description. It opens with a sentence saying WHAT the product
+// is, taken from the store's own description when there is one, and adds the
+// price after it.
 export function buildProductDescription(input: ProductDescriptionInput): string {
   const intro = extractIntro(input.description, input.displayName);
 
   if (!intro) {
-    // Açıklaması olmayan ürünlerde eski şablon aynen kalıyor — boş bırakmıyoruz.
+    // Products without a description keep a price template; never empty.
     return input.discountPercent > 0
-      ? `${input.displayName} şu an ${input.priceText} — ${input.brandName} markasında %${formatDiscountPercent(input.discountPercent)} doğrulanmış indirim. Fiyat geçmişini ProteinAvcısı'nda takip et.`
-      : `${input.displayName} güncel fiyatı ${input.priceText}. ${input.brandName} markasının fiyat geçmişini ProteinAvcısı'nda takip et.`;
+      ? `${input.displayName} is ${input.priceText} now, a verified ${formatDiscountPercent(input.discountPercent)}% drop at ${input.brandName}. Track its price history on ${SITE_NAME}.`
+      : `${input.displayName} costs ${input.priceText} today. Track ${input.brandName} price history on ${SITE_NAME}.`;
   }
 
   const priceSentence = input.discountPercent > 0
-    ? `${input.priceText}, %${formatDiscountPercent(input.discountPercent)} doğrulanmış indirim.`
-    : `Güncel fiyatı ${input.priceText}.`;
+    ? `${input.priceText}, a verified ${formatDiscountPercent(input.discountPercent)}% drop.`
+    : `Now ${input.priceText}.`;
 
-  const full = `${intro} ${priceSentence} Fiyat geçmişi ProteinAvcısı'nda.`;
-  // Google açıklamayı ~160 karakterde kesiyor; sığmıyorsa marka kuyruğunu
-  // atıyoruz, çünkü ürünün ne olduğu ve fiyatı daha değerli.
+  const full = `${intro} ${priceSentence} Price history on ${SITE_NAME}.`;
+  // Google cuts descriptions around 160 characters; if it does not fit, the
+  // site tail goes first, because what the product is and its price matter more.
   return full.length > 165 ? `${intro} ${priceSentence}` : full;
 }
 
@@ -40,39 +37,32 @@ const LEADING_PUNCTUATION = /^[\s:：.,;·–—-]+/;
 function extractIntro(raw: string | null | undefined, productName: string): string | null {
   if (!raw) return null;
 
-  // Sert boşluk (U+00A0) üç markanın metninde de geçiyor.
-  let text = raw.replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+  // Non-breaking spaces (U+00A0) are common in store copy.
+  let text = raw.replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
 
-  // Baştaki başlık kalıpları. Türkçe "İ" harfi JavaScript'te büyük/küçük harf
-  // duyarsız eşleşmede "i" ile EŞLEŞMEZ, bu yüzden harf sınıfları açıkça
-  // yazılıyor — aynı tuzak daha önce kategori tespitinde de yaşanmıştı.
-  text = text.replace(/^(ürün\s+)?a[çc][ıi]klamas[ıi]\s*[:：]\s*/i, '');
-  text = text.replace(/^a[çc][ıi]klama\s*[:：]\s*/i, '');
-  text = text.replace(/^[İIiı]çerik\s*[:：]\s*/, '');
-  text = text.replace(/^.{0,60}?ned[iıİI]r\s*\??\s*[:：]\s*/i, '');
+  // Heading prefixes stores put before the copy.
+  text = text.replace(/^(product\s+)?(description|overview|details)\s*[:：]\s*/i, '');
+  text = text.replace(/^.{0,60}?what\s+is\s+it\s*\??\s*[:：]\s*/i, '');
 
-  // Bazı markaların metni ürün adını ARKA ARKAYA İKİ KEZ yazıyor:
-  // "BIGJOY® Classic High Protein Bar BIGJOY® Classic High Protein Bar
-  // içeriğinde…". Aşağıdaki ad kontrolü buna takılmıyor, çünkü metindeki
-  // yazım ürün adıyla birebir aynı değil (® işareti, "2100 g" ile "2100gr"
-  // farkı, parantezli aroma). Baştaki beş kelimelik blok metinde tekrar
-  // geçiyorsa ikinci geçişten başlatıyoruz — birinci kopya atılmış oluyor.
-  const kelimeler = text.split(' ');
-  if (kelimeler.length >= 10) {
-    const blok = kelimeler.slice(0, 5).join(' ');
-    const ikinci = text.indexOf(blok, 1);
-    if (ikinci > 0) {
-      text = text.slice(ikinci).replace(LEADING_PUNCTUATION, '').trim();
+  // Some stores write the product name TWICE in a row. The name check below
+  // misses it because the spelling differs slightly (®, "2 lb" vs "2lb"). If
+  // the opening five-word block appears again, start from the second copy.
+  const words = text.split(' ');
+  if (words.length >= 10) {
+    const block = words.slice(0, 5).join(' ');
+    const second = text.indexOf(block, 1);
+    if (second > 0) {
+      text = text.slice(second).replace(LEADING_PUNCTUATION, '').trim();
     }
   }
 
-  // Metin ürün adını tekrarlıyorsa at — ad zaten başlıkta var.
-  const name = productName.replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
-  if (name && text.toLocaleLowerCase('tr').startsWith(name.toLocaleLowerCase('tr'))) {
+  // Copy that repeats the product name loses it: the name is in the title.
+  const name = productName.replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+  if (name && text.toLowerCase().startsWith(name.toLowerCase())) {
     const stripped = text.slice(name.length).replace(LEADING_PUNCTUATION, '');
-    // Adı atmak cümleyi ortasından kesiyorsa vazgeç: "GI+ ürünü; lif..."
-    // metninden "ürünü; lif..." gibi küçük harfle başlayan bir parça kalıyordu.
-    if (stripped && stripped[0] === stripped[0].toLocaleUpperCase('tr')) {
+    // Give up if dropping the name cuts the sentence mid-way (the rest would
+    // start in lower case).
+    if (stripped && stripped[0] === stripped[0].toUpperCase()) {
       text = stripped;
     }
   }
@@ -80,7 +70,7 @@ function extractIntro(raw: string | null | undefined, productName: string): stri
   text = text.replace(LEADING_PUNCTUATION, '').trim();
   if (text.length < 30) return null;
 
-  // İlk cümle; en az 40 karakter olsun ki "Nedir." gibi bir parça kalmasın.
+  // First sentence, at least 40 characters so a fragment does not remain.
   const sentence = /^(.{40,}?[.!?])(\s|$)/.exec(text);
   const intro = sentence ? sentence[1] : text;
 
@@ -89,17 +79,12 @@ function extractIntro(raw: string | null | undefined, productName: string): stri
 }
 
 /**
- * Arama sonucunda kırpılmayan bir başlık üretir.
+ * A title that is not cut in search results.
  *
- * Google başlığı ~60-70 karakterde kesiyor. Daha da önemlisi: aşırı uzun
- * başlıklarda Google başlığı tamamen kendi yeniden yazıyor, yani kontrolü
- * kaybediyoruz. Denetimde 37 sayfanın 7'si 70 karakteri aşıyordu; en uzunu
- * 118 karakterdi (uzun ürün adları yüzünden).
- *
- * Öncelik sırası: (1) ürün adı tam sığıyorsa marka kuyruğuyla birlikte
- * kullan, (2) sığmıyorsa marka kuyruğunu at, (3) ürün adı tek başına bile
- * uzunsa kelime sınırından kırp. Ürün adı her zaman başta kalıyor çünkü
- * aramada görünen ve tıklamayı belirleyen kısım orası.
+ * Google cuts titles around 60-70 characters, and rewrites very long titles
+ * entirely, so control is lost. Priority: (1) the full product name with the
+ * site tail, (2) without the tail, (3) the name trimmed at a word boundary.
+ * The product name always leads, since it is what decides the click.
  */
 export function buildPageTitle(subject: string, suffix: string, tail: string): string {
   const MAX = 65;
@@ -110,162 +95,125 @@ export function buildPageTitle(subject: string, suffix: string, tail: string): s
   if (withoutTail.length <= MAX) return withoutTail;
 
   const room = MAX - suffix.length - 2;
-  return `${kelimeSinirindaKirp(subject, Math.max(20, room))} ${suffix}`;
+  return `${trimAtWordBoundary(subject, Math.max(20, room))} ${suffix}`;
 }
 
 /**
- * Kesme sonrası SONDA KALAN anlamsız parçalar.
- *
- * Kelime sınırından kesmek tek başına yetmiyor: ölçümde (1 Eylül, canlıdan
- * 160 sayfalık örnek) "…Command Quadro Whey 366…" ve "…Capsule 1250  120…"
- * gibi başlıklar çıktı — sayı kesildiği yerde biriminden koptuğu için tek
- * başına hiçbir şey anlatmıyor. "…Bar 45g x…" örneğinde ise yetim kalan tek
- * harf ("x") başlığı bozuk gösteriyordu.
- *
- * Yalnızca AÇIKÇA parça olanlar atılıyor: sadece rakamdan oluşan bir öbek,
- * tek harf, ya da bağlaç işareti. "45g" gibi birimiyle tam olan bir parça
- * (harf içerdiği için) korunuyor.
+ * Meaningless fragments LEFT AT THE END after a cut. Cutting at a word
+ * boundary is not enough: "…Quadro Whey 366…" leaves a number torn from its
+ * unit, "…Bar 45g x…" an orphan letter. Only clear fragments go: a run of
+ * digits, a single letter or a joining sign. "45g" (with a letter) stays.
  */
-const YETIM_PARCA = /(?:\s+[\d.,]+|\s+[a-zA-ZçğıöşüÇĞİÖŞÜ]|\s+[x×+/&–-])+$/;
+const ORPHAN_FRAGMENT = /(?:\s+[\d.,]+|\s+[a-zA-Z]|\s+[x×+/&–-])+$/;
 
-/** Sonda kalan ayıraç — "2026 |…" gibi bozuk görünen başlıkları önler. */
-const SARKAN_AYIRAC = /[\s|·,:;&/–—-]+$/;
+/** A trailing separator, which makes a title look broken ("2026 |…"). */
+const TRAILING_SEPARATOR = /[\s|·,:;&/–—-]+$/;
 
 /**
- * Metni `max` karakterin altına indirir, kelime ortasından kesmez ve sonda
- * yetim parça/ayıraç bırakmaz. Kırpma gerçekten olduysa sonuna "…" koyar.
+ * Brings text under `max` characters without cutting a word and without a
+ * trailing fragment or separator; adds "…" only when it really cut.
  */
-function kelimeSinirindaKirp(text: string, max: number): string {
+function trimAtWordBoundary(text: string, max: number): string {
   if (text.length <= max) return text;
 
-  const kirpik = text
+  const trimmed = text
     .slice(0, max)
     .replace(/\s+\S*$/, '')
-    .replace(YETIM_PARCA, '')
-    .replace(SARKAN_AYIRAC, '');
+    .replace(ORPHAN_FRAGMENT, '')
+    .replace(TRAILING_SEPARATOR, '');
 
-  // Her şey elendiyse (tek kelimelik çok uzun ad) sert kesmeye dön.
-  return kirpik ? `${kirpik}…` : `${text.slice(0, max)}…`;
+  // Everything was removed (one very long word): fall back to a hard cut.
+  return trimmed ? `${trimmed}…` : `${text.slice(0, max)}…`;
 }
 
-/** Meta açıklamayı Google'ın kestiği sınırın altında tutar. */
+/** Keeps a meta description under Google's cut-off. */
 export function clampDescription(text: string, max = 155): string {
   if (text.length <= max) return text;
   return text.slice(0, max).replace(/\s+\S*$/, '') + '…';
 }
 
 /**
- * Başlığı arama sonucunda kırpılmayacak uzunlukta tutar.
+ * Keeps a title short enough not to be cut in search results.
  *
- * Son çare güvenlik ağı: `page-meta.service.ts` bunu TÜM sayfalara uyguluyor,
- * yani `buildPageTitle`'dan geçmeyen marka/kategori sayfaları da buraya
- * düşüyor. Onların başlığı "<Marka> <Kategori> Fiyatları ve İndirimleri 2026
- * | ProteinAvcısı" kalıbında ve 65 karakteri aşınca eskiden kuyruğun ORTASINDAN
- * kesiliyordu: "…İndirimleri 2026 |…". Canlıdan alınan 160 sayfalık örnekte
- * sayfaların %16'sı böyleydi ve bunlar neredeyse tamamen marka×kategori
- * sayfaları — GSC'ye göre sayfa başına en çok gösterim alan tip (26 gösterim;
- * ürün sayfası 2,7). Yani kusur en değerli sayfalarda duruyordu.
- *
- * Artık kuyruk kesilecekse tamamı atılıyor: başlık "…İndirimleri 2026" olarak
- * eksiksiz bitiyor. Site adını kaybetmek, yarım bir ayıraç bırakmaktan iyidir.
+ * The last safety net: `page-meta.service.ts` applies it to EVERY page,
+ * including brand and category titles that do not go through buildPageTitle.
+ * When the tail has to go, it goes whole: a title ending "…Deals 2026" beats
+ * one ending "…Deals 2026 |…". Losing the site name is better than leaving
+ * half a separator.
  */
 export function clampTitle(text: string, max = 65): string {
   if (text.length <= max) return text;
 
-  const ayirac = text.lastIndexOf(' | ');
-  if (ayirac > 0) {
-    const kuyruksuz = text.slice(0, ayirac);
-    if (kuyruksuz.length <= max) return kuyruksuz;
-    return kelimeSinirindaKirp(kuyruksuz, max);
+  const separator = text.lastIndexOf(' | ');
+  if (separator > 0) {
+    const withoutTail = text.slice(0, separator);
+    if (withoutTail.length <= max) return withoutTail;
+    return trimAtWordBoundary(withoutTail, max);
   }
 
-  return kelimeSinirindaKirp(text, max);
+  return trimAtWordBoundary(text, max);
 }
 
-// --- Ortak yardımcılar ----------------------------------------------------
+// --- Shared helpers -------------------------------------------------------
 
 /**
- * Meta metinlerinde kullanılan fiyat biçimi.
- *
- * `deals-list` içinde satır içi yazılıydı; inceleme sayfası da aynı biçime
- * ihtiyaç duyunca ortağa taşındı. Bu depoda meta mantığının sayfalara
- * kopyalanması daha önce beş sayfada eksik etikete yol açmıştı, üçüncü bir
- * kopya çıkarmak yerine tek yer.
- *
- * tr-TR biçimlendirmesi BİLİNÇLİ: bu metin kullanıcıya gösteriliyor
- * (makineden okunan sayı değil), yani binlik/ondalık ayracı Türkçe olmalı.
- */
-/**
- * Meta metinlerinde indirim yüzdesi TAM SAYI yazılıyor.
- *
- * Ham değer ondalıklı geliyor ve şablonlara doğrudan konduğunda arama
- * sonucunda "%30.8" çıkıyordu: hem NOKTA ayraçlı (Türkçe metinde virgül
- * olmalı) hem de bir SERP parçacığı için gereksiz hassasiyet. Ürün sayfası
- * açıklamasında da aynı kusur vardı, ikisi de buradan geçiyor.
+ * Discount percentages in meta text are WHOLE numbers. The raw value has
+ * decimals, and "30.8%" in a search snippet is needless precision.
  */
 export function formatDiscountPercent(percent: number): string {
   return String(Math.round(percent));
 }
 
+/** Price as written in meta text, in the site's market currency. */
 export function formatPriceText(price: number): string {
-  return `${price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`;
+  return formatPrice(price);
 }
 
-// --- İnceleme sayfası açıklaması ------------------------------------------
+// --- Review page description ----------------------------------------------
 
 /**
- * Bir gün sayısının açıklamada ANILMAYA değer sayılması için alt sınır.
+ * Minimum history before a number of days is WORTH mentioning.
  *
- * 5 Eylül'de canlıda ölçüldü ve tasarımı bu belirledi: 4825 ürünün yalnızca
- * 515'inde 14+ günlük fiyat geçmişi var (katalog çok hızlı büyüdü, tek günde
- * 1100+ ürün eklendi). "30 günün en düşük fiyatı" ölçütü ürünlerin %95'inde
- * teknik olarak DOĞRU çıkıyor ama çoğunda 1-2 günlük veriye dayanıyor, yani
- * içi boş. Rakiplerin indirimi olmayan üründe "indirim" yazmasıyla aynı
- * aileden bir iddia olurdu; bu sitenin varlık sebebi tam olarak onu teşhir
- * etmek, o yüzden gün sayısı ancak gerçekten varsa anılıyor.
+ * On a young catalog most products have a day or two of prices, so "the
+ * lowest price in 30 days" is technically TRUE for almost every product and
+ * means nothing. This site exists to expose empty discount claims, so the
+ * day count is only mentioned when it is real.
  */
-const ANLAMLI_GECMIS_GUNU = 14;
+const MEANINGFUL_HISTORY_DAYS = 14;
 
 /**
- * "Doğrulanmış indirim" demek için gereken en az geçmiş.
- *
- * Ayrı ve daha düşük bir eşik: indirim iddiası bir ARALIK değil, gözlenmiş
- * bir düşüş. Yine de iki günlük veriye "doğrulanmış" demek kelimenin
- * taşıyabileceğinden fazlası — ölçüldü, indirimli 71 üründen 8'i bu eşiği
- * geçiyor. Geçmeyenlerde indirim İDDİA EDİLMİYOR, sadece fiyat yazılıyor.
+ * Minimum history before calling a discount "verified". A separate, lower
+ * threshold: a discount is an observed drop, not a range. Still, two days of
+ * data is more than the word can carry. Below it, no discount is CLAIMED,
+ * only the price is given.
  */
-const INDIRIM_ICIN_GEREKEN_GUN = 7;
+const DAYS_NEEDED_FOR_DISCOUNT = 7;
 
 export interface ReviewDescriptionInput {
   displayName: string;
   priceText: string;
   discountPercent: number;
-  /** Kaç FARKLI günde fiyat noktamız var (aynı günün tekrarları sayılmaz). */
-  gecmisGunSayisi: number;
+  /** Number of DISTINCT days with a price point (repeats within a day don't count). */
+  historyDays: number;
 }
 
 /**
- * İnceleme sayfasının arama sonucu açıklaması.
- *
- * NEDEN DEĞİŞTİ: eskiden 247 sayfanın hepsinde birebir aynı cümle vardı
- * ("… gerçek fiyat geçmişi, besin değeri ve kategori karşılaştırmasına
- * dayanan bağımsız inceleme") ve içinde TEK BİR SOMUT SAYI yoktu. İnceleme
- * sayfaları sitenin en çok gösterim alan tipi (gösterimin %42'si) ama TO
- * %1,3'te kalıyordu. Arama yapan kişi ürün adını yazıp fiyat arıyor; fiyatı
- * göstermek elimizdeki en dürüst ve en güçlü koz.
+ * Search result description for the review page. Every review page once had
+ * the same sentence with no concrete number; a searcher types the product
+ * name and wants the price, so the price leads.
  */
 export function buildReviewDescription(input: ReviewDescriptionInput): string {
-  const gecmisAnlamli = input.gecmisGunSayisi >= ANLAMLI_GECMIS_GUNU;
-  const indirimSoylenebilir =
-    input.discountPercent > 0 && input.gecmisGunSayisi >= INDIRIM_ICIN_GEREKEN_GUN;
+  const meaningfulHistory = input.historyDays >= MEANINGFUL_HISTORY_DAYS;
+  const canClaimDiscount =
+    input.discountPercent > 0 && input.historyDays >= DAYS_NEEDED_FOR_DISCOUNT;
 
-  const kuyruk = gecmisAnlamli
-    ? `${input.gecmisGunSayisi} günlük fiyat geçmişi, besin değeri ve kategori karşılaştırmasıyla bağımsız inceleme.`
-    : 'Besin değeri ve kategori karşılaştırmasıyla bağımsız inceleme.';
+  const tail = meaningfulHistory
+    ? `Independent review with ${input.historyDays} days of price history, nutrition facts and a category comparison.`
+    : 'Independent review with nutrition facts and a category comparison.';
 
-  const bas = indirimSoylenebilir
-    ? `${input.displayName} ${input.priceText} — markanın etiketine değil, kendi fiyat geçmişimize göre %${formatDiscountPercent(input.discountPercent)} doğrulanmış indirim.`
-    : `${input.displayName} güncel fiyatı ${input.priceText}.`;
+  const head = canClaimDiscount
+    ? `${input.displayName} is ${input.priceText}, a verified ${formatDiscountPercent(input.discountPercent)}% drop by our own price history, not the store's label.`
+    : `${input.displayName} costs ${input.priceText} today.`;
 
-  return clampDescription(`${bas} ${kuyruk}`);
+  return clampDescription(`${head} ${tail}`);
 }

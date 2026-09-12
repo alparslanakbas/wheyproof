@@ -3,7 +3,12 @@ import { Injectable, inject } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 
 import { canonicalOrigin, setCanonicalLink } from './canonical-link';
+import { MARKET } from './market';
 import { clampDescription, clampTitle } from './meta-description';
+import { SITE_NAME } from './site-identity';
+
+// Open Graph wants the locale with an underscore ("en_US").
+const OG_LOCALE = MARKET.locale.replace('-', '_');
 
 export interface PageMetaOptions {
   title: string;
@@ -11,33 +16,25 @@ export interface PageMetaOptions {
   canonicalPath: string;
   ogType?: string;
   ogImage?: string;
-  // Paylaşım kartında (WhatsApp/Twitter/Facebook) Google'daki <title>'dan
-  // FARKLI bir metin göstermek istediğimizde (ör. ürün sayfasında paylaşımda
-  // fiyat görünsün ama Google'a giden <title> fiyatsız kalsın diye) — yoksa
-  // options.title kullanılır.
+  // A share card (WhatsApp/X/Facebook) text DIFFERENT from the <title> Google
+  // sees, e.g. a product page shared with its price while the <title> stays
+  // price-free. Falls back to options.title.
   ogTitle?: string;
-  // Sayfa arama motoru dizinine girmemeli (kişiye özel içerik, ya da markanın
-  // artık taramada döndürmediği bir ürün kaydı).
+  // The page must stay out of search indexes (personal content, or a product
+  // the store no longer returns).
   //
-  // Değer verilmediğinde servis etiketi KALDIRIYOR — bu şart: tek sayfa
-  // uygulamasında bir sayfada eklenen robots etiketi, sonraki sayfaya
-  // geçildiğinde geride kalsaydı normal sayfalar da dizinden düşerdi.
+  // Without a value the service REMOVES the tag. That is required: in a
+  // single-page app a robots tag added on one page would otherwise linger on
+  // the next and drop normal pages from the index.
   noIndex?: boolean;
 }
 
-// 2026-08-15 kod kalitesi taraması: title/description/OG/canonical ayarlama
-// mantığı 10 sayfada elle kopyalanmıştı — kopyalama sırasında 5 sayfada
-// (rehber listesi, favorilerim, nasıl-çalışıyoruz, gizlilik/çerez politikası)
-// og:title/og:description hiç eklenmemiş kalmıştı: biri bu sayfaları
-// paylaştığında WhatsApp/Twitter kartında hâlâ ana sayfanın başlığı
-// görünüyordu. og alanları burada zorunlu (options nesnesinin bir parçası)
-// olduğu için bu sınıf hatası artık yapısal olarak tekrarlanamaz.
-//
-// 2026-08-23 SEO turu: og:url/og:locale/twitter:title/description/image
-// hiç eklenmiyordu (dış bir kod incelemesinde bulundu, kodla doğrulandı) —
-// eklendi. og:site_name index.html'de statik olarak zaten var ama her
-// sayfada updateTag ile teyit etmek, ileride index.html'deki statik
-// etiketin yanlışlıkla silinmesi/değişmesi ihtimaline karşı daha güvenli.
+// Title/description/OG/canonical logic used to be copied by hand into ten
+// pages, and five of them lost og:title/og:description on the way: shared
+// links showed the home page's title. The OG fields are part of the options
+// object here, so that class of bug can't come back. og:url, og:locale and the
+// twitter:* tags are set on every page too; og:site_name is also static in
+// index.html, but confirming it here guards against that tag being removed.
 @Injectable({ providedIn: 'root' })
 export class PageMetaService {
   private readonly titleService = inject(Title);
@@ -47,18 +44,15 @@ export class PageMetaService {
   set(options: PageMetaOptions): void {
     const origin = canonicalOrigin(this.document);
     const ogImage = options.ogImage ?? `${origin}/og-image.png`;
-    // ogTitle bilinçli olarak KIRPILMIYOR: paylaşım kartları (WhatsApp,
-    // X, Facebook) arama sonucundan daha uzun başlık gösterebiliyor ve
-    // orada fiyat bilgisinin görünmesi isteniyor.
+    // ogTitle is NOT clamped on purpose: share cards can show longer titles
+    // than search results, and the price should be visible there.
     const ogTitle = options.ogTitle ?? options.title;
 
-    // Tek noktadan güvenlik ağı: her sayfanın kendi şablonunu tek tek
-    // düzeltmek yerine burada sınırlıyoruz — ileride eklenen sayfalar da
-    // otomatik korunuyor. Ürün ve inceleme sayfaları ayrıca buildPageTitle
-    // kullanıyor; o, marka kuyruğunu koruyacak şekilde daha akıllı davranıyor.
-    // Denetimde başlıklar 118, açıklamalar 238 karaktere kadar çıkıyordu;
-    // Google ikisini de kesiyor, aşırı uzun başlıkta ise başlığı tamamen
-    // kendi yeniden yazıyor.
+    // One safety net instead of fixing every page's template: pages added
+    // later are covered too. Product and review pages also use
+    // buildPageTitle, which keeps the brand tail more carefully. Titles up to
+    // 118 and descriptions up to 238 characters were found; Google cuts both,
+    // and rewrites overly long titles entirely.
     const title = clampTitle(options.title);
     const description = clampDescription(options.description);
 
@@ -69,8 +63,8 @@ export class PageMetaService {
     this.metaService.updateTag({ property: 'og:type', content: options.ogType ?? 'website' });
     this.metaService.updateTag({ property: 'og:image', content: ogImage });
     this.metaService.updateTag({ property: 'og:url', content: `${origin}${options.canonicalPath}` });
-    this.metaService.updateTag({ property: 'og:locale', content: 'tr_TR' });
-    this.metaService.updateTag({ property: 'og:site_name', content: 'Protein Avcısı' });
+    this.metaService.updateTag({ property: 'og:locale', content: OG_LOCALE });
+    this.metaService.updateTag({ property: 'og:site_name', content: SITE_NAME });
     this.metaService.updateTag({ name: 'twitter:title', content: ogTitle });
     this.metaService.updateTag({ name: 'twitter:description', content: description });
     this.metaService.updateTag({ name: 'twitter:image', content: ogImage });
@@ -78,7 +72,7 @@ export class PageMetaService {
     if (options.noIndex) {
       this.metaService.updateTag({ name: 'robots', content: 'noindex, follow' });
     } else {
-      // Kaldırmak, eklemek kadar önemli — bkz. noIndex alanının açıklaması.
+      // Removing matters as much as adding; see the noIndex field.
       this.metaService.removeTag("name='robots'");
     }
 
@@ -86,11 +80,9 @@ export class PageMetaService {
   }
 }
 
-// deals-list ve article-page'de "varsa güncelle, yoksa oluştur" JSON-LD
-// script etiketi mantığı elle tekrarlanıyordu. Element referansını burada
-// tutmuyoruz (deals-list gibi kullanıcılar ürün seçimine göre eklenip
-// kaldırılması gerekebiliyor) — çağıran taraf referansı kendi tutup bir
-// sonraki çağrıda geri veriyor.
+// "Update if present, otherwise create" for a JSON-LD script tag. The element
+// reference isn't kept here (some callers add and remove it as the selection
+// changes); the caller keeps it and passes it back on the next call.
 export function upsertJsonLdScript(document: Document, existingEl: HTMLScriptElement | null, data: unknown): HTMLScriptElement {
   let el = existingEl;
   if (!el) {

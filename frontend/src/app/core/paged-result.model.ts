@@ -9,8 +9,9 @@ export interface PagedResult<T> {
 export interface FilterOptions {
   brands: string[];
   categories: string[];
-  // Ürünün satın alındığı yer — marka (üretici) ile aynı şey değil.
-  // Bayi ürünü yoksa boş gelir ve arayüz satıcı kutusunu hiç göstermez.
-  // İlk eleman "Markanın kendi sitesi" etiketi (backend'de Seller = NULL).
+  // Where the product is bought, not the same thing as the brand (maker).
+  // Empty when there are no retailer products, and the UI then hides the
+  // seller select. The first entry is the "brand's own store" label (Seller =
+  // NULL in the backend).
   sellers: string[];
 }

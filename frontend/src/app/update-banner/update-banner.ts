@@ -8,9 +8,8 @@ import { AppUpdateService } from '../core/app-update.service';
 })
 export class UpdateBanner {
   protected readonly updates = inject(AppUpdateService);
-  // Kalıcı değil (localStorage yok) — kapatılsa bile bu gerçek bir yeni
-  // versiyon, kullanıcı sayfayı bir dahaki ziyaretinde/sekme yenilemesinde
-  // zaten güncel sürümü alacak. Sadece o anki oturumda "sonra hatırlat"
-  // gibi davransın diye component-seviyesinde bir signal yeterli.
+  // Not persisted (no localStorage): even when dismissed this is a real new
+  // version, and the next visit or reload gets it anyway. A component-level
+  // signal is enough to act as "remind me later" for this session.
   protected readonly dismissed = signal(false);
 }

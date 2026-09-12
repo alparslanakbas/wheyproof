@@ -10,12 +10,12 @@
 >
   <div class="pa-preferred-head">
     <div>
-      <p class="pa-preferred-kicker"><i class="ph-fill ph-sparkle" aria-hidden="true"></i> Topluluk keşfi</p>
-      <h2 id="preferred-products-title">Kullanıcıların tercih ettikleri</h2>
-      <p>Markaların kendi sitelerinde en çok değerlendirilen ve en beğenilen ürünler.</p>
+      <p class="pa-preferred-kicker"><i class="ph-fill ph-sparkle" aria-hidden="true"></i> Community picks</p>
+      <h2 id="preferred-products-title">What shoppers prefer</h2>
+      <p>The most reviewed and best rated products on the brands' own stores.</p>
     </div>
 
-    <div class="pa-preferred-tabs" role="tablist" aria-label="Ürün hedefi">
+    <div class="pa-preferred-tabs" role="tablist" aria-label="Product goal">
       @for (tab of tabs; track tab.id) {
         <button
           type="button"
@@ -29,18 +29,18 @@
   </div>
 
   <div class="pa-preferred-carousel">
-    <button type="button" class="pa-preferred-arrow is-previous" aria-label="Önceki ürünler" (click)="scroll(-1)">
+    <button type="button" class="pa-preferred-arrow is-previous" aria-label="Previous products" (click)="scroll(-1)">
       <i class="ph ph-caret-left" aria-hidden="true"></i>
     </button>
 
-    <div #rail class="pa-preferred-rail" tabindex="0" aria-label="Tercih edilen ürünler, yatay kaydırılabilir">
+    <div #rail class="pa-preferred-rail" tabindex="0" aria-label="Preferred products, scrolls horizontally">
       @for (product of visibleProducts(); track product.productId; let index = $index) {
         <a
           [routerLink]="productPath(product)"
           queryParamsHandling="preserve"
           class="pa-preferred-card"
           role="group"
-          [attr.aria-label]="(index + 1) + '. ürün: ' + displayName(product.productName)"
+          [attr.aria-label]="'Product ' + (index + 1) + ': ' + displayName(product.productName)"
         >
           <span class="pa-preferred-image">
             @if (product.imageUrl) {
@@ -54,18 +54,18 @@
             <small>{{ product.brandName }}</small>
             <strong>{{ displayName(product.productName) }}</strong>
             @if (product.ratingValue !== null && product.ratingCount !== null) {
-              <!-- Markanın kendi sitesindeki müşteri puanı — bizim
-                   değerlendirmemiz değil, başlıkta da böyle belirtiliyor. -->
+              <!-- The customer rating on the brand's own site, not our
+                   assessment; the tooltip says so. -->
               <span
                 class="pa-preferred-rating"
-                [title]="product.brandName + ' sitesindeki müşteri puanı: 5 üzerinden ' + (product.ratingValue | number: '1.1-2') + ', ' + product.ratingCount + ' değerlendirme'"
+                [title]="'Customer rating on ' + product.brandName + '\'s site: ' + (product.ratingValue | number: '1.1-2') + ' out of 5, ' + (product.ratingCount | number) + ' reviews'"
               >
                 <i class="ph-fill ph-star" aria-hidden="true"></i>
                 <span>{{ product.ratingValue | number: '1.1-2' }}</span>
-                <small>({{ product.ratingCount }})</small>
+                <small>({{ product.ratingCount | number }})</small>
               </span>
             }
-            <span class="pa-preferred-price">{{ product.currentPrice | number: '1.2-2' }} ₺</span>
+            <span class="pa-preferred-price">{{ product.currentPrice | price }}</span>
           </span>
 
           <span class="pa-preferred-open" aria-hidden="true"><i class="ph ph-arrow-up-right"></i></span>
@@ -73,15 +73,15 @@
       } @empty {
         <div class="pa-preferred-empty">
           <i class="ph ph-package" aria-hidden="true"></i>
-          <span>Bu hedef için gösterilecek ürün bulunamadı.</span>
+          <span>No products to show for this goal.</span>
         </div>
       }
     </div>
 
-    <button type="button" class="pa-preferred-arrow is-next" aria-label="Sonraki ürünler" (click)="scroll(1)">
+    <button type="button" class="pa-preferred-arrow is-next" aria-label="Next products" (click)="scroll(1)">
       <i class="ph ph-caret-right" aria-hidden="true"></i>
     </button>
   </div>
 
-  <p class="pa-preferred-hint"><i class="ph ph-hand-swipe-left" aria-hidden="true"></i> Kaydırarak daha fazlasını keşfet</p>
+  <p class="pa-preferred-hint"><i class="ph ph-hand-swipe-left" aria-hidden="true"></i> Swipe to see more</p>
 </section>

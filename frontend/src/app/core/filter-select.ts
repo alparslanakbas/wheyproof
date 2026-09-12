@@ -1,46 +1,45 @@
 /**
- * Ana sayfadaki marka/kategori/satıcı filtre kutularının davranışı.
+ * Behavior of the home page's brand/category/seller filter selects.
  *
- * Bu kutular İKİ İŞ birden yapıyor: bir filtre EKLEME düğmesi ve o boyutun
- * DURUM göstergesi. Seçilenler aşağıda silinebilir çipler olarak duruyor.
+ * Each select does TWO jobs: a button that ADDS a filter, and the STATUS of
+ * that dimension. Selected values sit below as removable chips.
  *
- * Karar buraya çıkarıldı çünkü iki ayrı hata da tam olarak buradaydı ve
- * ikisini de kullanıcı bildirdi:
+ * The logic lives here because three separate bugs were exactly here:
  *
- *   1. Kutu, filtre aktifken bile "Tüm markalar" yazıyordu — durum
- *      göstergesi gibi duran ama aslında placeholder olan bir kutu.
- *   2. Seçili değer kutuda İKİ KEZ görünüyordu: hem durum seçeneği hem de
- *      listedeki gerçek seçenek olarak. Kutu bir "ekle" kontrolü olduğu için
- *      zaten seçili olan artık listelenmiyor (şablonda süzülüyor); çıkarmak
- *      için çip ya da "Tümü" kullanılıyor.
- *   3. "Tüm markalar"ı seçmek filtreyi temizlemiyordu. Kutunun değeri boş
- *      dizeyken boş seçeneği tekrar seçmek bir DEĞİŞİKLİK olmadığı için
- *      tarayıcı `change` olayını hiç tetiklemiyor; üstelik tetiklense bile
- *      eski handler boş değeri yok sayıyordu.
+ *   1. The select read "All brands" even with a filter active: a placeholder
+ *      that looked like a status.
+ *   2. The selected value appeared TWICE: as the status option and as its
+ *      own option in the list. The select is an "add" control, so a selected
+ *      value is no longer listed (filtered in the template); chips or "All"
+ *      remove it.
+ *   3. Choosing "All brands" didn't clear the filter. With the select's value
+ *      already empty, choosing the empty option again is not a CHANGE, so
+ *      the browser never fired `change`; and even then the old handler
+ *      ignored an empty value.
  */
 
-const ACTIVE_PREFIX = '__aktif__';
+const ACTIVE_PREFIX = '__active__';
 
 /**
- * Kutuda gösterilecek değer. Filtre yoksa boş dize (placeholder seçeneği),
- * varsa durum seçeneği.
+ * The value the select shows: empty (placeholder option) without a filter,
+ * otherwise a status option.
  *
- * Değer SEÇİM SAYISINI da taşıyor. Taşımasaydı ikinci bir marka eklendiğinde
- * bağlanan değer değişmez ('__aktif__' -> '__aktif__') ve Angular DOM'a geri
- * yazmazdı; kutu kullanıcının son tıkladığı markanın adında donup kalırdı.
- * Bu, daha önce `[value]=""` ile yaşanan hatanın birebir aynı sınıfı:
- * değişmeyen bir bağlama yeniden uygulanmaz.
+ * The value also carries the SELECTION COUNT. Without it, adding a second
+ * brand would not change the bound value ('__active__' -> '__active__'), and
+ * Angular would not write it back to the DOM; the select would freeze on the
+ * last brand clicked. The same class of bug as an earlier `[value]=""`: an
+ * unchanged binding is not re-applied.
  */
 export function filterSelectValue(selectedCount: number): string {
   return selectedCount > 0 ? `${ACTIVE_PREFIX}:${selectedCount}` : '';
 }
 
 export type FilterSelection =
-  /** Kullanıcı bir değer seçti; o filtre eklenecek (ya da zaten varsa çıkarılacak). */
+  /** A value was picked; add that filter (or remove it if already on). */
   | { readonly kind: 'toggle'; readonly value: string }
-  /** Kullanıcı "Tüm markalar/kategoriler/satıcılar"ı seçti; boyut temizlenecek. */
+  /** "All brands/categories/sellers" was picked; clear the dimension. */
   | { readonly kind: 'clear' }
-  /** Kutunun kendi durum seçeneği; kullanıcı bir şey değiştirmedi. */
+  /** The select's own status option; nothing changed. */
   | { readonly kind: 'ignore' };
 
 export function readFilterSelection(value: string): FilterSelection {

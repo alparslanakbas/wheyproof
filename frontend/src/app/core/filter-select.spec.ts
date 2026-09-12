@@ -1,37 +1,37 @@
 import { filterSelectValue, readFilterSelection } from './filter-select';
 
 describe('filterSelectValue', () => {
-  it('filtre yokken placeholder seçeneğini gösterir', () => {
+  it('shows the placeholder option when no filter is set', () => {
     expect(filterSelectValue(0)).toBe('');
   });
 
-  it('REGRESYON: seçim sayısı değişince DEĞER de değişir', () => {
-    // Değer sabit kalsaydı ikinci marka eklendiğinde Angular bağlamayı DOM'a
-    // geri yazmaz, kutu son tıklanan markanın adında ("SSN") donup kalırdı.
-    // Tarayıcıda birebir bu görüldü.
+  it('REGRESSION: the VALUE changes when the selection count changes', () => {
+    // With a constant value, adding a second brand wouldn't make Angular
+    // write the binding back to the DOM, and the box would freeze on the last
+    // clicked brand's name. Seen exactly so in the browser.
     expect(filterSelectValue(1)).not.toBe(filterSelectValue(2));
     expect(filterSelectValue(2)).not.toBe(filterSelectValue(3));
   });
 
-  it('filtre varken placeholder ile ASLA karışmaz', () => {
-    // Aynı olsalardı "Tüm markalar"ı seçmek bir değişiklik sayılmaz ve
-    // tarayıcı change olayını hiç tetiklemezdi — kullanıcının bildirdiği hata.
+  it('NEVER collides with the placeholder while a filter is set', () => {
+    // If they were equal, picking "All brands" wouldn't count as a change and
+    // the browser would never fire the change event: the reported bug.
     for (const n of [1, 2, 10]) expect(filterSelectValue(n)).not.toBe('');
   });
 });
 
 describe('readFilterSelection', () => {
-  it('gerçek bir değer seçilince o filtreyi ekler/çıkarır', () => {
-    expect(readFilterSelection('HIQ')).toEqual({ kind: 'toggle', value: 'HIQ' });
+  it('toggles the filter when a real value is picked', () => {
+    expect(readFilterSelection('Kaged')).toEqual({ kind: 'toggle', value: 'Kaged' });
   });
 
-  it('REGRESYON: boş değer "tümü" demektir, yok sayılmaz', () => {
-    // Eski handler `if (value)` diyordu; "Tüm markalar" hiçbir şey yapmıyordu.
+  it('REGRESSION: an empty value means "all", not "ignore"', () => {
+    // The old handler said `if (value)`; "All brands" did nothing.
     expect(readFilterSelection('')).toEqual({ kind: 'clear' });
   });
 
-  it('kutunun kendi durum seçeneği filtre olarak uygulanmaz', () => {
-    // Aksi halde "3 marka seçili" diye bir marka filtresi eklenirdi.
+  it("doesn't apply the box's own status option as a filter", () => {
+    // Otherwise "3 brands selected" would be added as a brand filter.
     expect(readFilterSelection(filterSelectValue(3))).toEqual({ kind: 'ignore' });
   });
 });

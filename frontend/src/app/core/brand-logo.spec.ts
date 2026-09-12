@@ -3,68 +3,54 @@ import { describe, expect, it } from 'vitest';
 import { brandLogoUrl, brandMonogram, brandMonogramColor } from './brand-logo';
 
 describe('brandLogoUrl', () => {
-  it('logosu indirilmiş markada yerel yolu döndürür', () => {
-    expect(brandLogoUrl('HIQ')).toBe('/marka-logo/hiq.webp');
-    expect(brandLogoUrl('Space Gym Supplements')).toBe('/marka-logo/space-gym-supplements.webp');
-    expect(brandLogoUrl('Yeşilmarka')).toBe('/marka-logo/yesilmarka.webp');
-    // Kesme işareti slug'da tire oluyor — dosya adıyla birebir uyuşmalı.
-    expect(brandLogoUrl("Gigi's")).toBe('/marka-logo/gigi-s.webp');
-    expect(brandLogoUrl('MLA Protein')).toBe('/marka-logo/mla-protein.webp');
-  });
-
-  // Katalogdaki 66 marka yalnızca bir bayiden geliyor; onlar için doğrulanmış
-  // bir logo kaynağı YOK ve uydurulmuyor.
-  it('logosu olmayan markada null döndürür', () => {
-    expect(brandLogoUrl('Olimp')).toBeNull();
-    expect(brandLogoUrl('BioTech USA')).toBeNull();
-    expect(brandLogoUrl('Muscle Pump')).toBeNull();
-  });
-
-  // Yol brandSlug ile üretiliyor; dosya adlarıyla birebir aynı olmak zorunda.
-  it('Türkçe karakterli adı dosya adıyla aynı sluga çevirir', () => {
-    expect(brandLogoUrl('Yeşilmarka')).toContain('yesilmarka');
+  // No US brand logo has been downloaded yet, and none is invented: every
+  // brand shows its monogram until a verified logo file is added.
+  it('returns null for brands without a downloaded logo', () => {
+    expect(brandLogoUrl('Optimum Nutrition')).toBeNull();
+    expect(brandLogoUrl('Transparent Labs')).toBeNull();
+    expect(brandLogoUrl('Nutricost')).toBeNull();
   });
 });
 
 describe('brandMonogram', () => {
-  it('iki kelimeli adda iki baş harfi alır', () => {
-    expect(brandMonogram('Nuclear Nutrition')).toBe('NN');
-    expect(brandMonogram('Bad Ass')).toBe('BA');
+  it('takes the two initials of a two-word name', () => {
+    expect(brandMonogram('Transparent Labs')).toBe('TL');
+    expect(brandMonogram('Optimum Nutrition')).toBe('ON');
   });
 
-  it('tek kelimeli adda ilk iki harfi alır', () => {
-    expect(brandMonogram('Olimp')).toBe('OL');
-    expect(brandMonogram('Grenade')).toBe('GR');
+  it('takes the first two letters of a one-word name', () => {
+    expect(brandMonogram('Kaged')).toBe('KA');
+    expect(brandMonogram('Ghost')).toBe('GH');
   });
 
-  // Türkçe büyütme tuzağı: "i" -> "İ" olmalı, "I" değil.
-  it('Türkçe büyütme kuralına uyar', () => {
-    expect(brandMonogram('ironMaxx')).toBe('İR');
-    expect(brandMonogram('Sixpack')).toBe('Sİ');
+  // Locale-independent upper-casing: "i" becomes "I", never a dotted "İ".
+  it('upper-cases the English way', () => {
+    expect(brandMonogram('ironMaxx')).toBe('IR');
+    expect(brandMonogram('Sixpack')).toBe('SI');
   });
 
-  it('tire ve noktayı kelime sınırı sayar', () => {
+  it('treats hyphens and dots as word boundaries', () => {
     expect(brandMonogram('Z-Konzept')).toBe('ZK');
     expect(brandMonogram('Sci-Tech')).toBe('ST');
   });
 
-  it('boş ada çakılmaz', () => {
+  it("doesn't fail on an empty name", () => {
     expect(brandMonogram('')).toBe('?');
     expect(brandMonogram('   ')).toBe('?');
   });
 });
 
 describe('brandMonogramColor', () => {
-  // Rastgele DEĞİL: aynı marka her açılışta aynı rengi almalı, yoksa
-  // kullanıcı markayı renginden tanıyamaz.
-  it('aynı marka için her zaman aynı rengi verir', () => {
-    expect(brandMonogramColor('Olimp')).toBe(brandMonogramColor('Olimp'));
+  // NOT random: a brand must get the same color every time, or people can't
+  // recognise it by color.
+  it('always gives the same brand the same color', () => {
+    expect(brandMonogramColor('Kaged')).toBe(brandMonogramColor('Kaged'));
     expect(brandMonogramColor('Dymatize')).toBe(brandMonogramColor('Dymatize'));
   });
 
-  it('geçerli bir hex renk döndürür', () => {
-    for (const ad of ['Olimp', 'Dymatize', 'Trec', 'QNT', 'Bahs', '']) {
-      expect(brandMonogramColor(ad)).toMatch(/^#[0-9a-f]{6}$/);
+  it('returns a valid hex color', () => {
+    for (const name of ['Kaged', 'Dymatize', 'Ghost', 'Nutricost', 'Quest', '']) {
+      expect(brandMonogramColor(name)).toMatch(/^#[0-9a-f]{6}$/);
     }
   });
 });

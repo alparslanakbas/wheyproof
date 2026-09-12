@@ -4,7 +4,7 @@ export interface BrandStats {
   thirtyDayLowCount: number;
   averageDiscountPercent: number | null;
   lastScanAt: string | null;
-  // Kapsamdaki ürünlerin ortalama güncel fiyatı — marka × kategori
-  // sayfasında kategorinin geneliyle karşılaştırmak için.
+  // Average current price of the products in scope, compared with the whole
+  // category on brand x category pages.
   averagePrice: number | null;
 }

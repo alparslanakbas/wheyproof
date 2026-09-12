@@ -5,21 +5,21 @@
     <div class="pa-brand-explorer">
       <section class="min-w-0">
         <nav class="pa-directory-breadcrumb">
-          <a routerLink="/" class="hover:text-[var(--noc-accent)]">Ana Sayfa</a> / Markalar
+          <a routerLink="/" class="hover:text-[var(--noc-accent)]">Home</a> / Brands
         </nav>
 
-        <h1 class="pa-directory-title">Markaları Keşfet</h1>
+        <h1 class="pa-directory-title">Explore Brands</h1>
         <p class="pa-directory-lead">
-          Spor takviyesi markalarının ürünlerini, güncel fiyatlarını, indirimlerini ve fiyat geçmişini karşılaştır.
+          Compare supplement brands by their products, current prices, discounts and price history.
         </p>
 
-        <section class="pa-brand-toolbar" aria-label="Marka arama ve sıralama">
+        <section class="pa-brand-toolbar" aria-label="Search and sort brands">
           <label class="pa-directory-search pa-brand-search">
             <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
-            <span class="sr-only">Marka ara</span>
+            <span class="sr-only">Search brands</span>
             <input
               type="search"
-              placeholder="Marka ara..."
+              placeholder="Search brands..."
               [value]="searchQuery()"
               (input)="setSearchQuery($any($event.target).value)"
             />
@@ -27,10 +27,10 @@
 
           <label class="pa-brand-sort">
             <i class="ph ph-sort-ascending" aria-hidden="true"></i>
-            <span class="sr-only">Markaları sırala</span>
+            <span class="sr-only">Sort brands</span>
             <select [value]="sortMode()" (change)="setSortMode($any($event.target).value)">
-              <option value="product-count">Ürün sayısına göre</option>
-              <option value="name">İsme göre A-Z</option>
+              <option value="product-count">Most products</option>
+              <option value="name">Name A-Z</option>
             </select>
             <i class="ph ph-caret-down" aria-hidden="true"></i>
           </label>
@@ -39,19 +39,19 @@
         @if (loadError()) {
           <div class="pa-directory-state">
             <i class="ph ph-warning-circle" aria-hidden="true"></i>
-            Markalar şu anda yüklenemedi. Lütfen birazdan tekrar dene.
+            We couldn't load the brands right now. Please try again in a moment.
           </div>
         } @else if (loading()) {
           <div class="pa-directory-state">
             <i class="ph ph-circle-notch motion-safe:animate-spin" aria-hidden="true"></i>
-            Markalar yükleniyor...
+            Loading brands...
           </div>
         } @else {
-        <section aria-label="Marka listesi">
+        <section aria-label="Brand list">
           <div class="pa-brand-grid">
             @for (brand of pageBrands(); track brand.slug) {
               <a
-                [routerLink]="['/marka', brand.slug, 'indirim-kodu']"
+                [routerLink]="['/brand', brand.slug]"
                 class="pa-brand-tile"
                 [class.is-selected]="selectedBrand()?.slug === brand.slug"
                 (mouseenter)="selectBrand(brand)"
@@ -65,7 +65,7 @@
                   @if (brand.logoUrl && !failedLogos().has(brand.slug)) {
                     <img
                       [src]="brand.logoUrl"
-                      [alt]="brand.name + ' amblemi'"
+                      [alt]="brand.name + ' logo'"
                       loading="lazy"
                       (error)="markLogoFailed(brand.slug)"
                     />
@@ -77,27 +77,27 @@
                 </span>
                 <span class="pa-brand-tile-copy">
                   <strong>{{ brand.name }}</strong>
-                  <small>{{ brand.productCount }} ürün</small>
+                  <small>{{ brand.productCount.toLocaleString('en-US') }} {{ brand.productCount === 1 ? 'product' : 'products' }}</small>
                 </span>
                 <i class="ph ph-arrow-right pa-brand-tile-arrow" aria-hidden="true"></i>
               </a>
             } @empty {
               <div class="pa-directory-state pa-directory-empty">
                 <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
-                Bu aramayla eşleşen marka bulunamadı.
+                No brand matches that search.
               </div>
             }
           </div>
 
           @if (totalPages() > 1) {
-            <nav class="pa-brand-pagination" aria-label="Marka sayfaları">
-              <span>Diğer markalar</span>
+            <nav class="pa-brand-pagination" aria-label="Brand pages">
+              <span>More brands</span>
               <div class="pa-brand-page-controls">
                 <button
                   type="button"
                   [disabled]="currentPage() === 1"
                   (click)="goToPage(currentPage() - 1)"
-                  aria-label="Önceki marka sayfası"
+                  aria-label="Previous brand page"
                 >
                   <i class="ph ph-caret-left" aria-hidden="true"></i>
                 </button>
@@ -115,7 +115,7 @@
                   type="button"
                   [disabled]="currentPage() === totalPages()"
                   (click)="goToPage(currentPage() + 1)"
-                  aria-label="Sonraki marka sayfası"
+                  aria-label="Next brand page"
                 >
                   <i class="ph ph-caret-right" aria-hidden="true"></i>
                 </button>
@@ -125,7 +125,7 @@
 
           <p class="mt-6 flex items-center gap-2 rounded-[10px] border border-[var(--noc-divider)] bg-[var(--noc-card)] px-4 py-3 text-[11px] text-[var(--noc-neutral-500)]">
             <i class="ph ph-info text-base text-[var(--noc-accent)]" aria-hidden="true"></i>
-            Ürün sayıları aktif katalogdan hesaplanır ve taramalarla birlikte değişebilir.
+            Product counts come from the active catalog and can change with each price check.
           </p>
         </section>
         }
@@ -135,14 +135,14 @@
           <aside class="pa-brand-preview" aria-live="polite">
             <span class="pa-brand-preview-label">
               <i class="ph ph-star" aria-hidden="true"></i>
-              Seçili marka
+              Selected brand
             </span>
 
             <div class="pa-brand-preview-logo" [class.is-dark-backdrop]="brand.logoNeedsDarkBackdrop">
               @if (brand.logoUrl && !failedLogos().has(brand.slug)) {
                 <img
                   [src]="brand.logoUrl"
-                  [alt]="brand.name + ' amblemi'"
+                  [alt]="brand.name + ' logo'"
                   (error)="markLogoFailed(brand.slug)"
                 />
               } @else {
@@ -161,17 +161,17 @@
             <div class="pa-brand-preview-stat">
               <span class="pa-brand-preview-stat-icon"><i class="ph ph-package" aria-hidden="true"></i></span>
               <span>
-                <small>Takip edilen ürünler</small>
-                <strong>{{ brand.productCount }} ürün</strong>
+                <small>Products tracked</small>
+                <strong>{{ brand.productCount.toLocaleString('en-US') }} {{ brand.productCount === 1 ? 'product' : 'products' }}</strong>
               </span>
             </div>
 
             @if (brand.categories.length > 0) {
               <div class="pa-brand-preview-categories">
-                <span>Öne çıkan kategoriler</span>
+                <span>Top categories</span>
                 <div>
                   @for (category of brand.categories.slice(0, 3); track category.slug) {
-                    <a [routerLink]="['/marka', brand.slug, category.slug]">
+                    <a [routerLink]="['/brand', brand.slug, category.slug]">
                       <i class="ph ph-tag" aria-hidden="true"></i>{{ category.label }}
                     </a>
                   }
@@ -182,22 +182,22 @@
             <div class="pa-brand-preview-trust">
               <i class="ph ph-shield-check" aria-hidden="true"></i>
               <p>
-                <strong>Fiyat geçmişi düzenli güncellenir</strong>
-                <span>Veriler takip ettiğimiz satış kanallarından otomatik olarak toplanır.</span>
+                <strong>Price history updated regularly</strong>
+                <span>Data is collected automatically from the stores we track.</span>
               </p>
             </div>
 
-            <a [routerLink]="['/marka', brand.slug, 'indirim-kodu']" class="pa-brand-primary-action">
-              {{ brand.name }} ürünlerini incele
+            <a [routerLink]="['/brand', brand.slug]" class="pa-brand-primary-action">
+              See {{ brand.name }} products
               <i class="ph ph-arrow-right" aria-hidden="true"></i>
             </a>
             <a
-              [routerLink]="['/marka', brand.slug, 'indirim-kodu']"
-              fragment="kuponlar"
+              [routerLink]="['/brand', brand.slug]"
+              fragment="coupons"
               class="pa-brand-secondary-action"
             >
               <i class="ph ph-ticket" aria-hidden="true"></i>
-              İndirim kodlarını gör
+              See coupon codes
               <i class="ph ph-arrow-right" aria-hidden="true"></i>
             </a>
           </aside>

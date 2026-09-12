@@ -5,30 +5,31 @@ describe('formatRelativeTime', () => {
   const hoursAgo = (h: number) => new Date(Date.now() - h * 60 * 60_000).toISOString();
   const daysAgo = (d: number) => new Date(Date.now() - d * 24 * 60 * 60_000).toISOString();
 
-  it('1 dakikadan az önceyse "az önce" döner', () => {
-    expect(formatRelativeTime(new Date().toISOString())).toBe('az önce');
+  it('returns "just now" under a minute', () => {
+    expect(formatRelativeTime(new Date().toISOString())).toBe('just now');
   });
 
-  it('dakika cinsinden gösterir', () => {
-    expect(formatRelativeTime(minutesAgo(5))).toBe('5 dakika önce');
+  it('shows minutes', () => {
+    expect(formatRelativeTime(minutesAgo(5))).toBe('5 minutes ago');
+    expect(formatRelativeTime(minutesAgo(1))).toBe('1 minute ago');
   });
 
-  it('saat cinsinden gösterir', () => {
-    expect(formatRelativeTime(hoursAgo(3))).toBe('3 saat önce');
+  it('shows hours', () => {
+    expect(formatRelativeTime(hoursAgo(3))).toBe('3 hours ago');
   });
 
-  it('tam 1 gün önceyse "dün" döner', () => {
-    expect(formatRelativeTime(daysAgo(1))).toBe('dün');
+  it('returns "yesterday" for exactly one day', () => {
+    expect(formatRelativeTime(daysAgo(1))).toBe('yesterday');
   });
 
-  it('2-6 gün arasında "X gün önce" döner', () => {
-    expect(formatRelativeTime(daysAgo(3))).toBe('3 gün önce');
+  it('returns "X days ago" for 2-6 days', () => {
+    expect(formatRelativeTime(daysAgo(3))).toBe('3 days ago');
   });
 
-  it('7 günden eskiyse mutlak tarihe (gün+ay) düşer', () => {
+  it('falls back to an absolute date (month and day) after 7 days', () => {
     const result = formatRelativeTime(daysAgo(10));
 
-    expect(result).not.toContain('önce');
-    expect(result).not.toBe('dün');
+    expect(result).not.toContain('ago');
+    expect(result).not.toBe('yesterday');
   });
 });

@@ -10,16 +10,16 @@ import { HomepageStats } from './homepage-stats.model';
 import { FilterOptions, PagedResult } from './paged-result.model';
 import { ProductSparkline } from './product-sparkline.model';
 
-// Marka × kategori kesişimi — hangi markanın hangi kategoride kaç ürünü var.
+// Brand x category intersection: how many products a brand has per category.
 export interface BrandCategoryPair {
   brandName: string;
   category: string;
   productCount: number;
 }
 
-// Markalar dizinindeki ürün sayısı. Marka × kategori çiftlerini TOPLAMAK
-// yanlış sonuç veriyor (o liste yalnızca kategorisi olan ürünleri sayıyor),
-// bu yüzden ayrı bir uç var — marka sayfasıyla aynı tanım.
+// Product count in the brand directory. SUMMING the brand x category pairs
+// gives the wrong total (that list only counts categorised products), so this
+// has its own endpoint with the same definition as the brand page.
 export interface BrandProductCount {
   brandName: string;
   productCount: number;
@@ -35,16 +35,14 @@ export interface DealsQuery {
   sortBy?: string;
   page?: number;
   pageSize?: number;
-  // Belirli bir bileşeni arayan sayfalar için false gönderilir — eşanlamlı
-  // genişletme orada kategorinin tamamını getiriyor (bkz. backend'deki
-  // expandSearchSynonyms açıklaması).
+  // Pages looking for one specific ingredient send false: synonym expansion
+  // would bring back the whole category (see expandSearchSynonyms in the backend).
   expandSynonyms?: boolean;
-  // Marka SAYFASI true gönderiyor: markanın kendi sitesinden ürünü varsa
-  // yalnızca onlar listelenir, bayideki kopyası aynı sayfada yan yana durup
-  // ürünü iki kez göstermez. Markanın hiç doğrudan ürünü yoksa süzgeç
-  // uygulanmaz — yoksa yalnızca bayiden gelen markaların sayfaları boşalırdı.
-  // Ana sayfadaki marka filtresi bunu KULLANMIYOR; orada marka ve satıcı
-  // filtreleri birbirinden bağımsız kalmalı.
+  // The brand PAGE sends true: if the brand sells on its own site, only those
+  // products are listed, so a retailer's copy doesn't sit next to it and show
+  // the product twice. Brands with no direct products aren't filtered, or
+  // brands we only get through retailers would have empty pages. The home
+  // page brand filter does NOT use this; there brand and seller stay independent.
   preferBrandStore?: boolean;
 }
 
@@ -68,34 +66,31 @@ export class DealsService {
     return this.http.get<Deal>(`${API_BASE_URL}/api/products/${id}`);
   }
 
-  // Ana sayfadaki "canlı tarama şeridi" için — her sayfa yüklemesinde bir kez.
+  // The home page's live scan strip, once per page load.
   getStats(): Observable<HomepageStats> {
     return this.http.get<HomepageStats>(`${API_BASE_URL}/api/stats`);
   }
 
-  // Ana sayfadaki "Kullanıcıların tercih ettikleri" bandı. Sıralama
-  // sunucuda gerçek favori ve tıklama sayaçlarından hesaplanıyor; istemci
-  // bu sırayı olduğu gibi koruyor.
+  // The home page's "popular with shoppers" strip. The order is computed on
+  // the server from real watchlist and click counts; the client keeps it.
   getPreferredProducts(count = 60): Observable<Deal[]> {
     return this.http.get<Deal[]>(`${API_BASE_URL}/api/preferred-products`, {
       params: new HttpParams().set('count', count),
     });
   }
 
-  // Marka sayfasındaki "bu markaya genel bakış" bölümü için — kendi
-  // verimize dayanan özgün istatistik, markanın kopyalanmış tarihçesi
-  // yerine (bkz. CLAUDE.md "marka sayfaları" tartışması).
-  // category verilirse istatistikler markanın yalnızca o kategorideki
-  // ürünlerinden hesaplanır — marka × kategori sayfalarının kendi verisi.
+  // The brand page's overview section: original statistics from our own
+  // data instead of the brand's copied history. With a category, the numbers
+  // come only from the brand's products in that category (brand x category pages).
   getBrandStats(brand: string, category?: string): Observable<BrandStats> {
     let params = new HttpParams().set('brand', brand);
     if (category) params = params.set('category', category);
     return this.http.get<BrandStats>(`${API_BASE_URL}/api/brand-stats`, { params });
   }
 
-  // Ürün incelemesi sayfasındaki "kategorisinde nasıl konumlanıyor" bölümü
-  // için. Kategoride hiç aktif ürün yoksa backend 404 dönüyor — component
-  // bu durumda bölümü hiç göstermemeli, hata olarak ele almıyoruz.
+  // The review page's "how it sits in its category" section. The backend
+  // returns 404 when the category has no active products; the component then
+  // hides the section, it is not treated as an error.
   getCategoryPriceStats(category: string): Observable<CategoryPriceStats | null> {
     const params = new HttpParams().set('category', category);
     return this.http
@@ -103,9 +98,9 @@ export class DealsService {
       .pipe(catchError(() => of(null)));
   }
 
-  // Protein hesaplayıcısının "servis başı en uygun ürünler" tablosu için.
-  // Hesap backend'de yapılıyor ve yalnızca ilk N ürün dönüyor — sayfanın
-  // tüm kategoriyi (100 ürün) çekmesi SSR çıktısını 451 KB'a çıkarıyordu.
+  // The protein calculator's "best value per serving" table. The backend does
+  // the math and returns only the top N; fetching the whole category pushed
+  // the SSR output to 451 KB.
   getBestValuePerServing(query: {
     category: string;
     brands?: string[];
@@ -121,29 +116,29 @@ export class DealsService {
     return this.http.get<PagedResult<Deal>>(`${API_BASE_URL}/api/best-value-per-serving`, { params });
   }
 
-  // Hesaplayıcı tablosunun marka çipleri — genel /api/filters listesi
-  // yanıltıcı olurdu: bir markanın o kategoride ürünü olsa bile porsiyon
-  // verisi yoksa çipe tıklandığında tablo boş gelirdi.
+  // Brand chips for the calculator table. The general /api/filters list would
+  // mislead: a brand with products in the category but no serving data would
+  // show an empty table when clicked.
   getBestValueBrands(category: string): Observable<string[]> {
     const params = new HttpParams().set('category', category);
     return this.http.get<string[]>(`${API_BASE_URL}/api/best-value-brands`, { params });
   }
 
-  // Marka × kategori kesişim sayfaları — yalnızca gerçekten ürünü olan
-  // çiftler. Hem sitemap hem sayfa içi linkler bunu kullanıyor, boş bir
-  // kombinasyona sayfa/link üretilmiyor.
+  // Brand x category pages, only for pairs that really have products. The
+  // sitemap and in-page links both use this, so no page or link is made for
+  // an empty combination.
   getBrandCategoryPairs(): Observable<BrandCategoryPair[]> {
     return this.http.get<BrandCategoryPair[]>(`${API_BASE_URL}/api/brand-category-pairs`);
   }
 
-  // Markalar dizinindeki ürün sayıları — marka sayfasındaki rakamla aynı
-  // tanım (aktif marka + bayat olmayan ürün).
+  // Product counts for the brand directory, with the same definition as the
+  // brand page (active brand, product not stale).
   getBrandProductCounts(): Observable<BrandProductCount[]> {
     return this.http.get<BrandProductCount[]>(`${API_BASE_URL}/api/brand-product-counts`);
   }
 
-  // Ürün kartlarındaki mini sparkline'lar için toplu istek — bir sayfa
-  // (24 kart) için tek çağrı, kart başına ayrı istek (N+1) yerine.
+  // Batched request for the product cards' mini sparklines: one call per
+  // page (24 cards) instead of one per card (N+1).
   getSparklines(ids: number[], days = 30): Observable<ProductSparkline[]> {
     if (ids.length === 0) return of([]);
     let params = new HttpParams().set('days', days);
@@ -151,12 +146,10 @@ export class DealsService {
     return this.http.get<ProductSparkline[]>(`${API_BASE_URL}/api/products/sparklines`, { params });
   }
 
-  // Header, ana sayfa, marka ve kategori sayfaları hepsi kendi başlangıcında
-  // bunu ayrı ayrı çağırıyordu (aynı sayfa yüklemesinde 4 ayrı /api/filters
-  // isteği) — marka/kategori listesi neredeyse hiç değişmediği için tek
-  // istek paylaşılıp önbelleğe alınıyor. Hata durumunda önbellek sıfırlanıp
-  // sonraki çağrı gerçekten yeniden dener (shareReplay hatayı da sonsuza
-  // kadar tekrar oynatır, bu istemiyoruz).
+  // The header, home, brand and category pages each called this on start (four
+  // /api/filters requests per page load). The brand/category list hardly
+  // changes, so one request is shared and cached. On error the cache resets so
+  // the next call really retries (shareReplay would replay the error forever).
   private filterOptions$: Observable<FilterOptions> | null = null;
 
   getFilterOptions(): Observable<FilterOptions> {
@@ -190,9 +183,9 @@ export class DealsService {
     if (query.sortBy) params = params.set('sortBy', query.sortBy);
     if (query.page) params = params.set('page', query.page);
     if (query.pageSize) params = params.set('pageSize', query.pageSize);
-    // Yalnızca açıkça false verilince gönderiliyor — backend varsayılanı true.
+    // Only sent when explicitly false; the backend default is true.
     if (query.expandSynonyms === false) params = params.set('expandSynonyms', 'false');
-    // Yalnızca açıkça istenince gönderiliyor — backend varsayılanı false.
+    // Only sent when explicitly requested; the backend default is false.
     if (query.preferBrandStore) params = params.set('preferBrandStore', 'true');
 
     return params;

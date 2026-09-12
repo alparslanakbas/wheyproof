@@ -1,0 +1,825 @@
+<div class="admin">
+  @if (loading()) {
+    <main class="loading-screen" aria-live="polite">
+      <i class="ph ph-circle-notch" aria-hidden="true"></i>
+      <p>Loading the admin panel…</p>
+    </main>
+  } @else if (!signedIn()) {
+    <main class="login-shell">
+      <section class="login" aria-labelledby="login-title">
+        <div class="login-brand"><span>WP</span> Admin</div>
+        <p class="login-eyebrow">Secure admin area</p>
+        <h1 id="login-title">Welcome back</h1>
+        <p class="login-lead">Verify the admin key to continue.</p>
+
+        <form (ngSubmit)="signIn()">
+          <label for="admin-key">Admin key</label>
+          <div class="login-input">
+            <i class="ph ph-shield-check" aria-hidden="true"></i>
+            <input
+              id="admin-key"
+              type="password"
+              autocomplete="off"
+              [ngModel]="key()"
+              (ngModelChange)="key.set($event)"
+              name="key"
+            />
+          </div>
+          <button type="submit" [disabled]="signingIn()">
+            {{ signingIn() ? 'Checking…' : 'Sign in' }}
+          </button>
+        </form>
+
+        @if (signInError()) {
+          <p class="error" role="alert">{{ signInError() }}</p>
+        }
+        <p class="note">
+          The key isn't stored in the browser. The session runs on a secure cookie and ends after 12 hours.
+        </p>
+      </section>
+    </main>
+  } @else {
+    <header class="admin-top">
+      <div class="admin-brand" aria-label="WheyProof Admin">
+        <span class="admin-brand-mark">WP</span>
+        <strong>Admin</strong>
+      </div>
+
+      <nav class="tabs" aria-label="Admin sections">
+        <button type="button" [class.active]="tab() === 'status'" (click)="selectTab('status')">Status</button>
+        <button type="button" [class.active]="tab() === 'events'" (click)="selectTab('events')">Events</button>
+        <button type="button" [class.active]="tab() === 'coupons'" (click)="selectTab('coupons')">Coupons</button>
+        <button type="button" [class.active]="tab() === 'visibility'" (click)="selectTab('visibility')">
+          Visibility
+        </button>
+      </nav>
+
+      <div class="admin-session">
+        <span class="system-status" [class.warning]="error()">
+          <span aria-hidden="true"></span>
+          {{ error() ? 'Needs attention' : 'System healthy' }}
+        </span>
+        <button type="button" class="sign-out" (click)="signOut()">
+          <i class="ph ph-sign-out" aria-hidden="true"></i>
+          Sign out
+        </button>
+      </div>
+    </header>
+
+    <main class="admin-content">
+      @if (error()) {
+        <p class="error global-error" role="alert">{{ error() }}</p>
+      }
+
+      @if (tab() === 'status') {
+        <section class="page-head">
+          <div>
+            <p class="eyebrow">Overview</p>
+            <h1>System status</h1>
+            <p>A current summary of the catalog, scrapes and visitor activity.</p>
+          </div>
+          <span class="date"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span>
+        </section>
+
+        @if (status(); as s) {
+          <section class="cards" aria-label="Key figures">
+            <article class="card">
+              <span class="card-icon"><i class="ph ph-package" aria-hidden="true"></i></span>
+              <span class="label">Products</span>
+              <strong>{{ s.products.total }}</strong>
+              <span class="sub">{{ s.products.brandCount }} brands</span>
+            </article>
+            <article class="card">
+              <span class="card-icon"><i class="ph ph-scales" aria-hidden="true"></i></span>
+              <span class="label">Nutrition facts</span>
+              <strong>{{ nutritionPercent() }}%</strong>
+              <span class="sub">{{ s.products.withNutrition }} products</span>
+            </article>
+            <article class="card">
+              <span class="card-icon"><i class="ph ph-arrow-square-out" aria-hidden="true"></i></span>
+              <span class="label">Store clicks</span>
+              <strong>{{ s.clickTotal }}</strong>
+              <span class="sub">total</span>
+            </article>
+            <article class="card">
+              <span class="card-icon"><i class="ph ph-bell-ringing" aria-hidden="true"></i></span>
+              <span class="label">Subscribers</span>
+              <strong>{{ s.subscribers.confirmed }}</strong>
+              <span class="sub">{{ s.subscribers.pending }} awaiting confirmation</span>
+            </article>
+          </section>
+
+          <section class="status-grid">
+            <article class="panel nutrition-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">Scheduled job</p>
+                  <h2>Nutrition backfill</h2>
+                </div>
+                <span class="status-badge"><span></span>Scheduled</span>
+              </div>
+              <dl class="time-list">
+                <div>
+                  <dt>Last run</dt>
+                  <dd>{{ date(s.nutrition.lastRun) }} · {{ hoursAgo(s.nutrition.lastRun) }}</dd>
+                </div>
+                <div>
+                  <dt>Estimated next run</dt>
+                  <dd>{{ date(s.nutrition.nextRun) }}</dd>
+                </div>
+              </dl>
+              <p class="note">The job runs every few days; numbers not changing in between is normal.</p>
+            </article>
+
+            <article class="panel event-summary">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">Security</p>
+                  <h2>Events in the last 24 hours</h2>
+                </div>
+                <button type="button" class="link-button" (click)="selectTab('events')">See all</button>
+              </div>
+              @if (s.lastDayEvents.length === 0) {
+                <p class="empty-state">Nothing worth noting.</p>
+              } @else {
+                <ul class="summary">
+                  @for (e of s.lastDayEvents; track e.kind) {
+                    <li>
+                      <span>{{ kindLabel(e.kind) }}</span><b>{{ e.count }}</b>
+                    </li>
+                  }
+                </ul>
+              }
+            </article>
+          </section>
+
+          <section class="panel sources-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Scrape health</p>
+                <h2>Stalest sources</h2>
+              </div>
+              <p class="note">Alerts come from the health endpoint; this list is a quick look.</p>
+            </div>
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th>Last scraped</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (src of s.sources; track src.source) {
+                    <tr>
+                      <td>{{ src.source }}</td>
+                      <td>{{ hoursAgo(src.lastScraped) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+      }
+
+      @if (tab() === 'events') {
+        <section class="page-head">
+          <div>
+            <p class="eyebrow">Security</p>
+            <h1>Events</h1>
+            <p>Why your own admin actions failed, plus unauthorized requests, rate limits and server errors.</p>
+          </div>
+          <span class="date"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span>
+        </section>
+
+        <!-- When a panel action failed, only a short notice stayed on screen;
+             the real reason sat in the container's stdout and needed SSH. This
+             block brings it into the panel. Same tab as security events but a
+             SEPARATE TABLE: merging them would pollute the list that backs an
+             abuse report with our own mistakes. -->
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Admin</p>
+              <h2>Failed operations</h2>
+            </div>
+            <p class="note">
+              Last {{ eventDays() }} days. The range comes from the filter below; the kind filter doesn't affect this list.
+            </p>
+          </div>
+
+          @if (adminFailures().length === 0) {
+            <p class="empty-state">No failed admin operations in this range.</p>
+          } @else {
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Operation</th>
+                    <th>Code</th>
+                    <th>Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (f of adminFailures(); track f.id) {
+                    <tr>
+                      <td>{{ date(f.occurredAt) }}</td>
+                      <td class="mono">{{ f.method }} {{ f.path }}</td>
+                      <td>{{ f.statusCode }}</td>
+                      <td>{{ f.reason || '—' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </section>
+
+        <section class="panel">
+          <div class="filters" aria-label="Event filters">
+            <div>
+              @for (d of [1, 7, 30, 90]; track d) {
+                <button type="button" [class.active]="eventDays() === d" (click)="selectEventDays(d)">
+                  {{ d }} {{ d === 1 ? 'day' : 'days' }}
+                </button>
+              }
+            </div>
+            <div>
+              <button type="button" [class.active]="eventKind() === null" (click)="selectEventKind(null)">All</button>
+              @for (k of ['unauthorized', 'rate-limited', 'probe', 'server-error']; track k) {
+                <button type="button" [class.active]="eventKind() === k" (click)="selectEventKind(k)">
+                  {{ kindLabel(k) }}
+                </button>
+              }
+            </div>
+          </div>
+
+          @if (filteredIp(); as ip) {
+            <p class="info">
+              Showing 90 days of history for <b>{{ ip }}</b>.
+              <button type="button" class="link-button" (click)="loadEvents()">Clear filter</button>
+            </p>
+          }
+
+          @if (events(); as ev) {
+            @if (ev.topIps.length > 0 && !filteredIp()) {
+              <h2>Most active addresses</h2>
+              <div class="table-shell">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Address</th>
+                      <th>Events</th>
+                      <th>First</th>
+                      <th>Last</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (a of ev.topIps; track a.ip) {
+                      <tr>
+                        <td class="mono">{{ a.ip }}</td>
+                        <td>{{ a.count }}</td>
+                        <td>{{ date(a.firstSeen) }}</td>
+                        <td>{{ date(a.lastSeen) }}</td>
+                        <td>
+                          <button type="button" class="link-button" (click)="filterByIp(a.ip)">History</button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+
+            <h2>
+              Events <span class="heading-count">{{ ev.events.length }}</span>
+            </h2>
+            @if (ev.events.length === 0) {
+              <p class="empty-state">No records in this range.</p>
+            } @else {
+              <div class="table-shell">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Kind</th>
+                      <th>Address</th>
+                      <th>Country</th>
+                      <th>Path</th>
+                      <th>Code</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (e of ev.events; track e.id) {
+                      <tr>
+                        <td>{{ date(e.occurredAt) }}</td>
+                        <td>{{ kindLabel(e.kind) }}</td>
+                        <td class="mono">{{ e.ip }}</td>
+                        <td>{{ e.country || '—' }}</td>
+                        <td class="mono">{{ e.method }} {{ e.path }}</td>
+                        <td>{{ e.statusCode }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+        </section>
+      }
+
+      @if (tab() === 'coupons') {
+        <section class="page-head">
+          <div>
+            <p class="eyebrow">Promotions</p>
+            <h1>Coupons</h1>
+            <p>Add brand and seller coupons and manage their validity and status.</p>
+          </div>
+          <span class="date"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">New record</p>
+              <h2>Add a coupon</h2>
+            </div>
+          </div>
+          <form class="coupon-form" (ngSubmit)="createCoupon()">
+            <label
+              >Target
+              <select
+                name="targetType"
+                [ngModel]="newCoupon().targetType"
+                (ngModelChange)="newCoupon.set({ ...newCoupon(), targetType: $event })"
+              >
+                <option value="brand">Brand</option>
+                <option value="seller">Seller</option>
+              </select>
+            </label>
+            <label
+              >{{ newCoupon().targetType === 'brand' ? 'Brand name' : 'Seller domain' }}
+              @if (newCoupon().targetType === 'brand') {
+                <small>Pick from the list</small>
+              }
+              <input
+                name="target"
+                [ngModel]="newCoupon().target"
+                (ngModelChange)="newCoupon.set({ ...newCoupon(), target: $event })"
+                [attr.list]="newCoupon().targetType === 'brand' ? 'brand-suggestions' : null"
+                [attr.placeholder]="newCoupon().targetType === 'brand' ? 'e.g. Optimum Nutrition' : 'e.g. store.example.com'"
+                autocomplete="off"
+              />
+              <!-- The catalog's REAL spellings. A near-miss spelling used to
+                   produce a 404; the suggestions give the right one in a click.
+                   The backend also forgives case and spacing differences, so
+                   this list isn't the only defense; it just prevents the
+                   mistake up front. -->
+              <datalist id="brand-suggestions">
+                @for (b of brands(); track b.id) {
+                  <option [value]="b.name"></option>
+                }
+              </datalist>
+            </label>
+            <label
+              >Code <small>Leave empty if there's no code</small>
+              <input
+                name="code"
+                [ngModel]="newCoupon().code"
+                (ngModelChange)="newCoupon.set({ ...newCoupon(), code: $event })"
+              />
+            </label>
+            <label
+              >Description
+              <input
+                name="description"
+                [ngModel]="newCoupon().description"
+                (ngModelChange)="newCoupon.set({ ...newCoupon(), description: $event })"
+              />
+            </label>
+            <label
+              >Valid until <small>Empty = no end date</small>
+              <input
+                type="date"
+                name="validUntil"
+                [ngModel]="newCoupon().validUntil"
+                (ngModelChange)="newCoupon.set({ ...newCoupon(), validUntil: $event })"
+              />
+            </label>
+            <button type="submit">Add coupon</button>
+          </form>
+          @if (couponMessage()) {
+            <p class="info" role="status">{{ couponMessage() }}</p>
+          }
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Existing records</p>
+              <h2>
+                Coupons <span class="heading-count">{{ coupons().length }}</span>
+              </h2>
+            </div>
+          </div>
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Target</th>
+                  <th>Code</th>
+                  <th>Description</th>
+                  <th>Ends</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of coupons(); track c.id) {
+                  @if (editingCoupon()?.id === c.id) {
+                    <!-- Inline edit. The target (brand/seller) CAN'T be
+                         changed, on purpose: the backend doesn't update it,
+                         and showing it as editable would be a field that
+                         never saves. -->
+                    <tr class="editing">
+                      <td>
+                        <span class="row-status" [class.is-hidden]="!c.isActive"
+                          ><span></span>{{ c.isActive ? 'Active' : 'Inactive' }}</span
+                        >
+                      </td>
+                      <td>{{ c.brandName || c.seller }}</td>
+                      <td>
+                        <input
+                          class="row-input mono"
+                          [ngModel]="editingCoupon()!.code"
+                          (ngModelChange)="updateCouponField('code', $event)"
+                          [ngModelOptions]="{ standalone: true }"
+                          placeholder="no code"
+                          aria-label="Coupon code"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          class="row-input"
+                          [ngModel]="editingCoupon()!.description"
+                          (ngModelChange)="updateCouponField('description', $event)"
+                          [ngModelOptions]="{ standalone: true }"
+                          aria-label="Description"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="date"
+                          class="row-input"
+                          [ngModel]="editingCoupon()!.validUntil"
+                          (ngModelChange)="updateCouponField('validUntil', $event)"
+                          [ngModelOptions]="{ standalone: true }"
+                          aria-label="End date"
+                        />
+                      </td>
+                      <td>
+                        <div class="row-actions">
+                          <button
+                            type="button"
+                            class="row-action primary"
+                            [disabled]="couponSaving()"
+                            (click)="saveCouponEdit()"
+                          >
+                            {{ couponSaving() ? 'Saving…' : 'Save' }}
+                          </button>
+                          <button
+                            type="button"
+                            class="row-action"
+                            [disabled]="couponSaving()"
+                            (click)="cancelCouponEdit()"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  } @else {
+                    <tr [class.inactive]="!c.isActive">
+                      <td>
+                        <span class="row-status" [class.is-hidden]="!c.isActive"
+                          ><span></span>{{ c.isActive ? 'Active' : 'Inactive' }}</span
+                        >
+                      </td>
+                      <td>{{ c.brandName || c.seller }}</td>
+                      <td class="mono">{{ c.code || 'no code' }}</td>
+                      <td>{{ c.description }}</td>
+                      <td>{{ c.validUntil ? date(c.validUntil) : 'no end date' }}</td>
+                      <td>
+                        <div class="row-actions">
+                          <button type="button" class="row-action" (click)="startCouponEdit(c)">Edit</button>
+                          <button type="button" class="row-action" (click)="toggleCouponActive(c)">
+                            {{ c.isActive ? 'Deactivate' : 'Activate' }}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+
+      @if (tab() === 'visibility') {
+        <section class="page-head">
+          <div>
+            <p class="eyebrow">Catalog</p>
+            <h1>Visibility</h1>
+            <p>Control whether brands and products are published on the site.</p>
+          </div>
+          <span class="date"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span>
+        </section>
+
+        @if (visibilityMessage()) {
+          <p class="info visibility-message" role="status">{{ visibilityMessage() }}</p>
+        }
+
+        <div class="visibility-layout">
+          <section class="visibility-panel" aria-label="Visibility records">
+            <div class="visibility-tabs" role="tablist" aria-label="Visibility type">
+              <button
+                type="button"
+                role="tab"
+                [attr.aria-selected]="visibilityView() === 'brands'"
+                [class.active]="visibilityView() === 'brands'"
+                (click)="selectVisibilityView('brands')"
+              >
+                Brands <span>{{ brands().length }}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                [attr.aria-selected]="visibilityView() === 'products'"
+                [class.active]="visibilityView() === 'products'"
+                (click)="selectVisibilityView('products')"
+              >
+                Products <span>{{ visibilityProductTotal() }}</span>
+              </button>
+            </div>
+
+            @if (visibilityView() === 'brands') {
+              <div class="visibility-tools">
+                <label class="search-field">
+                  <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                  <span class="sr-only">Search brands</span>
+                  <input
+                    type="search"
+                    placeholder="Search brands…"
+                    [ngModel]="brandSearch()"
+                    (ngModelChange)="onBrandSearch($event)"
+                  />
+                </label>
+                <div class="status-filters" aria-label="Brand status">
+                  <button type="button" [class.active]="brandFilter() === 'all'" (click)="selectBrandFilter('all')">All</button>
+                  <button type="button" [class.active]="brandFilter() === 'visible'" (click)="selectBrandFilter('visible')">
+                    Visible
+                  </button>
+                  <button type="button" [class.active]="brandFilter() === 'hidden'" (click)="selectBrandFilter('hidden')">
+                    Hidden
+                  </button>
+                </div>
+              </div>
+
+              @if (brandsLoading()) {
+                <div class="empty-state large">
+                  <i class="ph ph-circle-notch" aria-hidden="true"></i>
+                  <p>Loading brands…</p>
+                </div>
+              } @else {
+                <div class="table-shell visibility-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Brand</th>
+                        <th>Products</th>
+                        <th>Hidden</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (b of pagedBrands(); track b.id) {
+                        <tr [class.inactive]="!b.isActive">
+                          <td class="brand-cell">
+                            <span><i class="ph ph-storefront" aria-hidden="true"></i></span><strong>{{ b.name }}</strong>
+                          </td>
+                          <td>{{ b.productCount }}</td>
+                          <td>{{ b.hiddenProducts }}</td>
+                          <td>
+                            <span class="row-status" [class.is-hidden]="!b.isActive"
+                              ><span></span>{{ b.isActive ? 'Live' : 'Hidden' }}</span
+                            >
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              class="row-toggle"
+                              [class.publish]="!b.isActive"
+                              [disabled]="changeInProgress()"
+                              (click)="requestVisibilityChange('brand', b.id, b.name, b.isActive)"
+                            >
+                              {{ b.isActive ? 'Hide' : 'Publish' }}
+                            </button>
+                          </td>
+                        </tr>
+                      } @empty {
+                        <tr>
+                          <td colspan="5"><p class="empty-state">No brand matches the search.</p></td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+
+                @if (filteredBrands().length > 0) {
+                  <div class="pagination">
+                    <span>{{ brandRangeStart() }}–{{ brandRangeEnd() }} of {{ filteredBrands().length }} brands</span>
+                    <div>
+                      <button
+                        type="button"
+                        [disabled]="brandPage() === 1"
+                        (click)="goToBrandPage(brandPage() - 1)"
+                        aria-label="Previous page"
+                      >
+                        <i class="ph ph-caret-left" aria-hidden="true"></i>
+                      </button>
+                      @for (p of visibleBrandPages(); track p) {
+                        <button
+                          type="button"
+                          [class.active]="p === brandPage()"
+                          [attr.aria-current]="p === brandPage() ? 'page' : null"
+                          (click)="goToBrandPage(p)"
+                        >
+                          {{ p }}
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        [disabled]="brandPage() === brandPageCount()"
+                        (click)="goToBrandPage(brandPage() + 1)"
+                        aria-label="Next page"
+                      >
+                        <i class="ph ph-caret-right" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  </div>
+                }
+
+                <p class="impact-note">
+                  <i class="ph ph-info" aria-hidden="true"></i>Hiding a brand removes all of its products from the site.
+                </p>
+              }
+            } @else {
+              <form class="product-search-form" (ngSubmit)="searchProducts()">
+                <label class="search-field">
+                  <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                  <span class="sr-only">Search products</span>
+                  <input
+                    name="productSearch"
+                    type="search"
+                    placeholder="Search products or brands…"
+                    [ngModel]="productSearch()"
+                    (ngModelChange)="productSearch.set($event)"
+                  />
+                </label>
+                <label class="checkbox"
+                  ><input
+                    type="checkbox"
+                    name="hiddenOnly"
+                    [ngModel]="hiddenOnly()"
+                    (ngModelChange)="onHiddenOnlyChange($event)"
+                  />Hidden only</label
+                >
+                <button type="submit">Search</button>
+              </form>
+
+              @if (productsLoading()) {
+                <div class="empty-state large">
+                  <i class="ph ph-circle-notch" aria-hidden="true"></i>
+                  <p>Searching products…</p>
+                </div>
+              } @else if (!productSearchDone()) {
+                <div class="empty-state large">
+                  <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                  <h2>Search to see products</h2>
+                  <p>Because of the catalog's size, products are only listed by search or with the hidden filter.</p>
+                </div>
+              } @else if (products().length === 0) {
+                <div class="empty-state large">
+                  <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                  <h2>No products found</h2>
+                  <p>Change the search or the hidden-only filter.</p>
+                </div>
+              } @else {
+                <div class="table-shell visibility-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Brand</th>
+                        <th>Price</th>
+                        <th>Seller</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (p of products(); track p.id) {
+                        <tr [class.inactive]="!p.isActive">
+                          <td class="product-name">
+                            <strong>{{ p.name }}</strong>
+                          </td>
+                          <td>{{ p.brand }}</td>
+                          <td>{{ price(p.latestPrice) }}</td>
+                          <td>{{ p.seller || "Brand's own store" }}</td>
+                          <td>
+                            <span class="row-status" [class.is-hidden]="!p.isActive"
+                              ><span></span>{{ p.isActive ? 'Live' : 'Hidden' }}</span
+                            >
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              class="row-toggle"
+                              [class.publish]="!p.isActive"
+                              [disabled]="changeInProgress()"
+                              (click)="requestVisibilityChange('product', p.id, p.name, p.isActive)"
+                            >
+                              {{ p.isActive ? 'Hide' : 'Publish' }}
+                            </button>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                <p class="impact-note">
+                  <i class="ph ph-info" aria-hidden="true"></i>At most 200 results are shown. Hiding requires confirmation.
+                </p>
+              }
+            }
+          </section>
+
+          <aside class="quick-view" aria-label="Visibility summary">
+            <h2>At a glance</h2>
+            <dl>
+              <div>
+                <dt>
+                  <span class="quick-icon live"><i class="ph ph-check-circle" aria-hidden="true"></i></span>Live
+                </dt>
+                <dd>{{ activeBrandCount() }}<small>brands</small></dd>
+              </div>
+              <div>
+                <dt>
+                  <span class="quick-icon is-hidden"><i class="ph ph-eye-slash" aria-hidden="true"></i></span>Hidden
+                </dt>
+                <dd>{{ hiddenBrandCount() }}<small>brands</small></dd>
+              </div>
+              <div>
+                <dt>
+                  <span class="quick-icon"><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i></span>Last updated
+                </dt>
+                <dd class="small-value">{{ hoursAgo(visibilityUpdatedAt()) }}</dd>
+              </div>
+            </dl>
+          </aside>
+        </div>
+      }
+    </main>
+
+    @if (pendingChange(); as change) {
+      <div class="confirm-backdrop" (click)="cancelChange()">
+        <section
+          class="confirm-dialog"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="confirm-title"
+          (click)="$event.stopPropagation()"
+        >
+          <span class="confirm-icon"><i class="ph ph-warning-circle" aria-hidden="true"></i></span>
+          <p class="eyebrow">Visibility change</p>
+          <h2 id="confirm-title">Hide {{ change.name }}?</h2>
+          <p>
+            {{ change.type === 'brand' ? 'The brand and all of its products' : 'This product' }}
+            will be removed from visitor pages. You can publish it again later.
+          </p>
+          <div class="confirm-actions">
+            <button type="button" class="cancel" [disabled]="changeInProgress()" (click)="cancelChange()">Cancel</button>
+            <button type="button" class="confirm-hide" [disabled]="changeInProgress()" (click)="confirmChange()">
+              {{ changeInProgress() ? 'Saving…' : 'Confirm and hide' }}
+            </button>
+          </div>
+        </section>
+      </div>
+    }
+  }
+</div>

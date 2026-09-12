@@ -17,15 +17,12 @@ import { MobileTabBar } from './mobile-tab-bar/mobile-tab-bar';
 import { NewsletterSignup } from './newsletter-signup/newsletter-signup';
 import { UpdateBanner } from './update-banner/update-banner';
 
-// Route ağacının en derinindeki component referansını buluyor —
-// DealsRouteReuseStrategy'nin "aynı component mi" kontrolüyle aynı mantık.
-// ÖNEMLİ: current.routeConfig.component DEĞİL, current.component kullanılıyor —
-// routeConfig.component sadece statik (eager) import edilen route'larda dolu;
-// route bazlı lazy loading eklendikten sonra (loadComponent kullanan route'lar)
-// bu alan hep undefined kalıyordu, iki farklı lazy sayfa arasında geçişte
-// "undefined !== undefined" hep false çıkıp scroll hiç sıfırlanmıyordu (gerçek
-// bir prod bug'ı, kullanıcı bildirdi). current.component ise Router'ın
-// resolve ettiği gerçek sınıfı taşıyor, hem eager hem lazy route'larda dolu.
+// Finds the component at the deepest point of the route tree, with the same
+// logic as DealsRouteReuseStrategy's "same component" check.
+// IMPORTANT: current.component, NOT current.routeConfig.component. The latter
+// is only set for eagerly imported routes; with lazy loadComponent routes it
+// stayed undefined, "undefined !== undefined" was always false and the scroll
+// position never reset between two lazy pages (a real production bug).
 function leafComponent(snapshot: ActivatedRouteSnapshot): unknown {
   let current = snapshot;
   while (current.firstChild) current = current.firstChild;
@@ -43,36 +40,30 @@ export class App implements OnInit {
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
-  // null = henüz hiç gezinme olmadı (bkz. shouldResetScroll).
+  // null = no navigation yet (see shouldResetScroll).
   private lastNavigation: NavigationSnapshot | null = null;
 
   protected readonly currentYear = new Date().getFullYear();
-  // Marka adı boşluk ya da Türkçe harf taşıyabiliyor ("Torq Nutrition",
-  // "Yeşilmarka"); toLowerCase() bunları adrese olduğu gibi taşıyıp
-  // %20/%C5%9F içeren ikinci bir adres üretiyordu.
+  // Brand names can carry spaces ("Transparent Labs"); toLowerCase() would
+  // put them in the URL as-is and create a second, %20-encoded address.
   protected readonly brandSlug = brandSlug;
 
-  /** Footer marka listesi bu sayfada gösterilsin mi (bkz. core/footer-brand-links.ts). */
-  protected readonly footerMarkaListesi = signal(true);
+  /** Whether this page shows the footer brand list (see core/footer-brand-links.ts). */
+  protected readonly showFooterBrands = signal(true);
 
   /**
-   * Yönetim panelindeyiz — site kabuğu (footer, çerez bandı, karşılaştırma
-   * çubuğu, mobil sekmeler) gizleniyor.
-   *
-   * Panel bir ziyaretçi sayfası değil, araç ekranı: pazarlama alt bilgisi,
-   * bülten formu ve marka listesi orada yalnızca yer kaplıyor ve ekranın
-   * yarısını dolduruyor. Çerez bandı da anlamsız — panelde reklam/analitik
-   * tercihi sorulacak bir ziyaretçi yok.
+   * On the admin panel the site shell (footer, cookie banner, comparison
+   * bar, mobile tabs) is hidden: it is a tool screen, not a visitor page,
+   * and marketing chrome only takes up space there.
    */
-  protected readonly yonetimSayfasi = signal(false);
+  protected readonly adminPage = signal(false);
 
   protected readonly brands = signal<string[]>([]);
   protected readonly categories = signal<{ slug: string; label: string }[]>([]);
 
-  // Marka karşılaştırma sayfalarına (/karsilastir/:pair) footer'dan bir giriş
-  // noktası — brand-page.ts'teki comparisonPairSlug ile aynı kanonik kural:
-  // alfabetik sıralı, benzersiz ikili kombinasyonlar (hiq-vs-ssn gibi, hiç
-  // ssn-vs-hiq yok — duplicate content'e düşmemek için).
+  // Brand comparison pairs (/compare/:pair), with the same canonical rule as
+  // brand-page.ts's comparisonPairSlug: alphabetical, unique pairs only
+  // (hiq-vs-ssn, never ssn-vs-hiq) to avoid duplicate content.
   protected readonly comparisonPairs = computed(() => {
     const sorted = [...this.brands()].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
     const pairs: { slug: string; label: string }[] = [];
@@ -93,12 +84,9 @@ export class App implements OnInit {
       this.categories.set(options.categories.map((slug) => ({ slug, label: CATEGORY_LABELS[slug] ?? slug })));
     });
 
-    // Organization + Person (kurucu) schema.org işaretlemesi — site
-    // genelinde, sayfa navigasyonundan bağımsız, sadece bir kez eklenip
-    // hiç kaldırılmıyor (deals-list.ts'teki ürün Product/FAQ JSON-LD'sinin
-    // aksine, bu ikisi tüm sayfalarda sabit kalmalı). YMYL niteliğindeki
-    // bir konuda (takviye/sağlık) yazar kimliği sinyali için — rakip
-    // analizinde eksik olduğumuz, en yüksek etkili maddeydi.
+    // Site-wide Organization + Person (founder) schema.org markup, added once
+    // and never removed, unlike per-page Product/FAQ JSON-LD. Supplements are
+    // a YMYL topic, where an identifiable author is a trust signal.
     const origin = canonicalOrigin(this.document);
     upsertJsonLdScript(this.document, null, {
       '@context': 'https://schema.org',
@@ -124,29 +112,24 @@ export class App implements OnInit {
       worksFor: { '@type': 'Organization', name: SITE_NAME, url: origin },
     });
 
-    // Kullanıcı geri bildirimi: footer'daki bir linke (ör. Rehber, Kategoriler)
-    // tıklayınca sayfa değişiyor ama scroll konumu sayfanın altında kalıyor —
-    // SPA navigasyonu tarayıcının varsayılan "sayfa değişince en üste git"
-    // davranışını miras almıyor. Angular'ın hazır `withInMemoryScrolling`
-    // ayarı bunu HER navigasyonda (ör. kategori/marka sayfasındaki ?urun=
-    // query param'ıyla açılan ürün modalında da) tetikleyip modal
-    // açılırken/kapanırken arka plan sayfasını istenmeden en üste
-    // zıplatırdı — bu yüzden burada sadece gerçekten FARKLI bir sayfaya
-    // (component'e) geçildiğinde en üste kaydırıyoruz; aynı sayfa içindeki
-    // route-reuse navigasyonlarına (modal aç/kapa) dokunmuyoruz.
-    // DİKKAT: bu abonelik isBrowser guard'ının DIŞINDA. Footer kararının
-    // SSR çıktısında da uygulanması şart — Google'ın okuduğu o. Kaydırma
-    // kısmı ise yalnızca tarayıcıda anlamlı, o yüzden içeride korunuyor.
+    // An SPA does not inherit the browser's "scroll to top on a new page"
+    // behavior. Angular's withInMemoryScrolling would scroll on EVERY
+    // navigation, including opening the product modal through ?product= on
+    // a category or brand page, and jump the page behind it. So the page
+    // scrolls to the top only when a DIFFERENT component is shown.
+    // NOTE: this subscription is OUTSIDE the isBrowser guard: the footer
+    // decision must apply in the SSR output too, since that is what Google
+    // reads. Scrolling only makes sense in the browser.
     this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd)).subscribe(() => {
-      // Karar mantığı core/scroll-reset.ts'te, saf ve test edilebilir
-      // hâlde. Buradaki iş yalnızca durumu okuyup uygulamak.
+      // The decision lives in core/scroll-reset.ts, pure and testable; this
+      // only reads the state and applies it.
       const next: NavigationSnapshot = {
         component: leafComponent(this.router.routerState.snapshot.root),
         path: routePath(this.router.url),
       };
 
-      this.footerMarkaListesi.set(showFooterBrandLinks(next.path));
-      this.yonetimSayfasi.set(next.path === '/yonetim' || next.path.startsWith('/yonetim/'));
+      this.showFooterBrands.set(showFooterBrandLinks(next.path));
+      this.adminPage.set(next.path === '/admin' || next.path.startsWith('/admin/'));
 
       if (this.isBrowser && shouldResetScroll(this.lastNavigation, next)) {
         window.scrollTo(0, 0);
