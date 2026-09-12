@@ -7,21 +7,20 @@ using Microsoft.Extensions.Logging;
 namespace IndirimTakip.Infrastructure.Security;
 
 /// <summary>
-/// Güvenlik olaylarını saklama süresi dolduğunda siliyor.
+/// Deletes security events once their retention period is over.
 /// </summary>
 /// <remarks>
-/// <b>Neden zorunlu.</b> İki sebep var ve ikisi de tek başına yeterli:
-/// (a) sınırsız büyüyen bir tablo, saldırı trafiği altında diskin kendisini
-/// bir arıza kaynağına çevirir; (b) kişisel veri içeren bir kaydın süresiz
-/// tutulması savunulabilir değil — saklama süresinin TANIMLI olması, kaydın
-/// meşruiyetinin bir parçası.
+/// <b>Why it's required.</b> Two reasons, each sufficient on its own:
+/// (a) a table growing without limit turns the disk itself into a failure source
+/// under attack traffic; (b) keeping a record containing personal data
+/// indefinitely isn't defensible: a DEFINED retention period is part of what
+/// makes the record legitimate.
 ///
-/// <b>Neden durum tutmuyor.</b> Bu depoda aynı tuzağa iki kez düşüldü: periyodu
-/// timer'ın kendisi tutunca her deploy süreci sıfırlıyor ve iş hiç
-/// çalışmıyor (bülten ve detay tamamlama). Burada o sorun hiç doğmuyor,
-/// çünkü silme İŞLEMİ ZATEN ETKİSİZ-TEKRARLANABİLİR: her turda "süresi
-/// geçmişleri sil" demek yeterli, kaçırılan bir tur bir sonrakinde telafi
-/// oluyor. Bu yüzden damga tutmaya gerek yok.
+/// <b>Why it keeps no state.</b> This codebase fell into the same trap twice: when
+/// the timer itself holds the period, every deploy resets the process and the job
+/// never runs (the digest and the detail backfill). That can't happen here,
+/// because the deletion is ALREADY IDEMPOTENT: "delete the expired ones" every run
+/// is enough, and a missed run is made up by the next one. So no stamp is needed.
 /// </remarks>
 public class SecurityEventRetentionService(
     IServiceScopeFactory scopeFactory,
@@ -40,28 +39,28 @@ public class SecurityEventRetentionService(
                 using var scope = scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-                var esik = DateTimeOffset.UtcNow.AddDays(-retentionDays);
-                var silinen = await db.SecurityEvents
-                    .Where(x => x.OccurredAt < esik)
+                var cutoff = DateTimeOffset.UtcNow.AddDays(-retentionDays);
+                var deleted = await db.SecurityEvents
+                    .Where(x => x.OccurredAt < cutoff)
                     .ExecuteDeleteAsync(stoppingToken);
 
-                if (silinen > 0)
-                    logger.LogInformation("Güvenlik olayı temizliği: {Count} kayıt silindi ({Days} günden eski).", silinen, retentionDays);
+                if (deleted > 0)
+                    logger.LogInformation("Security event cleanup: {Count} records deleted (older than {Days} days).", deleted, retentionDays);
 
-                // Yönetim hatası kaydı AYNI süreyle temizleniyor. İki kaydı
-                // farklı sürelerle tutmak, gizlilik metninde tek bir süre
-                // yazarken kendi içinde çelişmek olurdu; ayrıca ikinci bir
-                // ayar, unutulduğunda sınırsız büyüyen bir tablo demek.
-                var yonetimSilinen = await db.AdminOperationFailures
-                    .Where(x => x.OccurredAt < esik)
+                // The admin failure log is cleaned with the SAME period. Keeping the
+                // two records for different periods would contradict the single
+                // period stated in the privacy policy; a second setting would also
+                // mean a table growing without limit once forgotten.
+                var adminDeleted = await db.AdminOperationFailures
+                    .Where(x => x.OccurredAt < cutoff)
                     .ExecuteDeleteAsync(stoppingToken);
 
-                if (yonetimSilinen > 0)
-                    logger.LogInformation("Yönetim hatası temizliği: {Count} kayıt silindi ({Days} günden eski).", yonetimSilinen, retentionDays);
+                if (adminDeleted > 0)
+                    logger.LogInformation("Admin failure cleanup: {Count} records deleted (older than {Days} days).", adminDeleted, retentionDays);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Güvenlik olayı temizliği başarısız.");
+                logger.LogError(ex, "Security event cleanup failed.");
             }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));

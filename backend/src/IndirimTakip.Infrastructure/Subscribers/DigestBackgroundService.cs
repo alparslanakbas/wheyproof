@@ -14,21 +14,20 @@ public class DigestBackgroundService(
     {
         if (!configuration.GetValue("Digest:Enabled", true))
         {
-            logger.LogInformation("Zamanlanmış bülten gönderimi devre dışı (Digest:Enabled=false).");
+            logger.LogInformation("Scheduled digest sending is disabled (Digest:Enabled=false).");
             return;
         }
 
-        // Zamanlamayı ARTIK bu timer belirlemiyor; sadece "kontrol etme"
-        // sıklığı. Gerçek karar (hangi abonenin maili zamanı geldi) her turda
-        // DB'deki Subscriber.LastDigestSentAt'e bakılarak veriliyor.
+        // This timer NO LONGER decides the schedule; it is only how often to check.
+        // The real decision (whose digest is due) is made every run from
+        // Subscriber.LastDigestSentAt in the database.
         //
-        // Öncesinde timer'ın kendisi 7 günlük periyodu tutuyordu ve bu, bülten
-        // hiç gönderilememesine yol açıyordu: her deploy/restart süreci
-        // sıfırdan başlattığı için 7 günlük periyot bir kez bile dolmuyordu.
-        // Durum artık DB'de olduğundan restart zamanlamayı etkilemiyor, aynı
-        // sebeple başlangıçta hemen bir kontrol yapmak da güvenli (gönderim
-        // için hâlâ aboneye özel 7 günün dolması gerekiyor, yani deploy başına
-        // tekrar mail gitmiyor).
+        // The timer used to hold the 7-day period itself, and that meant the digest
+        // was never sent: every deploy/restart started the process from scratch, so
+        // the 7-day period never elapsed even once. With the state in the database
+        // a restart doesn't affect the schedule, and for the same reason checking
+        // right at startup is safe (sending still requires 7 days per subscriber, so
+        // a deploy doesn't send mail again).
         var checkIntervalHours = configuration.GetValue("Digest:CheckIntervalHours", 6);
         using var timer = new PeriodicTimer(TimeSpan.FromHours(checkIntervalHours));
 
@@ -51,13 +50,13 @@ public class DigestBackgroundService(
             if (result.SubscriberCount > 0 || result.PendingCount > 0)
             {
                 logger.LogInformation(
-                    "Zamanlanmış bülten: {DealCount} ürün, {SubscriberCount} aboneye gönderildi, {PendingCount} abone sıradaki tura kaldı.",
+                    "Scheduled digest: {DealCount} products, sent to {SubscriberCount} subscribers, {PendingCount} left for the next run.",
                     result.DealCount, result.SubscriberCount, result.PendingCount);
             }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Zamanlanmış bülten gönderimi başarısız oldu.");
+            logger.LogError(ex, "Scheduled digest sending failed.");
         }
     }
 }

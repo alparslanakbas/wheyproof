@@ -2,9 +2,9 @@ using IndirimTakip.Infrastructure.Security;
 
 namespace IndirimTakip.Infrastructure.Tests;
 
-// Bu sınıfın iki yönlü hata yapma ihtimali var ve ikisi de sessiz:
-// fazla genişse normal trafiği kaydeder (hacim + gereksiz kişisel veri),
-// fazla darsa gerçek saldırıyı kaçırır. İkisi de ayrı ayrı sınanıyor.
+// This class can go wrong in two directions and both are silent: too broad and it
+// records normal traffic (volume + needless personal data), too narrow and it
+// misses a real attack. Each is tested separately.
 public class SecurityEventClassifierTests
 {
     [Theory]
@@ -14,21 +14,21 @@ public class SecurityEventClassifierTests
     [InlineData(500, "server-error")]
     [InlineData(502, "server-error")]
     [InlineData(503, "server-error")]
-    public void DikkateDegerDurumKodlariKaydediliyor(int kod, string beklenen)
+    public void Noteworthy_status_codes_are_recorded(int status, string expected)
     {
-        Assert.Equal(beklenen, SecurityEventClassifier.Classify(kod, "/api/dev/click-report"));
+        Assert.Equal(expected, SecurityEventClassifier.Classify(status, "/api/dev/click-report"));
     }
 
-    // EN ÖNEMLİ TEST: 404'lerin çoğu masum (silinmiş ürün, eski bağlantı).
-    // Hepsi kaydedilseydi tablo gürültüyle dolar ve panel okunmaz hâle gelirdi.
+    // THE MOST IMPORTANT TEST: most 404s are innocent (deleted product, old link).
+    // Recording them all would fill the table with noise and make the panel unreadable.
     [Theory]
-    [InlineData("/urun/4304/hardline-whey-3-matrix-base-2300-gr")]
-    [InlineData("/marka/bigjoy/protein-tozu")]
-    [InlineData("/kategori/kreatin")]
+    [InlineData("/product/4304/optimum-nutrition-gold-standard-whey-5-lb")]
+    [InlineData("/brand/ghost/protein-powder")]
+    [InlineData("/category/creatine")]
     [InlineData("/")]
-    public void MasumDortYuzDortKaydedilmiyor(string yol)
+    public void Innocent_404_is_not_recorded(string path)
     {
-        Assert.Null(SecurityEventClassifier.Classify(404, yol));
+        Assert.Null(SecurityEventClassifier.Classify(404, path));
     }
 
     [Theory]
@@ -38,44 +38,43 @@ public class SecurityEventClassifierTests
     [InlineData("/.git/config")]
     [InlineData("/phpmyadmin/index.php")]
     [InlineData("/xmlrpc.php")]
-    public void BilinenAcikTaramasiYakalaniyor(string yol)
+    public void Known_exploit_scan_is_caught(string path)
     {
-        Assert.Equal("probe", SecurityEventClassifier.Classify(404, yol));
+        Assert.Equal("probe", SecurityEventClassifier.Classify(404, path));
     }
 
-    // Başarılı istekler HİÇ kaydedilmiyor — sayfa görüntülemesi bu tablonun
-    // konusu değil.
+    // Successful requests are NEVER recorded; page views aren't what this table is for.
     [Theory]
     [InlineData(200)]
     [InlineData(201)]
     [InlineData(301)]
     [InlineData(304)]
-    public void NormalIstekKaydedilmiyor(int kod)
+    public void Normal_request_is_not_recorded(int status)
     {
-        Assert.Null(SecurityEventClassifier.Classify(kod, "/api/deals"));
+        Assert.Null(SecurityEventClassifier.Classify(status, "/api/deals"));
     }
 
-    // TÜRKÇE TUZAĞI: karşılaştırma invariant kültürle yapılıyor ve BU DOĞRU
-    // olan. Türkçe kültürle küçültülseydi "I" harfi noktasız "ı" olur,
-    // ".INI" uzantılı bir tarama eşleşmez ve sessizce kaçardı.
+    // CULTURE TRAP: the comparison uses the invariant culture, and THAT IS RIGHT.
+    // Lowercased with a Turkish culture, "I" would become a dotless "ı" and a
+    // scan for an ".INI" file would silently slip through.
     [Fact]
-    public void BuyukHarfliUzanti_TurkceKultureTakilmiyor()
+    public void Uppercase_extension_is_not_tripped_by_culture()
     {
         Assert.True(SecurityEventClassifier.LooksLikeProbe("/CONFIG.INI"));
         Assert.True(SecurityEventClassifier.LooksLikeProbe("/WP-ADMIN/INDEX.PHP"));
     }
 
-    // Ters yön: yolda Türkçe noktalı İ geçmesi çökme ya da yanlış eşleşme
-    // üretmemeli. Ürün adları slug'lara giriyor, bu yol gerçekten oluşabilir.
+    // The other direction: non-ASCII letters in a path must not crash or match
+    // wrongly. Product names end up in slugs, so such paths really occur.
     [Fact]
-    public void TurkceKarakterliYolYanlisEslesmiyor()
+    public void Path_with_non_ascii_letters_does_not_match_wrongly()
     {
-        Assert.False(SecurityEventClassifier.LooksLikeProbe("/urun/12/BİGJOY-PROTEİN-TOZU"));
-        Assert.Null(SecurityEventClassifier.Classify(404, "/marka/İmperium/vitamin"));
+        Assert.False(SecurityEventClassifier.LooksLikeProbe("/product/12/CAFÉ-PROTEİN-BLEND"));
+        Assert.Null(SecurityEventClassifier.Classify(404, "/brand/Crème/vitamins"));
     }
 
     [Fact]
-    public void BosYolCokmuyor()
+    public void Empty_path_does_not_crash()
     {
         Assert.False(SecurityEventClassifier.LooksLikeProbe(""));
         Assert.Null(SecurityEventClassifier.Classify(404, ""));

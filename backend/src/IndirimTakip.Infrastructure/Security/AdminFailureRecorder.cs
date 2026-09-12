@@ -5,37 +5,37 @@ using Microsoft.Extensions.Logging;
 namespace IndirimTakip.Infrastructure.Security;
 
 /// <summary>
-/// Başarısız yönetim işlemlerini veritabanına yazar.
+/// Writes failed admin operations to the database.
 /// </summary>
 /// <remarks>
-/// <b>KENDİ KAPSAMINI AÇIYOR — bu şart, kolaylık değil.</b> Kaydedilecek
-/// hataların bir kısmı zaten <c>SaveChangesAsync</c> patladığı için oluşuyor.
-/// İsteğin kendi <c>AppDbContext</c>'i o anda kirli: başarısız olan varlıklar
-/// hâlâ izleniyor. Aynı bağlam üzerinden kayıt atmak, o başarısız yazmayı
-/// TEKRAR denemek demek olurdu — yani tam da açıklamaya çalıştığımız hata
-/// kaydı, aynı hataya takılıp kaybolurdu. Temiz bir kapsam bu bağı kesiyor.
+/// <b>IT OPENS ITS OWN SCOPE, a requirement, not a convenience.</b> Some of the
+/// errors to record happen precisely because <c>SaveChangesAsync</c> blew up. The
+/// request's own <c>AppDbContext</c> is dirty at that moment: the failed entities
+/// are still tracked. Recording through the same context would retry that failed
+/// write, so the very record meant to explain the error would hit the same error
+/// and be lost. A clean scope breaks that link.
 /// </remarks>
 public class AdminFailureRecorder(
     IServiceScopeFactory scopeFactory,
     ILogger<AdminFailureRecorder> logger)
 {
-    public async Task RecordAsync(AdminOperationFailure kayit, CancellationToken cancellationToken = default)
+    public async Task RecordAsync(AdminOperationFailure failure, CancellationToken cancellationToken = default)
     {
         try
         {
             using var scope = scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            db.AdminOperationFailures.Add(kayit);
+            db.AdminOperationFailures.Add(failure);
             await db.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)
         {
-            // Kayıt tutulamaması isteğin sonucunu DEĞİŞTİRMEMELİ. Kullanıcı
-            // zaten bir hata alıyor; üstüne bir de log yüzünden ikinci bir
-            // hata üretmek asıl sebebi büsbütün gizlerdi.
-            logger.LogWarning(ex, "Yönetim hatası kaydedilemedi: {Method} {Path} {Status}",
-                kayit.Method, kayit.Path, kayit.StatusCode);
+            // Failing to record must NOT CHANGE the request's outcome. The admin
+            // already gets an error; producing a second one because of the log
+            // would bury the real cause entirely.
+            logger.LogWarning(ex, "Could not record admin failure: {Method} {Path} {Status}",
+                failure.Method, failure.Path, failure.StatusCode);
         }
     }
 }

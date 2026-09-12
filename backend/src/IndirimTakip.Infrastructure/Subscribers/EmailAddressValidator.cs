@@ -6,19 +6,18 @@ using Microsoft.Extensions.Logging;
 namespace IndirimTakip.Infrastructure.Subscribers;
 
 /// <summary>
-/// E-posta adresinin biçimini ve alan adının gerçekten var olup olmadığını
-/// kontrol eder.
+/// Checks an email address's format and whether its domain really exists.
 ///
-/// Biçim kontrolü tek başına yetmiyordu: uydurma ama biçimsel olarak geçerli
-/// adresler (forma mesaj yazan biri, ya da bir bot) onay e-postası
-/// gönderilmesine yol açıyor. Bu hem kotadan yiyor hem de geri dönen
-/// postalar gönderen itibarını düşürüyor.
+/// A format check alone wasn't enough: made-up but well-formed addresses
+/// (someone typing a message into the form, or a bot) triggered confirmation
+/// emails. That eats into the quota, and bounced mail lowers the sender's
+/// reputation.
 /// </summary>
 public class EmailAddressValidator(ILogger<EmailAddressValidator> logger)
 {
     /// <summary>
-    /// Tek kullanımlık/atılabilir posta sağlayıcıları. Uzun bir liste tutmanın
-    /// anlamı yok (sürekli yenileri çıkıyor); yalnızca yaygın olanlar.
+    /// Disposable mail providers. A long list is pointless (new ones keep
+    /// appearing); only the common ones.
     /// </summary>
     private static readonly HashSet<string> DisposableDomains = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -28,8 +27,8 @@ public class EmailAddressValidator(ILogger<EmailAddressValidator> logger)
     };
 
     /// <summary>
-    /// Alan adı çözümlemesi için üst sınır. Gerçek bir kullanıcıyı
-    /// bekletmemek için kısa; aşılırsa adres KABUL ediliyor (bkz. aşağıda).
+    /// Upper bound for domain resolution. Short so a real user isn't kept waiting;
+    /// when exceeded the address is ACCEPTED (see below).
     /// </summary>
     private static readonly TimeSpan DnsTimeout = TimeSpan.FromSeconds(3);
 
@@ -38,9 +37,8 @@ public class EmailAddressValidator(ILogger<EmailAddressValidator> logger)
         if (string.IsNullOrWhiteSpace(email))
             return false;
 
-        // MailAddress boşluk içeren adresleri (alıntılanmış yerel kısım
-        // kuralı yüzünden) geçerli sayıyor; pratikte böyle bir adres hep
-        // hatalı yazım ya da çöp oluyor.
+        // MailAddress accepts addresses containing spaces (because of the quoted
+        // local part rule); in practice such an address is always a typo or junk.
         if (email.Any(char.IsWhiteSpace))
             return false;
 
@@ -65,12 +63,11 @@ public class EmailAddressValidator(ILogger<EmailAddressValidator> logger)
     }
 
     /// <summary>
-    /// Alan adının çözümlenip çözümlenmediğine bakar.
+    /// Checks whether the domain resolves.
     ///
-    /// DNS'in kendisi hata verirse ya da zaman aşımına uğrarsa adres KABUL
-    /// EDİLİYOR (fail-open): geçici bir ağ sorunu yüzünden gerçek bir
-    /// kullanıcının aboneliğini engellemek, birkaç sahte adresi kabul
-    /// etmekten daha kötü.
+    /// If DNS itself errors or times out, the address is ACCEPTED (fail-open):
+    /// blocking a real user's subscription over a transient network issue is
+    /// worse than accepting a few fake addresses.
     /// </summary>
     private async Task<bool> DomainResolvesAsync(string domain, CancellationToken cancellationToken)
     {
@@ -84,12 +81,12 @@ public class EmailAddressValidator(ILogger<EmailAddressValidator> logger)
         }
         catch (SocketException)
         {
-            // Alan adı yok — aradığımız durum bu.
+            // The domain doesn't exist: exactly the case we're looking for.
             return false;
         }
         catch (Exception e) when (e is OperationCanceledException or ArgumentException)
         {
-            logger.LogInformation("Alan adı çözümlenemedi, adres kabul ediliyor: {Domain}", domain);
+            logger.LogInformation("Domain could not be resolved; accepting the address: {Domain}", domain);
             return true;
         }
     }

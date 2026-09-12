@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IndirimTakip.Infrastructure.Tests;
 
-// Bu testler DNS'e çıkıyor: alan adının gerçekten çözümlenip
-// çözümlenmediğini doğrulamanın başka yolu yok.
+// These tests go out to DNS: there is no other way to verify that a domain
+// really resolves.
 public class EmailAddressValidatorTests
 {
     private static EmailAddressValidator Create() =>
@@ -13,24 +13,24 @@ public class EmailAddressValidatorTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    [InlineData("duz-metin")]
-    [InlineData("bosluklu adres@gmail.com")]
-    [InlineData("kullanici@alanadisiz")]
-    public async Task BicimiBozukAdresReddediliyor(string email)
+    [InlineData("plain-text")]
+    [InlineData("address with spaces@gmail.com")]
+    [InlineData("user@nodomain")]
+    public async Task Malformed_address_is_rejected(string email)
         => Assert.False(await Create().IsDeliverableAsync(email));
 
     [Fact]
-    public async Task AtilabilirSaglayiciReddediliyor()
-        => Assert.False(await Create().IsDeliverableAsync("birisi@mailinator.com"));
+    public async Task Disposable_provider_is_rejected()
+        => Assert.False(await Create().IsDeliverableAsync("someone@mailinator.com"));
 
     [Fact]
-    public async Task VarOlmayanAlanAdiReddediliyor()
+    public async Task Nonexistent_domain_is_rejected()
         => Assert.False(await Create().IsDeliverableAsync(
-            "kullanici@buboyle-bir-alan-adi-kesinlikle-yok-12873.com"));
+            "user@such-a-domain-certainly-does-not-exist-12873.com"));
 
     [Theory]
-    [InlineData("kullanici@gmail.com")]
-    [InlineData("kullanici@proteinavcisi.com.tr")]
-    public async Task GercekAlanAdiKabulEdiliyor(string email)
+    [InlineData("user@gmail.com")]
+    [InlineData("user@outlook.com")]
+    public async Task Real_domain_is_accepted(string email)
         => Assert.True(await Create().IsDeliverableAsync(email));
 }

@@ -5,8 +5,8 @@ namespace IndirimTakip.Infrastructure.Articles;
 
 public record CreateArticleRequest(string Title, string Slug, string Summary, string Body, string? CoverImageUrl);
 
-// Mevcut bir yazıyı düzenlemek için (ör. derinleştirme) — Slug/PublishedAt
-// değişmiyor, sadece içerik alanları güncellenebiliyor.
+// For editing an existing article (e.g. expanding it). Slug/PublishedAt don't
+// change; only the content fields can be updated.
 public record UpdateArticleRequest(string? Title, string? Summary, string? Body, string? CoverImageUrl);
 
 public class ArticleService(AppDbContext db)

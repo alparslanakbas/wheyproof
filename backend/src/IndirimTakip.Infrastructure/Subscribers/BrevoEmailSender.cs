@@ -3,20 +3,19 @@ using Microsoft.Extensions.Configuration;
 
 namespace IndirimTakip.Infrastructure.Subscribers;
 
-// Brevo'nun transactional email API'si (günde 300, süresiz ücretsiz —
-// bkz. CLAUDE.md'deki karşılaştırma). Gönderen adres domain'in Brevo'da
-// SPF/DKIM ile doğrulanmasını gerektiriyor, aksi halde e-postalar spam'e
-// düşebiliyor ya da hiç gönderilemiyor.
+// Brevo's transactional email API (a permanent free tier with a daily limit). The
+// sender address requires the domain to be verified in Brevo with SPF/DKIM;
+// otherwise emails may land in spam or not be sent at all.
 public class BrevoEmailSender(HttpClient httpClient, IConfiguration configuration) : IEmailSender
 {
     public async Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken cancellationToken = default)
     {
         var apiKey = configuration["Brevo:ApiKey"];
-        var senderEmail = configuration["Brevo:SenderEmail"] ?? "bulten@proteinavcisi.com.tr";
+        var senderEmail = configuration["Brevo:SenderEmail"] ?? "newsletter@wheyproof.com";
 
         var payload = new
         {
-            sender = new { name = "Protein Avcısı", email = senderEmail },
+            sender = new { name = "WheyProof", email = senderEmail },
             to = new[] { new { email = toEmail } },
             subject,
             htmlContent = htmlBody,

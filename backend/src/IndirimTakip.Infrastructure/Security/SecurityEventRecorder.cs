@@ -6,42 +6,42 @@ using Microsoft.Extensions.Logging;
 namespace IndirimTakip.Infrastructure.Security;
 
 /// <summary>
-/// Güvenlik olaylarını veritabanına yazar.
+/// Writes security events to the database.
 /// </summary>
 /// <remarks>
-/// <b>KENDİ KAPSAMINI AÇIYOR — 8 Eylül'de kanıtlanmış bir kayıp yüzünden.</b>
-/// Önceden isteğin kendi <c>AppDbContext</c>'i kullanılıyordu. Kaydedilen
-/// olayların bir türü — 5xx — tam da bir <c>SaveChangesAsync</c> patladığı
-/// için oluşuyor ve o anda bağlam KİRLİ: başarısız varlıklar hâlâ izleniyor.
-/// Aynı bağlamdan kayıt atmak, başarısız yazmayı TEKRAR denemek demekti;
-/// aynı hataya takılıp olay sessizce kayboluyordu.
+/// <b>IT OPENS ITS OWN SCOPE, because of a proven data loss.</b> It used to use
+/// the request's own <c>AppDbContext</c>. One kind of recorded event, 5xx, happens
+/// precisely because a <c>SaveChangesAsync</c> blew up, and at that moment the
+/// context is DIRTY: the failed entities are still tracked. Recording through the
+/// same context meant retrying the failed write; it hit the same error and the
+/// event was lost silently.
 ///
-/// <b>Varsayım değil, ölçüm:</b> canlıda bilerek bir kolon sınırı aşıldı,
-/// istek 500 döndü ve olay tabloya HİÇ girmedi — konteyner logunda
-/// "Güvenlik olayı kaydedilemedi ... value too long" uyarısı duruyordu.
-/// Yani sunucu hatalarının en ilginç sınıfı (veritabanına yazarken patlayan
-/// istekler) kayda hiç girmiyordu ve bu hiçbir yerde hata olarak görünmüyordu.
+/// <b>Measured, not assumed:</b> a column limit was exceeded on purpose, the
+/// request returned 500 and the event NEVER reached the table; the container log
+/// held a "could not record security event ... value too long" warning. So the
+/// most interesting class of server errors (requests that fail while writing to
+/// the database) never got recorded, and nothing showed that as an error.
 /// </remarks>
 public class SecurityEventRecorder(
     IServiceScopeFactory scopeFactory,
     IMemoryCache cache,
     ILogger<SecurityEventRecorder> logger)
 {
-    /// <summary>Bir adresin bir pencerede yazabileceği en fazla olay sayısı.</summary>
+    /// <summary>Maximum events one address can write in a window.</summary>
     /// <remarks>
-    /// KAYDIN KENDİSİ SALDIRI YÜZEYİ OLMAMALI. Sınır olmasaydı, saniyede
-    /// yüzlerce 404 üreten bir tarayıcı saniyede yüzlerce INSERT ürettirirdi —
-    /// yani log, saldırganın elinde veritabanını şişirme aracına dönüşürdü.
-    /// İlk 30 olay deseni kanıtlamaya zaten yetiyor; sonrası aynı bilgiyi
-    /// tekrar ediyor.
+    /// THE LOG ITSELF MUST NOT BECOME AN ATTACK SURFACE. Without a limit, a scanner
+    /// producing hundreds of 404s a second would produce hundreds of INSERTs a
+    /// second; the log would turn into the attacker's tool for bloating the
+    /// database. The first 30 events already prove the pattern; the rest repeats
+    /// the same information.
     /// </remarks>
     private const int MaxPerWindow = 30;
 
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(5);
 
-    public async Task RecordAsync(SecurityEvent olay, CancellationToken cancellationToken = default)
+    public async Task RecordAsync(SecurityEvent securityEvent, CancellationToken cancellationToken = default)
     {
-        if (!KotaVar(olay.Ip))
+        if (!HasQuota(securityEvent.Ip))
             return;
 
         try
@@ -49,35 +49,35 @@ public class SecurityEventRecorder(
             using var scope = scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            db.SecurityEvents.Add(olay);
+            db.SecurityEvents.Add(securityEvent);
             await db.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)
         {
-            // Log yazamamak İSTEĞİ BOZMAMALI. Buraya düşen istek zaten hatalı
-            // ya da yetkisiz bir istek; üstüne bir de 500 üretmek, saldırgana
-            // "burada bir şey kırılıyor" sinyali vermek olurdu.
-            logger.LogWarning(ex, "Güvenlik olayı kaydedilemedi: {Kind} {Path}", olay.Kind, olay.Path);
+            // Failing to log must NOT BREAK THE REQUEST. A request landing here is
+            // already faulty or unauthorized; adding a 500 on top would signal
+            // "something breaks here" to an attacker.
+            logger.LogWarning(ex, "Could not record security event: {Kind} {Path}", securityEvent.Kind, securityEvent.Path);
         }
     }
 
-    /// <summary>Adres bu pencerede kotasını doldurmadıysa true.</summary>
-    private bool KotaVar(string ip)
+    /// <summary>True if the address hasn't used up its quota in this window.</summary>
+    private bool HasQuota(string ip)
     {
-        // Bellek içi sayaç, TTL ile kendi kendini temizliyor. Kalıcı bir sözlük
-        // tutulsaydı çok sayıda farklı adresten gelen bir saldırıda sözlüğün
-        // kendisi bellek sorununa dönüşürdü.
-        var sayac = cache.GetOrCreate("guvenlik-olayi:" + ip, giris =>
+        // In-memory counter that cleans itself up with a TTL. A permanent
+        // dictionary would itself become a memory problem under an attack from
+        // many different addresses.
+        var counter = cache.GetOrCreate("security-event:" + ip, entry =>
         {
-            giris.AbsoluteExpirationRelativeToNow = Window;
-            return new Sayac();
+            entry.AbsoluteExpirationRelativeToNow = Window;
+            return new Counter();
         })!;
 
-        return Interlocked.Increment(ref sayac.Adet) <= MaxPerWindow;
+        return Interlocked.Increment(ref counter.Count) <= MaxPerWindow;
     }
 
-    private sealed class Sayac
+    private sealed class Counter
     {
-        public int Adet;
+        public int Count;
     }
 }
