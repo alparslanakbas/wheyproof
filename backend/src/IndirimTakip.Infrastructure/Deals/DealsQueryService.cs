@@ -28,7 +28,7 @@ public partial class DealsQueryService(
     IOptions<AffiliateOptions> affiliateOptions,
     ProductImageOptions imageOptions)
 {
-    private string imageBaseUrl => imageOptions.TabanAdres;
+    private string imageBaseUrl => imageOptions.PublicBaseUrl;
 
     // When a store changes a product's SKU/URL on its site, the scraper can't
     // find the old record again and PriceHistory stops growing, but the Product
@@ -93,7 +93,7 @@ public partial class DealsQueryService(
             // The local copy if there is one, otherwise the source URL. An
             // in-memory mapping, not a query; the SQL-producing part of this
             // file isn't touched.
-            ProductImageStore.GenelAdres(row.Product.LocalImagePath, imageBaseUrl) ?? row.Product.ImageUrl,
+            ProductImageStore.PublicUrl(row.Product.LocalImagePath, imageBaseUrl) ?? row.Product.ImageUrl,
             row.Product.Category, row.Product.Size, row.Product.Flavor, row.Product.ServingSizeGrams,
             row.Product.ServingsPerPackage,
             row.Product.Description,

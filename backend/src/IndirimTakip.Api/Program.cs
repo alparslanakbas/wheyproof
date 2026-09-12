@@ -199,11 +199,11 @@ app.UseForwardedHeaders();
 // FAILS AT STARTUP, which would stop the app from starting locally at all.
 {
     var imageOptions = app.Services.GetRequiredService<ProductImageOptions>();
-    Directory.CreateDirectory(imageOptions.Dizin);
+    Directory.CreateDirectory(imageOptions.StoragePath);
 
     app.UseStaticFiles(new StaticFileOptions
     {
-        FileProvider = new PhysicalFileProvider(Path.GetFullPath(imageOptions.Dizin)),
+        FileProvider = new PhysicalFileProvider(Path.GetFullPath(imageOptions.StoragePath)),
         RequestPath = "/api/images",
         ServeUnknownFileTypes = false,
         OnPrepareResponse = ctx =>

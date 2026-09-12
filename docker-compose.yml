@@ -98,10 +98,10 @@ services:
       # Adres öneki API alan adı üzerinden: dosyaları .NET sunuyor, Caddy'ye
       # bilerek dosya sunucusu eklenmedi (bkz. Program.cs'teki gerekçe).
       - ProductImages__Enabled=true
-      - ProductImages__Dizin=/app/product-images
-      - ProductImages__TabanAdres=https://api.wheyproof.com/api/images
-      - Cors__AllowedOrigins__0=https://proteinavcisi.com.tr
-      - Cors__AllowedOrigins__1=https://www.proteinavcisi.com.tr
+      - ProductImages__StoragePath=/app/product-images
+      - ProductImages__PublicBaseUrl=https://api.wheyproof.com/api/images
+      - Cors__AllowedOrigins__0=https://wheyproof.com
+      - Cors__AllowedOrigins__1=https://www.wheyproof.com
       - Scraping__Enabled=true
       - Digest__Enabled=true
       - DescriptionBackfill__Enabled=true

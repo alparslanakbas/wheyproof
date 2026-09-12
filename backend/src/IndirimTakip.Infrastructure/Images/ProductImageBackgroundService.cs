@@ -6,22 +6,22 @@ using Microsoft.Extensions.Logging;
 namespace IndirimTakip.Infrastructure.Images;
 
 /// <summary>
-/// Yerel kopyası olmayan ürün görsellerini indirir.
+/// Downloads product images that don't have a local copy yet.
 /// </summary>
 /// <remarks>
-/// <b>NEDEN DURUM TUTMUYOR.</b> "Yerel kopyası olmayanı indir" işlemi
-/// etkisiz-tekrarlanabilir: kaçırılan bir tur bir sonrakinde telafi oluyor,
-/// tamamlanan iş tekrar yapılmıyor. Bu yüzden bülten ve detay tamamlamada
-/// iki kez yaşanan "periyodu timer tutunca her deploy sıfırlıyor" tuzağı
-/// burada hiç doğmuyor ve ayrı bir damga kaydına gerek yok.
+/// <b>WHY IT KEEPS NO STATE.</b> "Download what has no local copy" is idempotent:
+/// a missed run is made up by the next one, and finished work isn't repeated. So
+/// the "a timer holding the period gets reset by every deploy" trap, hit twice
+/// with the digest and the detail backfill, can't happen here and no separate
+/// stamp record is needed.
 ///
-/// <b>NEDEN KOTALI.</b> İlk turda ~4.900 görsel var. Hepsini tek seferde
-/// çekmek 36 kaynağa aynı anda yüklenmek demek; tur başına sınır hem karşı
-/// tarafa saygılı hem de deploy sırasında yarıda kesilmeyi ucuzlatıyor.
+/// <b>WHY A QUOTA.</b> The first run faces thousands of images. Pulling them all
+/// at once would load every source at the same time; a per-run limit is polite to
+/// the other side and makes being cut off by a deploy cheap.
 ///
-/// <b>TEMİZLİK AYRI VE SEYREK.</b> Artık dosyaları silmek bütün kataloğu
-/// okumayı gerektiriyor; her turda yapmak gereksiz. Yalnızca indirilecek
-/// bir şey kalmadığında çalışıyor — yani iş bittiğinde.
+/// <b>CLEANUP IS SEPARATE AND RARE.</b> Deleting leftover files requires reading
+/// the whole catalog; doing it every run is pointless. It runs only when nothing
+/// is left to download, i.e. when the work is done.
 /// </remarks>
 public sealed class ProductImageBackgroundService(
     IServiceScopeFactory scopeFactory,
@@ -33,13 +33,13 @@ public sealed class ProductImageBackgroundService(
     {
         if (!options.Enabled)
         {
-            logger.LogInformation("Ürün görseli indirme kapalı.");
+            logger.LogInformation("Product image download is disabled.");
             return;
         }
 
-        // Açılışta biraz beklemek bilinçli: konteyner yeni kalktığında
-        // migration ve ilk tarama turu çalışıyor, görsel indirme onların
-        // önüne geçmemeli.
+        // Waiting a little at startup is deliberate: right after the container
+        // starts, migrations and the first scrape run, and image downloads
+        // shouldn't get ahead of them.
         try
         {
             await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken);
@@ -49,15 +49,15 @@ public sealed class ProductImageBackgroundService(
             return;
         }
 
-        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(options.AralikDakika));
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(options.IntervalMinutes));
 
         do
         {
             try
             {
-                var kalan = await TurCalistirAsync(stoppingToken);
-                if (kalan == 0)
-                    await ArtiklariTemizleAsync(stoppingToken);
+                var downloaded = await RunOnceAsync(stoppingToken);
+                if (downloaded == 0)
+                    await CleanUpLeftoversAsync(stoppingToken);
             }
             catch (OperationCanceledException)
             {
@@ -65,71 +65,71 @@ public sealed class ProductImageBackgroundService(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Ürün görseli turu başarısız.");
+                logger.LogError(ex, "Product image run failed.");
             }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    /// <summary>Bu turda indirilen görsel sayısını döndürür.</summary>
-    private async Task<int> TurCalistirAsync(CancellationToken cancellationToken)
+    /// <summary>Returns the number of images downloaded in this run.</summary>
+    private async Task<int> RunOnceAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Gizlenen ürünler de alınıyor (IgnoreQueryFilters): görünürlük
-        // geri açıldığında görselin hazır olması gerekiyor, o an indirmeye
-        // başlamak kartı bir tur boş bırakırdı.
-        var adaylar = await db.Products
+        // Hidden products are included (IgnoreQueryFilters): when visibility is
+        // turned back on the image should be ready; starting the download then
+        // would leave the card empty for a run.
+        var candidates = await db.Products
             .IgnoreQueryFilters()
             .Where(p => p.ImageUrl != null && p.ImageUrl != "" && p.LocalImagePath == null)
             .OrderByDescending(p => p.ClickCount)
             .ThenByDescending(p => p.Id)
             .Select(p => new { p.Id, p.ImageUrl })
-            .Take(options.TurBasinaAdet)
+            .Take(options.MaxPerRun)
             .ToListAsync(cancellationToken);
 
-        if (adaylar.Count == 0)
+        if (candidates.Count == 0)
             return 0;
 
-        var basarili = 0;
-        foreach (var aday in adaylar)
+        var succeeded = 0;
+        foreach (var candidate in candidates)
         {
-            var dosyaAdi = await store.IndirAsync(aday.ImageUrl!, cancellationToken);
-            if (dosyaAdi is null)
+            var fileName = await store.DownloadAsync(candidate.ImageUrl!, cancellationToken);
+            if (fileName is null)
                 continue;
 
-            // Tek tek yazılıyor: tur yarıda kesilirse o ana kadarki iş
-            // kaydedilmiş oluyor. Toplu kayıt, kesilen turda indirilmiş
-            // dosyaları "hiç indirilmemiş" gibi bırakırdı.
+            // Written one by one: if the run is cut off, the work done so far is
+            // saved. A batch save would leave files downloaded in a cut-off run
+            // looking as if they had never been downloaded.
             await db.Products
                 .IgnoreQueryFilters()
-                .Where(p => p.Id == aday.Id)
-                .ExecuteUpdateAsync(s => s.SetProperty(p => p.LocalImagePath, dosyaAdi), cancellationToken);
+                .Where(p => p.Id == candidate.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.LocalImagePath, fileName), cancellationToken);
 
-            basarili++;
+            succeeded++;
         }
 
         logger.LogInformation(
-            "Ürün görseli: {Denenen} denendi, {Basarili} indirildi.", adaylar.Count, basarili);
+            "Product images: {Attempted} attempted, {Succeeded} downloaded.", candidates.Count, succeeded);
 
-        return basarili;
+        return succeeded;
     }
 
-    private async Task ArtiklariTemizleAsync(CancellationToken cancellationToken)
+    private async Task CleanUpLeftoversAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var kullanilanlar = await db.Products
+        var inUse = await db.Products
             .IgnoreQueryFilters()
             .Where(p => p.LocalImagePath != null)
             .Select(p => p.LocalImagePath!)
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        var silinen = store.KullanilmayanlariSil(kullanilanlar.ToHashSet(StringComparer.Ordinal));
-        if (silinen > 0)
-            logger.LogInformation("Ürün görseli temizliği: {Silinen} artık dosya silindi.", silinen);
+        var deleted = store.DeleteUnused(inUse.ToHashSet(StringComparer.Ordinal));
+        if (deleted > 0)
+            logger.LogInformation("Product image cleanup: {Deleted} leftover files deleted.", deleted);
     }
 }

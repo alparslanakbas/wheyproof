@@ -1,4 +1,4 @@
-﻿using IndirimTakip.Core.Caching;
+using IndirimTakip.Core.Caching;
 using IndirimTakip.Core.Scraping;
 using IndirimTakip.Infrastructure.Articles;
 using IndirimTakip.Infrastructure.Coupons;
@@ -18,7 +18,7 @@ namespace IndirimTakip.Infrastructure;
 
 public static class DependencyInjection
 {
-    // Bazı siteler (Cloudflare arkasındakiler dahil) User-Agent'sız istekleri engelliyor.
+    // Some sites (including ones behind Cloudflare) block requests without a User-Agent.
     private const string BrowserUserAgent =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
 
@@ -27,14 +27,14 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("Default")));
 
-        // Tarama bitince genel veri önbelleğini tazeleyen bağımlılık. GERÇEK
-        // uygulama Api projesinde (ASP.NET'in çıktı önbelleğine bağlı);
-        // buradaki yalnızca Api olmadan çalışan ortamlar (testler, konsol
-        // araçları) için boş yedek. TryAdd olduğu için Api'nin kaydını EZMEZ.
+        // Refreshes the public data cache after a scrape. The REAL implementation
+        // lives in the Api project (tied to ASP.NET's output cache); this is only a
+        // no-op fallback for environments without the Api (tests, console tools).
+        // TryAdd, so it does NOT override the Api's registration.
         services.TryAddScoped<IPublicCacheRefresher, NullPublicCacheRefresher>();
 
-        // Fiyat özeti (Products üzerindeki önceden hesaplanmış alanlar) her
-        // taramadan sonra tek küme sorgusuyla tazeleniyor.
+        // The price summary (precomputed fields on Products) is refreshed after
+        // every scrape with one set-based query.
         services.AddScoped<PriceSummaryRefresher>();
 
         // Store scrapers. Nearly every brand on the US shortlist runs on Shopify
@@ -54,15 +54,15 @@ public static class DependencyInjection
                 sp.GetRequiredService<ILogger<ShopifyStoreScraper>>()));
         }
 
-        // Arama motorlarına sayfa değişikliği bildirimi (Bing/Yandex/Seznam).
+        // Notifies search engines of page changes (IndexNow: Bing and others).
         services.AddHttpClient<IndexNowClient>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(20);
         });
 
-        // Puan tazeleme, markaya özel bir scraper'a bağlı değil: tüm markalar
-        // puanı ürün sayfasında aynı schema.org alanlarıyla verdiği için tek
-        // bir genel istemci yetiyor (bkz. ProductRatingRefreshService).
+        // Rating refresh isn't tied to a store-specific scraper: stores publish
+        // ratings on the product page with the same schema.org fields, so one
+        // generic client is enough (see ProductRatingRefreshService).
         services.AddHttpClient(ProductRatingRefreshService.RatingHttpClientName, client =>
         {
             client.Timeout = TimeSpan.FromSeconds(30);
@@ -77,15 +77,16 @@ public static class DependencyInjection
         services.AddScoped<CouponService>();
         services.AddScoped<ArticleService>();
         services.AddHostedService<ScrapingBackgroundService>();
-        // Günde bir kez, 00:00 Türkiye saatinde çalışan kaynaklar (bkz. IBrandScraper.DailyOnly).
+        // Sources that run once a day instead of every round (see IBrandScraper.DailyOnly).
         services.AddHostedService<DailyScrapingBackgroundService>();
         services.AddHostedService<DescriptionBackfillBackgroundService>();
         services.AddHostedService<RatingRefreshBackgroundService>();
 
-        // Guvenlik olayi kaydi. Sayac bellekte tutuldugu icin MemoryCache sart;
-        // TTL sayesinde sozluk kendi kendini temizliyor (bkz. SecurityEventRecorder).
+        // Security event log. The counter lives in memory, so MemoryCache is
+        // required; the TTL keeps the dictionary cleaning itself (see
+        // SecurityEventRecorder).
         services.AddMemoryCache();
-        // Kendi kapsamini actigi icin singleton; bkz. SecurityEventRecorder.
+        // Singleton because it opens its own scope; see SecurityEventRecorder.
         services.AddSingleton<SecurityEventRecorder>();
 
         services.AddSingleton<AdminFailureRecorder>();
@@ -96,20 +97,20 @@ public static class DependencyInjection
         // the static file route in Program.cs (/api/images).
         var imageOptions = new ProductImageOptions();
         configuration.GetSection("ProductImages").Bind(imageOptions);
-        if (string.IsNullOrWhiteSpace(imageOptions.TabanAdres))
-            imageOptions.TabanAdres = (configuration["PublicBaseUrl"] ?? string.Empty).TrimEnd('/') + "/api/images";
+        if (string.IsNullOrWhiteSpace(imageOptions.PublicBaseUrl))
+            imageOptions.PublicBaseUrl = (configuration["PublicBaseUrl"] ?? string.Empty).TrimEnd('/') + "/api/images";
         services.AddSingleton(imageOptions);
         services.AddSingleton<ProductImageStore>();
         services.AddHostedService<ProductImageBackgroundService>();
 
-        // Kaynakların CDN'lerinden indiriyor. Tarayıcı benzeri bir kimlik
-        // veriliyor: bazı kaynaklar UA'sız isteklere görsel vermiyor
-        // (Supplementler ve Renovafood'da ölçülmüş bir davranış).
-        services.AddHttpClient(ProductImageStore.HttpClientAdi, client =>
+        // Downloads from the sources' CDNs. The client identifies itself with a
+        // bot User-Agent that names the site, so a store can see who is fetching
+        // its images and how to reach us.
+        services.AddHttpClient(ProductImageStore.HttpClientName, client =>
         {
             client.Timeout = TimeSpan.FromSeconds(30);
             client.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "Mozilla/5.0 (compatible; ProteinAvcisiBot/1.0; +https://www.proteinavcisi.com.tr)");
+                "Mozilla/5.0 (compatible; WheyProofBot/1.0; +https://www.wheyproof.com)");
         });
         services.AddHostedService<SecurityEventRetentionService>();
 

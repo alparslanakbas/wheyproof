@@ -5,116 +5,115 @@ using SixLabors.ImageSharp.Processing;
 namespace IndirimTakip.Infrastructure.Tests;
 
 /// <summary>
-/// Dosya adı üretimi ve adres çözümü. İkisi de saf; asıl indirme/küçültme
-/// ağ ve disk gerektirdiği için canlıya karşı ölçüldü.
+/// File name generation, URL resolution and the resize step. The download itself
+/// needs network and disk, so it was measured against production.
 /// </summary>
 public class ProductImageStoreTests
 {
     /// <summary>
-    /// Ad kaynak adresin özeti olduğu için AYNI adres her zaman aynı adı
-    /// vermeli — "indirilmiş mi" sorusunun cevabı buna dayanıyor.
+    /// The name is a hash of the source URL, so the SAME URL must always give the
+    /// same name; the "already downloaded?" check depends on it.
     /// </summary>
     [Fact]
-    public void Ayni_adres_ayni_dosya_adini_veriyor()
+    public void Same_url_gives_the_same_file_name()
     {
-        var a = ProductImageStore.DosyaAdi("https://proteinim.com/wp-content/uploads/2026/06/L-Glutamine-Powder.jpg");
-        var b = ProductImageStore.DosyaAdi("https://proteinim.com/wp-content/uploads/2026/06/L-Glutamine-Powder.jpg");
+        var a = ProductImageStore.FileName("https://example.com/cdn/shop/files/whey-protein.jpg");
+        var b = ProductImageStore.FileName("https://example.com/cdn/shop/files/whey-protein.jpg");
 
         Assert.Equal(a, b);
         Assert.EndsWith(".webp", a);
     }
 
     [Fact]
-    public void Farkli_adres_farkli_dosya_adi()
+    public void Different_url_gives_a_different_file_name()
     {
-        var a = ProductImageStore.DosyaAdi("https://ornek.com/a.jpg");
-        var b = ProductImageStore.DosyaAdi("https://ornek.com/b.jpg");
+        var a = ProductImageStore.FileName("https://example.com/a.jpg");
+        var b = ProductImageStore.FileName("https://example.com/b.jpg");
 
         Assert.NotEqual(a, b);
     }
 
     /// <summary>
-    /// Ad kolonun sınırına (64) rahatça sığmalı; sığmazsa kayıt kesilir ve
-    /// dosya bir daha bulunamaz.
+    /// The name must fit the column limit (64) comfortably; otherwise the value is
+    /// truncated and the file can never be found again.
     /// </summary>
     [Fact]
-    public void Dosya_adi_kolon_sinirina_siğiyor()
+    public void File_name_fits_the_column_limit()
     {
-        var ad = ProductImageStore.DosyaAdi("https://ornek.com/" + new string('u', 2000) + ".jpg");
+        var name = ProductImageStore.FileName("https://example.com/" + new string('u', 2000) + ".jpg");
 
-        Assert.True(ad.Length <= 64, $"dosya adı {ad.Length} karakter");
+        Assert.True(name.Length <= 64, $"file name is {name.Length} characters");
     }
 
     [Theory]
-    [InlineData("https://api.proteinavcisi.com.tr/api/gorsel")]
-    // Sondaki eğik çizgi çift eğik çizgi üretmemeli.
-    [InlineData("https://api.proteinavcisi.com.tr/api/gorsel/")]
-    public void Genel_adres_dogru_birlestiriliyor(string taban)
+    [InlineData("https://api.wheyproof.com/api/images")]
+    // A trailing slash must not produce a double slash.
+    [InlineData("https://api.wheyproof.com/api/images/")]
+    public void Public_url_is_joined_correctly(string baseUrl)
     {
-        var adres = ProductImageStore.GenelAdres("abc123.webp", taban);
+        var url = ProductImageStore.PublicUrl("abc123.webp", baseUrl);
 
-        Assert.Equal("https://api.proteinavcisi.com.tr/api/gorsel/abc123.webp", adres);
+        Assert.Equal("https://api.wheyproof.com/api/images/abc123.webp", url);
     }
 
     /// <summary>
-    /// Yerel kopya yokken null dönmeli: çağıran taraf bu durumda KAYNAK
-    /// adrese düşüyor, yani indirme tamamlanana kadar site eskisi gibi
-    /// çalışıyor.
+    /// Without a local copy it must return null: the caller then falls back to the
+    /// SOURCE URL, so the site works as before until the download finishes.
     /// </summary>
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public void Yerel_kopya_yoksa_null(string? yerel)
+    public void Without_a_local_copy_returns_null(string? local)
     {
-        Assert.Null(ProductImageStore.GenelAdres(yerel, "https://ornek.com/gorsel"));
+        Assert.Null(ProductImageStore.PublicUrl(local, "https://example.com/images"));
     }
+
     /// <summary>
-    /// ASIL İŞ BU: 1200 px bir görsel 400 px'e inmeli ve WebP olarak
-    /// yazılmalı. Kütüphane yolu (kod çözme, yeniden boyutlandırma, WebP
-    /// kodlama) deploy'dan önce en az bir kez GERÇEKTEN çalışmalı.
+    /// THE ACTUAL JOB: a 1200 px image must come down to 400 px and be written as
+    /// WebP. The library path (decode, resize, WebP encode) must REALLY run at least
+    /// once before a deploy.
     /// </summary>
     [Fact]
-    public async Task Buyuk_gorsel_400_pikselde_webp_oluyor()
+    public async Task Large_image_becomes_400_pixel_webp()
     {
-        using var girdi = SahteGorsel(1200, 900);
+        using var input = FakeImage(1200, 900);
 
-        var webp = await ProductImageStore.KucultAsync(girdi, 78, CancellationToken.None);
+        var webp = await ProductImageStore.ResizeAsync(input, 78, CancellationToken.None);
 
         Assert.NotEmpty(webp);
-        // WebP kabı: "RIFF" + boyut + "WEBP".
+        // WebP container: "RIFF" + size + "WEBP".
         Assert.Equal("RIFF", System.Text.Encoding.ASCII.GetString(webp, 0, 4));
         Assert.Equal("WEBP", System.Text.Encoding.ASCII.GetString(webp, 8, 4));
 
-        using var sonuc = SixLabors.ImageSharp.Image.Load(webp);
-        Assert.Equal(ProductImageStore.EnFazlaKenar, sonuc.Width);
-        Assert.Equal(300, sonuc.Height); // 1200x900 -> 400x300, en-boy korunuyor
+        using var result = SixLabors.ImageSharp.Image.Load(webp);
+        Assert.Equal(ProductImageStore.MaxEdge, result.Width);
+        Assert.Equal(300, result.Height); // 1200x900 -> 400x300, aspect ratio kept
     }
 
     /// <summary>
-    /// Sınırın altındaki görsel BÜYÜTÜLMEMELİ — büyütmek bayt ekler,
-    /// görüntü eklemez.
+    /// An image below the limit must NOT be upscaled: upscaling adds bytes, not
+    /// detail.
     /// </summary>
     [Fact]
-    public async Task Kucuk_gorsel_buyutulmuyor()
+    public async Task Small_image_is_not_upscaled()
     {
-        using var girdi = SahteGorsel(150, 150);
+        using var input = FakeImage(150, 150);
 
-        var webp = await ProductImageStore.KucultAsync(girdi, 78, CancellationToken.None);
+        var webp = await ProductImageStore.ResizeAsync(input, 78, CancellationToken.None);
 
-        using var sonuc = SixLabors.ImageSharp.Image.Load(webp);
-        Assert.Equal(150, sonuc.Width);
-        Assert.Equal(150, sonuc.Height);
+        using var result = SixLabors.ImageSharp.Image.Load(webp);
+        Assert.Equal(150, result.Width);
+        Assert.Equal(150, result.Height);
     }
 
-    private static MemoryStream SahteGorsel(int genislik, int yukseklik)
+    private static MemoryStream FakeImage(int width, int height)
     {
-        using var gorsel = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(genislik, yukseklik);
-        gorsel.Mutate(x => x.BackgroundColor(SixLabors.ImageSharp.Color.CornflowerBlue));
+        using var image = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(width, height);
+        image.Mutate(x => x.BackgroundColor(SixLabors.ImageSharp.Color.CornflowerBlue));
 
-        var akis = new MemoryStream();
-        gorsel.Save(akis, new PngEncoder());
-        akis.Position = 0;
-        return akis;
+        var stream = new MemoryStream();
+        image.Save(stream, new PngEncoder());
+        stream.Position = 0;
+        return stream;
     }
-
 }

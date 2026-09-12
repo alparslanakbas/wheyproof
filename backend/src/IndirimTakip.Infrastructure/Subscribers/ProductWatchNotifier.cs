@@ -50,7 +50,7 @@ public class ProductWatchNotifier(
 
             foreach (var watch in group)
             {
-                var html = BuildNotifyHtml(watch.Product!, oldPrice, newPrice, frontendBaseUrl, imageOptions.TabanAdres);
+                var html = BuildNotifyHtml(watch.Product!, oldPrice, newPrice, frontendBaseUrl, imageOptions.PublicBaseUrl);
                 try
                 {
                     await emailSender.SendAsync(watch.Subscriber!.Email, $"Price drop: {watch.Product!.Name}", html, cancellationToken);
@@ -78,7 +78,7 @@ public class ProductWatchNotifier(
         // The local copy is preferred: it's small and doesn't depend on the
         // source's hotlink policy (mail clients fetch images through their own
         // proxies, and some sources answer those with 403).
-        var imageUrl = ProductImageStore.GenelAdres(product.LocalImagePath, imageBaseUrl) ?? product.ImageUrl;
+        var imageUrl = ProductImageStore.PublicUrl(product.LocalImagePath, imageBaseUrl) ?? product.ImageUrl;
         var imageHtml = imageUrl is not null
             ? $"""<img src="{EmailTemplate.Encode(imageUrl)}" alt="{EmailTemplate.Encode(product.Name)}" width="112" height="112" style="display:block;width:112px;height:112px;object-fit:contain;background:#ffffff;margin:0 auto;" />"""
             : """<div style="width:112px;height:112px;background:#f7f8fc;margin:0 auto;"></div>""";
