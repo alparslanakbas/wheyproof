@@ -1,9 +1,8 @@
 using System.Text.Json.Serialization;
 
-// Shopify'ın public products.json uç noktasının şekli. Markaya özel bir yanı
-// yok, bu yüzden tek bir markanın klasörü altında değil ortak seviyede duruyor:
-// HIQ ve Commander Nutrition aynı tipleri kullanıyor, Shopify kullanan bir
-// marka daha eklenirse o da kullanacak.
+// Shape of Shopify's public products.json endpoint. Nothing in it is
+// store-specific, so it lives at the shared level rather than under one
+// store's folder: every Shopify store uses the same types.
 namespace IndirimTakip.Infrastructure.Scraping;
 
 internal sealed class ShopifyProductsResponse
@@ -42,10 +41,8 @@ internal sealed class ShopifyProduct
     [JsonPropertyName("options")]
     public List<ShopifyOption> Options { get; set; } = [];
 
-    // Mağazanın kendi etiketleri. HIQ bunu "type:wearable"/"type:equipment"
-    // biçiminde kullanıp takviye olmayan ürünleri ayıklıyor. Her mağaza
-    // etiketlemiyor: Commander Nutrition'da yalnızca "NOREVIEW" var, orada
-    // ayıklama isim bazlı yapılıyor (NonSupplementProductFilter).
+    // The store's own tags. Few stores tag consistently; Ghost marks its
+    // hidden parent records with "base_product" (see ShopifyStoreScraper).
     [JsonPropertyName("tags")]
     public List<string> Tags { get; set; } = [];
 }

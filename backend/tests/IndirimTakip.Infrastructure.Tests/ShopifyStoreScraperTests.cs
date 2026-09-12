@@ -102,6 +102,45 @@ public class ShopifyStoreScraperTests
         Assert.Empty(ShopifyStoreScraper.ToScrapedProducts(p, Brand, null));
     }
 
+    // Ghost's hidden parent record: no image, duplicates the flavored listings.
+    [Fact]
+    public void Hidden_parent_records_are_dropped()
+    {
+        var p = Product("GHOST® WHEY", "", ["Title"], (70, "Default Title", null, 44.99m, true));
+        p.Tags = ["base_product", "hidden", "newsite-hidden"];
+
+        Assert.Empty(ShopifyStoreScraper.ToScrapedProducts(p, Brand, null));
+    }
+
+    // Titles that no word list covered in the first crawl; the options give
+    // them away.
+    [Theory]
+    [InlineData("GHOST® FLANNEL | PLAID", "Color", "PLAID", "Size", "M")]
+    [InlineData("GHOST® CANDLE x HOMESICK | ORANGE CREAM", "Color", "ORANGE CREAM", "Size", "OS")]
+    [InlineData("Lifting Straps", "Color", "Black", "Title", "Default Title")]
+    [InlineData("Collegiate Quarter ZIp", "Size", "XL", "Title", "Default Title")]
+    [InlineData("Elbow Sleeves", "Size", "2XL", "Color", "Black")]
+    [InlineData("Ambassador Welcome Box", "Size", "Medium", "Title", "Default Title")]
+    public void Color_or_letter_size_options_mark_apparel_and_merch(
+        string title, string option1Name, string option1, string option2Name, string option2)
+    {
+        var p = Product(title, "", [option1Name, option2Name], (71, option1, option2, 30m, true));
+
+        Assert.Empty(ShopifyStoreScraper.ToScrapedProducts(p, Brand, null));
+    }
+
+    [Theory]
+    [InlineData("Flavor", "Chocolate", "Size", "2 lb")]
+    [InlineData("Flavor", "Unflavored", "Size", "Large Tub")]
+    [InlineData("Size", "120 Capsules", "Title", "Default Title")]
+    public void Flavor_and_package_sizes_are_not_apparel(string option1Name, string option1, string option2Name, string option2)
+    {
+        var p = Product("GHOST® CREATINE | UNFLAVORED", "MUSCLE BUILDER", [option1Name, option2Name],
+            (72, option1, option2, 39.99m, true));
+
+        Assert.NotEmpty(ShopifyStoreScraper.ToScrapedProducts(p, Brand, null));
+    }
+
     // The same words inside real supplement titles.
     [Theory]
     [InlineData("Magnesium Glycinate 1 Bottle")]

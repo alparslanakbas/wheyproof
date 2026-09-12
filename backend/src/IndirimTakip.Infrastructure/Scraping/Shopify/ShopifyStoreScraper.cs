@@ -60,6 +60,11 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         "accessory", "gear", "shaker", "shakers", "hats", "headwear", "athletics", "pantry", "drinkware",
     };
 
+    private static readonly HashSet<string> ColorOptionNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "color", "colour", "colors", "colours",
+    };
+
     // Option names that describe flavor rather than a different package.
     private static readonly HashSet<string> FlavorOptionNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -220,6 +225,24 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         if (!string.IsNullOrEmpty(type) && ExcludedProductTypes.Contains(type))
             return true;
 
+        // Ghost keeps a hidden parent record per product line ("GHOST® WHEY")
+        // next to the real listings, one per flavor. The parent has no image,
+        // no product type and duplicates the flavored listings (67 of 492
+        // products, all image-less, measured 2026-09-12).
+        if (product.Tags.Any(t => t.Equals("base_product", StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        // Structural apparel/merch signals, independent of the title's wording.
+        // Measured across all 18 stores on 2026-09-12: a "Color" option matched
+        // 174 products and letter sizes (S/M/L/XL) matched apparel and knee
+        // sleeves only; neither matched a single supplement. Supplements vary
+        // by flavor and weight or count, never by color or letter size.
+        if (product.Options.Any(o => ColorOptionNames.Contains(o.Name.Trim())))
+            return true;
+
+        if (product.Variants.Any(v => IsLetterSize(v.Option1) || IsLetterSize(v.Option2) || IsLetterSize(v.Option3)))
+            return true;
+
         // Retailers file their own gear under a vendor such as
         // "Bodybuilding.com Accessories" (weightlifting belts).
         if (store.IsRetailer && product.Vendor is { } vendor
@@ -232,6 +255,9 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         return ApparelOrMerchRegex().IsMatch(product.Title)
             || NonSupplementProductFilter.IsAccessoryOrApparel(product.Title);
     }
+
+    private static bool IsLetterSize(string? value) =>
+        value is not null && LetterSizeRegex().IsMatch(value.Trim());
 
     private static string SizeKey(ShopifyVariant variant, List<int> positions)
     {
@@ -251,6 +277,11 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
 
     [GeneratedRegex(@"Shopify\.currency\s*=\s*\{\s*""active""\s*:\s*""(?<code>[A-Za-z]{3})""")]
     private static partial Regex StorefrontCurrencyRegex();
+
+    // A whole option value that is a clothing size. Anchored, so "Large Tub"
+    // or "5 lb" never match.
+    [GeneratedRegex(@"^(xxs|xs|s|m|l|xl|xxl|xxxl|[2-5]xl|small|medium|large|x-large|xx-large|xxx-large)$", RegexOptions.IgnoreCase)]
+    private static partial Regex LetterSizeRegex();
 
     // English apparel and merch words, as whole words. Some words need their
     // qualifier because they also appear in supplement titles:
