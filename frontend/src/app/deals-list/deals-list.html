@@ -234,7 +234,7 @@
           @for (deal of deals(); track deal.productId) {
             <article class="pa-product-row">
               <a [routerLink]="productPath(deal)" queryParamsHandling="preserve" tabindex="-1" aria-hidden="true" class="pa-product-image-well relative block w-full">
-                @if (deal.imageUrl) { <img [src]="deal.imageUrl" [alt]="displayName(deal.productName)" loading="lazy" class="h-full w-full object-contain p-2" /> }
+                @if (deal.imageUrl) { <img [src]="deal.imageUrl" [alt]="displayName(deal.productName)" [attr.loading]="$index < 6 ? 'eager' : 'lazy'" [attr.fetchpriority]="$index < 2 ? 'high' : null" class="h-full w-full object-contain p-2" /> }
                 <span class="absolute right-1.5 top-1.5 rounded-full bg-[var(--noc-card)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--noc-neutral-600)]">{{ deal.brandName }}</span>
               </a>
 

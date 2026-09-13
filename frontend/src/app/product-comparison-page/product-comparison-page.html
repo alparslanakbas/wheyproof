@@ -28,7 +28,7 @@
         @for (item of products(); track item.deal.productId) {
           <div class="rounded-[14px] bg-[var(--noc-card)] p-4 shadow-[var(--noc-shadow-sm)]">
             @if (item.deal.imageUrl) {
-              <img [src]="item.deal.imageUrl" [alt]="displayName(item.deal.productName)" class="mx-auto h-[120px] w-full object-contain" loading="lazy" />
+              <img [src]="item.deal.imageUrl" [alt]="displayName(item.deal.productName)" class="mx-auto h-[120px] w-full object-contain" />
             }
             <a [routerLink]="productLink(item.deal)" class="mt-3 block text-sm font-medium hover:text-[var(--noc-accent)]">
               {{ displayName(item.deal.productName) }}

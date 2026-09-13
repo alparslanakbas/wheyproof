@@ -44,7 +44,7 @@
         >
           <span class="pa-preferred-image">
             @if (product.imageUrl) {
-              <img [src]="product.imageUrl" [alt]="displayName(product.productName)" loading="lazy" />
+              <img [src]="product.imageUrl" [alt]="displayName(product.productName)" [attr.loading]="index < 4 ? 'eager' : 'lazy'" />
             } @else {
               <i class="ph ph-package" aria-hidden="true"></i>
             }

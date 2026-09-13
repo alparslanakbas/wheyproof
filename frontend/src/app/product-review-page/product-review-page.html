@@ -27,7 +27,7 @@
       <!-- Summary box -->
       <div class="mt-[22px] flex flex-wrap items-start gap-4 rounded-[14px] bg-[var(--noc-card)] p-4 shadow-[var(--noc-shadow-sm)]">
         @if (d.imageUrl) {
-          <img [src]="d.imageUrl" [alt]="displayName(d.productName)" class="h-[100px] w-[100px] shrink-0 object-contain" loading="lazy" />
+          <img [src]="d.imageUrl" [alt]="displayName(d.productName)" class="h-[100px] w-[100px] shrink-0 object-contain" fetchpriority="high" />
         }
         <div class="min-w-0 flex-1">
           <div class="text-[10px] uppercase tracking-[0.08em] text-[var(--noc-accent)]">{{ d.brandName }}</div>
