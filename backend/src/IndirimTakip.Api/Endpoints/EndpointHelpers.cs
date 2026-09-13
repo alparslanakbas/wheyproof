@@ -15,7 +15,7 @@ internal static class EndpointHelpers
     {
         var baseUrl = frontendBaseUrl.TrimEnd('/');
         var signalImageUrl = $"{baseUrl}/email-assets/subscription-confirmed-signal.jpg";
-        var logoUrl = $"{baseUrl}/favicon.svg";
+        var logoUrl = $"{baseUrl}/icons/icon-192x192.png";
         var mailIconUrl = $"{baseUrl}/email-assets/step-confirm.png";
         var shieldImageUrl = $"{baseUrl}/email-assets/trust-shield.png";
 

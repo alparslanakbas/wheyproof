@@ -93,7 +93,7 @@ export class App implements OnInit {
       '@type': 'Organization',
       name: SITE_NAME,
       url: origin,
-      logo: `${origin}/favicon.svg`,
+      logo: `${origin}/icons/icon-512x512.png`,
       founder: {
         '@type': 'Person',
         name: FOUNDER.name,
