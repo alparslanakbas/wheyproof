@@ -1,0 +1,116 @@
+# WheyProof's hosts, served by the Turkish stack's Caddy on the same VM.
+#
+# That Caddyfile ends with `import sites/*.caddy` and mounts this directory at
+# /etc/caddy/sites. Its global options (trusted_proxies for Cloudflare) apply
+# here too. Everything else is defined in this file, with its own snippet names,
+# so the two sites don't depend on each other's config.
+#
+# A BROKEN FILE HERE TAKES BOTH SITES DOWN on the next Caddy restart. The deploy
+# workflow runs `caddy validate` before `caddy reload`; validate locally the same
+# way before pushing a change.
+#
+# Upstreams are the network aliases on "web-edge" (see docker-compose.yml), NOT
+# "backend"/"frontend": those names belong to the Turkish services.
+
+(wheyproof-access-log) {
+	log {
+		# A separate file from the Turkish site's log, same retention reasoning:
+		# 150 x 20 MiB caps the disk use, and the record keeps roughly 90+ days.
+		output file /var/log/caddy/wheyproof-access.log {
+			roll_size 20MiB
+			roll_keep 150
+			roll_keep_for 2160h
+		}
+		format filter {
+			wrap json
+			fields {
+				# SUBSCRIBER TOKENS ARE MASKED. Confirmation, unsubscribe and
+				# watchlist recovery links carry the token in the URL, and that
+				# token IS the person's identity. "$1-HIDDEN": the hyphen ends the
+				# group name; "$1HIDDEN" would look up a group called "1HIDDEN"
+				# and silently produce an empty string.
+				request>uri regexp "(token=|recover=|confirm/|unsubscribe/)[0-9a-f-]+" "$1-HIDDEN"
+				resp_headers delete
+				request>tls delete
+				# A session credential; it must not sit in an access log.
+				request>headers>Cf-Access-Jwt-Assertion delete
+				request>headers>Accept delete
+				request>headers>Accept-Encoding delete
+				request>headers>Accept-Language delete
+				request>headers>Cdn-Loop delete
+				request>headers>Cf-Connecting-Ip delete
+				request>headers>Cf-Visitor delete
+				request>headers>X-Forwarded-For delete
+				request>headers>X-Forwarded-Proto delete
+				request>headers>Sec-Fetch-Mode delete
+				request>headers>Sec-Fetch-Dest delete
+				request>headers>Sec-Fetch-Site delete
+				request>headers>Sec-Fetch-User delete
+				request>headers>Upgrade-Insecure-Requests delete
+				request>headers>If-Modified-Since delete
+				request>headers>If-None-Match delete
+			}
+		}
+	}
+}
+
+# Browser security headers. The API sets its own in Program.cs; they aren't
+# repeated here, because a header sent twice leaves it unclear which one applies.
+(wheyproof-security-headers) {
+	header {
+		# No "preload": getting off the preload list takes months.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		# Store links carry affiliate codes in the URL; only the origin leaves.
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		-X-Powered-By
+	}
+}
+
+# Content Security Policy, narrower than the Turkish site's: WheyProof loads no
+# ads. External sources measured in the frontend: Google Fonts only, plus the
+# Cloudflare Web Analytics beacon Cloudflare injects at the edge.
+# img-src stays "https:" because product images come from each store's CDN (and
+# our own copies), a list that grows with every store.
+# 'unsafe-inline' is needed for Angular's SSR hydration scripts and inline
+# structured data; moving to nonces is separate work.
+(wheyproof-csp) {
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.wheyproof.com https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+	}
+}
+
+# The bare domain redirects permanently to the canonical www host. Proxying it to
+# the frontend would hit server.ts's "noindex for non-canonical hosts" guard and
+# tell crawlers not to index the real address.
+wheyproof.com {
+	import wheyproof-security-headers
+	import wheyproof-access-log
+	redir https://www.wheyproof.com{uri} permanent
+}
+
+www.wheyproof.com {
+	import wheyproof-security-headers
+	import wheyproof-access-log
+	import wheyproof-csp
+
+	# THE ADMIN PANEL AND ITS API SHARE ONE ORIGIN, so one Cloudflare Access rule
+	# (www.wheyproof.com/admin*) covers both the page and the data. Had the panel
+	# called the api. subdomain, the data would sit outside Access.
+	# /admin/api/security-events -> /api/dev/security-events
+	handle_path /admin/api/* {
+		rewrite * /api/dev{uri}
+		reverse_proxy wheyproof-backend:8080
+	}
+
+	handle {
+		reverse_proxy wheyproof-frontend:4000
+	}
+}
+
+api.wheyproof.com {
+	import wheyproof-access-log
+	reverse_proxy wheyproof-backend:8080
+}

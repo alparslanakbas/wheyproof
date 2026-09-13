@@ -1,56 +1,48 @@
+# WheyProof runs on the SAME VM as the Turkish site (Protein Avcısı). Only one
+# process can listen on 80/443, and that is the Turkish stack's Caddy container.
+# So this stack has NO Caddy and publishes NO host ports:
+#   - the Turkish Caddy imports caddy/sites/*.caddy from this repo and proxies
+#     WheyProof's hosts over the shared external network "web-edge";
+#   - on that network the containers answer to "wheyproof-backend" and
+#     "wheyproof-frontend". Plain "backend"/"frontend" would COLLIDE with the
+#     Turkish services on the same network, and Caddy could route one site's
+#     traffic to the other site's backend without any error.
+#
+# One-time setup on the VM: docker network create web-edge
+name: wheyproof
+
 services:
-  # Veritabanı Neon'dan (yönetilen, serverless) buraya taşındı. Neon'un
-  # ücretsiz planı compute-SAATİ faturalandırıyor: veritabanı "uyanık"
-  # durduğu her saat sayılıyor, sorgu sayısı değil. SSR bir site + arama
-  # motoru botları + izleme pingi yüzünden endpoint pratikte hiç uyumuyordu,
-  # bu da 100 CU-saatlik aylık kotayı döngü bitmeden tüketiyordu. Veri 24 MB;
-  # bu boyut için serverless'ın esnekliğine ihtiyaç yok, VM'de zaten boşta
-  # duran kaynak var.
-  #
-  # initdb argümanları Neon'daki ayarla BİREBİR aynı olmak zorunda:
-  # locale provider "builtin", locale "C.UTF-8", kodlama UTF8. Farklı bir
-  # collation ile kurulsaydı metin sıralaması ve index düzeni sessizce
-  # değişirdi (Türkçe içerikte fark eder).
+  # initdb arguments match the Turkish database (builtin locale C.UTF-8): a
+  # different collation would silently change text ordering and index layout.
   db:
-    # alpine DEĞİL, bilinçli tercih: musl libc'de locale desteği sınırlı,
-    # "C.UTF-8" bir libc locale'i olarak bulunmuyor ve initdb sessizce
-    # imajın varsayılanına (en_US.utf8) düşüyor. Bu, taşınan veriyle farklı
-    # bir metin sıralama davranışı demek olurdu. Debian tabanlı imajda
-    # C.UTF-8 mevcut.
+    # Not alpine on purpose: musl has limited locale support, "C.UTF-8" isn't
+    # available there and initdb silently falls back to another locale.
     image: postgres:18
     restart: unless-stopped
     environment:
-      - POSTGRES_DB=indirim_takip
-      - POSTGRES_USER=protein
+      - POSTGRES_DB=wheyproof
+      - POSTGRES_USER=wheyproof
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8
+    # No host port: the Turkish database already binds 127.0.0.1:5432, and a
+    # second binding would stop this container from starting. Reach it with
+    # `docker compose exec db psql -U wheyproof -d wheyproof`.
     expose:
       - "5432"
-    # Port YALNIZCA VM'in loopback arayüzüne bağlanıyor — "0.0.0.0:5432"
-    # DEĞİL. Yani veritabanı internetten erişilebilir değil; yalnızca VM'e
-    # SSH ile girebilen biri ulaşabiliyor. Yerel geliştirme buraya SSH
-    # tüneliyle bağlanıyor (ssh -L 5433:127.0.0.1:5432).
-    #
-    # Bu ayrım kritik: "5432:5432" yazılsaydı Postgres tüm dünyaya açılırdı.
-    ports:
-      - "127.0.0.1:5432:5432"
-    # Docker varsayılan olarak SIGTERM gönderiyor; Postgres bunu "smart
-    # shutdown" sayıp açık istemcileri bekliyor, süre dolunca SIGKILL
-    # geliyor ve açılışta kurtarma gerekiyor. SIGINT "fast shutdown" demek.
+    # Postgres treats SIGTERM as "smart shutdown" and waits for clients until
+    # Docker's SIGKILL, which forces recovery on the next start. SIGINT is a
+    # fast shutdown.
     stop_signal: SIGINT
     stop_grace_period: 30s
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U protein -d indirim_takip"]
+      test: ["CMD-SHELL", "pg_isready -U wheyproof -d wheyproof"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
-    # DİKKAT: Postgres 18 imajı veri dizini kuralını değiştirdi. Eskiden
-    # /var/lib/postgresql/data bağlanırdı; 18+ sürümde veri sürüme özel bir
-    # alt dizine (/var/lib/postgresql/18/docker) yazılıyor ve mount bir üst
-    # seviyeye yapılmalı. Eski yol bağlanırsa konteyner "yanlış yerde veri
-    # var" deyip hiç açılmıyor. Bu kural pg_upgrade'in mount sınırına
-    # takılmadan çalışabilmesi için konuldu.
+    # Postgres 18 writes data to a version-specific subdirectory, so the volume
+    # is mounted one level up; the old /var/lib/postgresql/data path makes the
+    # container refuse to start.
     volumes:
       - pg_data:/var/lib/postgresql
 
@@ -60,73 +52,50 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - PORT=8080
-      # Önbellek ısıtma isteğinin GERÇEK ziyaretçiyle aynı önbellek anahtarına
-      # düşmesi için: anahtar Host ve şemayı da içeriyor. Bu değer olmadan
-      # ısıtma "localhost" anahtarını doldurur ve hiçbir işe yaramaz.
-      - OutputCache__WarmupHost=api.proteinavcisi.com.tr
+      # The output cache key includes the Host; without this, warming fills a
+      # "localhost" key no visitor uses.
+      - OutputCache__WarmupHost=api.wheyproof.com
       - ConnectionStrings__Default=${CONNECTION_STRING}
       - AdminApiKey=${ADMIN_API_KEY}
-      # Dışarıda toplanan ürünleri kabul eden uç (POST /api/ingest/{kaynak}).
-      # AYRI anahtar: bu değer geliştirme makinesinde de duruyor, sızarsa
-      # admin uçlarına erişim vermemeli. Tanımlı değilse uç tamamen kapalı.
-      - IngestApiKey=${INGEST_API_KEY}
-      # Kaynak tazeliği alarmının eşiği (saat). Tanımlanmazsa 26.
-      # Deploy yapmadan ayarlanabilsin diye burada: bir alarmın eşiği,
-      # yanlış ayarlandığında kod değişikliği beklemeden düzeltilebilmeli.
-      # The admin panel sits behind Cloudflare Access; the backend also
-      # accepts Access's signed identity token. UNLESS BOTH ARE SET this
-      # path is fully CLOSED: accepting the token with half a configuration
-      # would let a misconfiguration silently open the door.
-      # The aud tag comes from the Access application's dashboard and isn't
-      # secret; it binds the token to THIS application.
+      # The admin panel sits behind Cloudflare Access; the backend also accepts
+      # Access's signed identity token. UNLESS BOTH ARE SET this path is fully
+      # CLOSED, so a half configuration can't silently open the door.
       - CloudflareAccess__TeamDomain=${CF_ACCESS_TEAM_DOMAIN:-}
       - CloudflareAccess__Aud=${CF_ACCESS_AUD:-}
       - Health__StaleHours=${HEALTH_STALE_HOURS:-26}
       - Brevo__ApiKey=${BREVO_API_KEY}
-      # Arama motoru bildirimi (Bing/Yandex/Seznam). Anahtar gizli değil —
-      # site sahipliğini doğrulamak için /{key}.txt adresinde zaten açıkta.
+      - Brevo__SenderEmail=${BREVO_SENDER_EMAIL:-newsletter@wheyproof.com}
+      # IndexNow key; not secret, it is published at /{key}.txt.
       - IndexNow__Key=${INDEXNOW_KEY}
-      # Ortaklık programı takip kodları. Değerler .env'de (repoya girmiyor),
-      # tanımsız bırakılan marka için yönlendirme adresi hiç değişmiyor.
-      - Affiliate__TrackingCodes__Hardline=${AFFILIATE_HARDLINE}
-      - Affiliate__TrackingCodes__SSN=${AFFILIATE_SSN}
-      - PublicBaseUrl=https://api.proteinavcisi.com.tr
-      # ÜRÜN GÖRSELLERİ kendi sunucumuzda tutuluyor. Kaynakların CDN'lerine
-      # doğrudan bağlanmak (hotlink) ortalama 280 kB, en kötüsü 2,35 MB
-      # görsel demekti; ayrıca erişilemeyen bir host tarayıcıda `onerror`
-      # tetiklemediği için yedek görsel hiç devreye girmiyor.
-      # Adres öneki API alan adı üzerinden: dosyaları .NET sunuyor, Caddy'ye
-      # bilerek dosya sunucusu eklenmedi (bkz. Program.cs'teki gerekçe).
+      # Affiliate tracking codes go here per brand, e.g.
+      #   - Affiliate__TrackingCodes__Ghost=${AFFILIATE_GHOST}
+      # A brand without a code keeps its store URL unchanged.
+      - PublicBaseUrl=https://api.wheyproof.com
+      - FrontendBaseUrl=https://www.wheyproof.com
+      # Product images are resized and served by .NET, not Caddy (see Program.cs).
       - ProductImages__Enabled=true
       - ProductImages__StoragePath=/app/product-images
       - ProductImages__PublicBaseUrl=https://api.wheyproof.com/api/images
       - Cors__AllowedOrigins__0=https://wheyproof.com
       - Cors__AllowedOrigins__1=https://www.wheyproof.com
       - Scraping__Enabled=true
-      - Digest__Enabled=true
+      # DIGEST IS OFF until the newsletter footer has a physical postal address:
+      # CAN-SPAM requires one in every commercial email. Subscription
+      # confirmations and price alerts still send; flip this to true once the
+      # address is in place.
+      - Digest__Enabled=false
       - DescriptionBackfill__Enabled=true
     expose:
       - "8080"
-    # Port YALNIZCA loopback'e bağlanıyor (db'deki desenin aynısı, "0.0.0.0"
-    # DEĞİL): internetten erişilemez, yalnızca VM'in kendi içinden.
-    #
-    # NEDEN GEREKLİ: Supplementler toplayıcısı VM'de çalışıyor ve topladığını
-    # /api/ingest ucuna gönderiyor. Public adrese gönderseydi istek WireGuard
-    # tünelinden ev bağlantısına, oradan Cloudflare'e ve tekrar buraya
-    # dönerdi — gereksiz ve kırılgan. Loopback trafiği yönlendirme
-    # kurallarına hiç girmiyor.
-    ports:
-      - "127.0.0.1:8080:8080"
-    # Görseller ADLANDIRILMIŞ VOLUME'da: konteyner her deploy'da yeniden
-    # oluşturuluyor ve imajın içinde tutulsalardı her deploy 4.900 görseli
-    # sıfırdan indirtirdi. `docker builder prune` (haftalık cron) adlandırılmış
-    # volume'lara dokunmuyor.
+    # Named volume so a deploy doesn't download every image again.
     volumes:
       - product_images:/app/product-images
-    # Backend açılışta EF migration çalıştırıyor; veritabanı hazır değilken
-    # başlarsa hata verir. Deploy workflow'u backend'i "--no-deps" ile
-    # yenilediği için bu koşul orada devreye girmiyor (db zaten sürekli
-    # ayakta, her deploy'da gereksizce yeniden başlatılmasın diye böyle).
+    networks:
+      default:
+      web-edge:
+        aliases:
+          - wheyproof-backend
+    # Migrations run at startup, so the database must be ready first.
     depends_on:
       db:
         condition: service_healthy
@@ -136,37 +105,23 @@ services:
     restart: unless-stopped
     environment:
       - PORT=4000
-      - NG_ALLOWED_HOSTS=proteinavcisi.com.tr,www.proteinavcisi.com.tr
+      # Angular SSR rejects requests for hosts not listed here.
+      - NG_ALLOWED_HOSTS=wheyproof.com,www.wheyproof.com
     expose:
       - "4000"
+    networks:
+      default:
+      web-edge:
+        aliases:
+          - wheyproof-frontend
     depends_on:
       - backend
 
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      # Tek dosya DEĞİL, dizin bağlanıyor: tek dosyalık bind-mount
-      # inode'a bağlanıyor ve "git pull" dosyayı yenisiyle değiştirdiği
-      # için container eski içeriği görmeye devam ediyordu — yapılandırma
-      # değişiklikleri container yeniden oluşturulmadan hiç ulaşmıyordu.
-      - ./caddy:/etc/caddy
-      # Erisim logu HOST'A baglaniyor, isimli volume'e degil: bu kayit
-      # gerektiginde delil olarak disari verilecek. Host dizininde durunca
-      # normal araclarla (grep/arsivle/kopyala) erisilebiliyor; isimli
-      # volume icin her seferinde konteynere girmek gerekirdi.
-      - ./caddy-log:/var/log/caddy
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - backend
-      - frontend
+networks:
+  # Created once on the VM and shared with the Turkish stack's Caddy.
+  web-edge:
+    external: true
 
 volumes:
   product_images:
-  caddy_data:
-  caddy_config:
   pg_data:

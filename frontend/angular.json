@@ -35,9 +35,8 @@
             "outputMode": "server",
             "security": {
               "allowedHosts": [
-                "www.proteinavcisi.com.tr",
-                "proteinavcisi.com.tr",
-                "protein-avcisi.onrender.com",
+                "www.wheyproof.com",
+                "wheyproof.com",
                 "localhost",
                 "127.0.0.1"
               ]
