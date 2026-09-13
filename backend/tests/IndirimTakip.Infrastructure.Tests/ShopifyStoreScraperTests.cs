@@ -45,6 +45,68 @@ public class ShopifyStoreScraperTests
         Assert.Equal("5 lb", ProductAttributeParser.ExtractSize(fiveLb.Name));
     }
 
+    // Raw Nutrition stack: two qualified flavor options, no size at all. Each
+    // flavor combination used to count as a size and became its own product.
+    [Fact]
+    public void Qualified_flavor_option_names_collapse_into_one_product()
+    {
+        var p = Product("Maximum Output Stack", null, ["Thavage Pre-Workout (Flavor)", "Creatine + HMB (Flavor)"],
+            (30, "Champion Mentality", "Blue Raspberry", 97.47m, true),
+            (31, "Champion Mentality", "Sour Watermelon", 86.22m, true),
+            (32, "Lemon Lime", "Blue Raspberry", 97.47m, true));
+
+        var item = Assert.Single(ShopifyStoreScraper.ToScrapedProducts(p, Brand, null));
+
+        Assert.Equal("Maximum Output Stack", item.Name);
+        Assert.Equal("https://nutricost.com/products/p", item.Url);
+        Assert.Equal(86.22m, item.Price);
+    }
+
+    [Theory]
+    [InlineData("SavedBy Package Protection", false)]
+    [InlineData("Shipping Insurance", false)]
+    [InlineData("Bodybuilding.com Membership", false)]
+    [InlineData("Protein Sample Packs", true)]
+    [InlineData("Whey Protein Isolate", true)]
+    public void Checkout_add_ons_are_not_products(string title, bool kept)
+    {
+        var p = Product(title, null, ["Title"], (50, "Default Title", null, 4.47m, true));
+
+        Assert.Equal(kept, ShopifyStoreScraper.ToScrapedProducts(p, Brand, null).Any());
+    }
+
+    [Theory]
+    [InlineData("Flavor", true)]
+    [InlineData("Protein Flavor", true)]
+    [InlineData("Whey Isolate Flavor - 30 servings/bag", true)]
+    [InlineData("Thavage Pre-Workout (Flavour)", true)]
+    [InlineData("Size", false)]
+    [InlineData("Package Size", false)]
+    [InlineData("Style", false)]
+    public void Flavor_options_are_recognized_as_a_word(string optionName, bool expected) =>
+        Assert.Equal(expected, ShopifyStoreScraper.IsFlavorOption(optionName));
+
+    // The URL is the row's identity. When the cheapest flavor of a size sells
+    // out, the price may change but the link must not, or the next crawl
+    // opens a duplicate product.
+    [Fact]
+    public void Size_url_stays_the_same_when_the_cheapest_flavor_changes()
+    {
+        var before = Product("Whey", null, ["Flavor", "Size"],
+            (40, "Vanilla", "5 lbs", 89.97m, true),
+            (41, "Chocolate", "5 lbs", 79.97m, true));
+        var after = Product("Whey", null, ["Flavor", "Size"],
+            (40, "Vanilla", "5 lbs", 89.97m, true),
+            (41, "Chocolate", "5 lbs", 79.97m, false));
+
+        var first = Assert.Single(ShopifyStoreScraper.ToScrapedProducts(before, Brand, null));
+        var second = Assert.Single(ShopifyStoreScraper.ToScrapedProducts(after, Brand, null));
+
+        Assert.Equal(first.Url, second.Url);
+        Assert.Equal(79.97m, first.Price);
+        Assert.Equal(89.97m, second.Price);
+    }
+
     [Fact]
     public void Product_without_options_keeps_a_plain_url()
     {

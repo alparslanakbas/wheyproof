@@ -65,11 +65,13 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         "color", "colour", "colors", "colours",
     };
 
-    // Option names that describe flavor rather than a different package.
-    private static readonly HashSet<string> FlavorOptionNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "flavor", "flavour", "flavors", "flavours", "taste",
-    };
+    // An option that describes flavor rather than a different package. Matched
+    // as a word, not as the whole name: stores qualify it ("Protein Flavor",
+    // "Thavage Pre-Workout (Flavor)", "Whey Isolate Flavor - 30 servings/bag").
+    // An exact-name list missed those, so every flavor combination of a stack
+    // counted as a size and became its own product: 72 rows for one Raw
+    // Nutrition stack, 50 for a Promix bundle (measured 2026-09-13).
+    internal static bool IsFlavorOption(string optionName) => FlavorOptionRegex().IsMatch(optionName);
 
     public string BrandName => store.BrandName;
     public string BaseUrl => store.BaseUrl;
@@ -173,7 +175,7 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
             yield break;
 
         var sizePositions = product.Options
-            .Where(o => !FlavorOptionNames.Contains(o.Name.Trim()))
+            .Where(o => !IsFlavorOption(o.Name))
             .Select(o => o.Position)
             .OrderBy(p => p)
             .ToList();
@@ -199,10 +201,17 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
                 continue;
 
             // A size-specific link lands the shopper on that size. Products with
-            // no size dimension keep the plain URL, which also stays their
-            // identity across crawls.
+            // no size dimension keep the plain URL.
+            //
+            // THE URL IS THE ROW'S IDENTITY across crawls (ingestion matches on
+            // it), so the variant in it must not move. The cheapest in-stock
+            // variant does move: a flavor sells out or goes on sale, the link
+            // changes, and the next crawl opens a new product while the old row
+            // goes stale with the price history. The group's lowest variant id
+            // is stable and still lands on the same size; the price keeps coming
+            // from the cheapest in-stock flavor.
             var url = hasSizeDimension
-                ? $"{store.BaseUrl}/products/{product.Handle}?variant={chosen.Id}"
+                ? $"{store.BaseUrl}/products/{product.Handle}?variant={group.Min(v => v.Id)}"
                 : $"{store.BaseUrl}/products/{product.Handle}";
 
             yield return new ScrapedProduct(
@@ -252,6 +261,13 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
             return true;
         }
 
+        // Checkout add-ons sold as products: SavedBy "Package Protection" (24
+        // price tiers each on Gorilla Mind and Raw Nutrition, up to $40.97) and
+        // the Bodybuilding.com membership (measured 2026-09-13). The $1 floor
+        // doesn't catch them. Sample packs are real, buyable products and stay.
+        if (NonProductServiceRegex().IsMatch(product.Title))
+            return true;
+
         return ApparelOrMerchRegex().IsMatch(product.Title)
             || NonSupplementProductFilter.IsAccessoryOrApparel(product.Title);
     }
@@ -274,6 +290,12 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         var host = new Uri(baseUrl).Host;
         return host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? host[4..] : host;
     }
+
+    [GeneratedRegex(@"\b(package|shipping|order|delivery|route)\s+(protection|insurance)\b|\bmembership\b|\bwarranty\b", RegexOptions.IgnoreCase)]
+    private static partial Regex NonProductServiceRegex();
+
+    [GeneratedRegex(@"\b(flavors?|flavours?|tastes?)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex FlavorOptionRegex();
 
     [GeneratedRegex(@"Shopify\.currency\s*=\s*\{\s*""active""\s*:\s*""(?<code>[A-Za-z]{3})""")]
     private static partial Regex StorefrontCurrencyRegex();
