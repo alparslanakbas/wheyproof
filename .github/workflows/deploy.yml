@@ -36,8 +36,16 @@ jobs:
             # container even after the image was rebuilt, serving old code while
             # the workflow looks green.
             # --no-deps keeps the database running across deploys.
-            docker compose up -d db
-            docker compose up -d --force-recreate --no-deps backend frontend
+            # --remove-orphans deletes containers of services that no longer
+            # exist. The services were once named backend/frontend; a leftover
+            # container would keep the "backend" alias on web-edge, where the
+            # Turkish Caddy looks for its own backend.
+            # --wait blocks until the db healthcheck passes. --no-deps below skips
+            # the service_healthy condition, so without this the backend raced a
+            # fresh database on the first deploy, crashed on "connection refused"
+            # and only came up after Docker restarted it.
+            docker compose up -d --wait db
+            docker compose up -d --force-recreate --no-deps --remove-orphans wheyproof-backend wheyproof-frontend
 
             # THE EDGE BELONGS TO THE TURKISH STACK. Its Caddy imports
             # caddy/sites/*.caddy from this repo, so a change here needs a reload
@@ -73,5 +81,5 @@ jobs:
 
             echo "ERROR: the services didn't respond within 3 minutes."
             docker compose ps
-            docker compose logs --tail 60 backend frontend
+            docker compose logs --tail 60 wheyproof-backend wheyproof-frontend
             exit 1

@@ -4,9 +4,12 @@
 #   - the Turkish Caddy imports caddy/sites/*.caddy from this repo and proxies
 #     WheyProof's hosts over the shared external network "web-edge";
 #   - on that network the containers answer to "wheyproof-backend" and
-#     "wheyproof-frontend". Plain "backend"/"frontend" would COLLIDE with the
-#     Turkish services on the same network, and Caddy could route one site's
-#     traffic to the other site's backend without any error.
+#     "wheyproof-frontend". The SERVICES are named that way on purpose: Compose
+#     adds the service name as an alias on EVERY network a service joins, and
+#     that alias can't be removed. With services called "backend"/"frontend"
+#     (measured on the VM: aliases "backend,wheyproof-backend") the Turkish
+#     Caddy, which proxies to "backend:8080" on its own network, would also see
+#     WheyProof's "backend" on web-edge and could route Turkish traffic to it.
 #
 # One-time setup on the VM: docker network create web-edge
 name: wheyproof
@@ -46,7 +49,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql
 
-  backend:
+  wheyproof-backend:
     build: ./backend
     restart: unless-stopped
     environment:
@@ -91,16 +94,14 @@ services:
     volumes:
       - product_images:/app/product-images
     networks:
-      default:
-      web-edge:
-        aliases:
-          - wheyproof-backend
+      - default
+      - web-edge
     # Migrations run at startup, so the database must be ready first.
     depends_on:
       db:
         condition: service_healthy
 
-  frontend:
+  wheyproof-frontend:
     build: ./frontend
     restart: unless-stopped
     environment:
@@ -110,12 +111,10 @@ services:
     expose:
       - "4000"
     networks:
-      default:
-      web-edge:
-        aliases:
-          - wheyproof-frontend
+      - default
+      - web-edge
     depends_on:
-      - backend
+      - wheyproof-backend
 
 networks:
   # Created once on the VM and shared with the Turkish stack's Caddy.
