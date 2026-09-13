@@ -2,78 +2,77 @@ using System.Text.RegularExpressions;
 
 namespace IndirimTakip.Infrastructure.Scraping;
 
-// Hardline ve ProteinOcean, HIQ'nun aksine ürün isimlerine yapılandırılmış
-// bir kategori/etiket bilgisi eklemiyor (Hardline hiç kategori vermiyor,
-// ProteinOcean'ın GraphQL API'si tek "Tüm Ürünler" kategorisi kullanıyor) —
-// bu yüzden HIQ'daki gibi Shopify "tags" ("type:wearable"/"type:equipment")
-// bazlı bir filtre burada mümkün değil, isim bazlı bir kelime listesi
-// kullanılıyor. Site kapsamı spor takviyesi/protein — tişört, hoodie,
-// şapka, anahtarlık, huni, pillbox gibi giyim/aksesuar ürünleri kullanıcı
-// isteğiyle kapsam dışı bırakıldı (bkz. CLAUDE.md, 2026-08-23).
+// Name-based accessory/apparel filter. Some sources attach no structured
+// category or tag to products (no category at all, or a single "All Products"
+// category), so a tag-based filter isn't possible and a word list is used
+// instead. The site covers sports supplements and protein; apparel and
+// accessories such as t-shirts, hoodies, caps, keychains, funnels and pill boxes
+// are out of scope.
+//
+// The words are mostly Turkish, because the filter was written for Turkish
+// sources. Shopify stores get the English apparel pattern and the structural
+// option checks in ShopifyStoreScraper on top of this.
 public static partial class NonSupplementProductFilter
 {
     public static bool IsAccessoryOrApparel(string productName)
     {
-        // TÜRKÇE HARFLER ASCII'YE İNDİRİLİYOR — kalıplar çalışmadan ÖNCE.
+        // TURKISH LETTERS ARE FOLDED TO ASCII, BEFORE the patterns run.
         //
-        // .NET'in RegexOptions.IgnoreCase'i invariant kültürle çalışıyor ve
-        // Türkçe harf çiftlerini katlamıyor. Sonuç: "EFFİVE BLACK PİLLBOX"
-        // adlı ürün `pillbox` kalıbına TAKILMIYORDU ve canlı katalogda
-        // aksesuar olarak duruyordu (3 Eylül'de 2991 ürün taranırken bulundu).
-        // Aynı tuzak noktasız I için de var — "ANAHTARLIK" gibi tamamı büyük
-        // yazılmış adlar `anahtarlık` kalıbıyla eşleşmiyordu; Grizzone'un
-        // kataloğu baştan sona büyük harf.
+        // .NET's RegexOptions.IgnoreCase works with the invariant culture and doesn't
+        // fold Turkish letter pairs. The result: a product named "EFFİVE BLACK
+        // PİLLBOX" did NOT match the `pillbox` pattern and stayed in the live catalog
+        // as an accessory. The dotless I has the same trap: all-caps names such as
+        // "ANAHTARLIK" (keychain) didn't match the `anahtarlık` pattern, and one
+        // store's catalog was uppercase from start to end.
         //
-        // Kalıplar da bu yüzden SAF ASCII yazıldı. Öncesinde her Türkçe
-        // kelimenin ASCII kopyası ayrıca tutuluyordu ("esofman", "agirlik
-        // kemer", "bakim seti", "ketcap"...); tek biçime inince o çoğaltma
-        // gereksizleşti ve eksik kalan yazımlar da kapandı.
-        productName = TurkceyiAsciiyeIndir(productName);
+        // That's why the patterns are written in PLAIN ASCII. Before, an ASCII copy of
+        // every Turkish word was kept separately; with one form that duplication
+        // became unnecessary and missing spellings were closed too.
+        productName = FoldTurkishToAscii(productName);
 
         var match = AccessoryKeywordRegex().Match(productName);
         if (!match.Success)
             return false;
 
-        // HEDİYE SHAKER İSTİSNASI. Markalar takviye paketlerinin yanında
-        // shaker veriyor ve adına yazıyor: "Kilo Aldırıcı Ultra Set - Shaker
-        // Hediyeli" (7.200 TL), "HIQ Fitness Başlangıç Paketi + Shaker".
-        // Bunlar aksesuar değil, aksesuar HEDİYELİ takviye — elenirlerse
-        // gerçek ürün kaybediyoruz.
+        // GIFTED SHAKER EXCEPTION. Brands give a shaker with supplement bundles and
+        // say so in the name ("... Set - Shaker Hediyeli" = shaker included, "...
+        // Paketi + Shaker"). These aren't accessories but supplements WITH a gifted
+        // accessory; dropping them loses real products.
         //
-        // Katalog tarandı (2 Eylül, 1456 ad): "shaker" geçen ÜÇ ürünün üçü de
-        // bu tipte, gerçek shaker hiç yok (onlar zaten yutulurken eleniyor).
-        // Gerçek shaker'larda da bu işaretler hiç geçmiyor — o gün görülenler:
-        // "Renkli Yüksek Kalite Shaker 550cc", "Space Shaker",
-        // "Prime Nutrition Shaker 500 ml.".
+        // The catalog was scanned (1,456 names): all THREE products containing
+        // "shaker" were of this kind, with no real shaker among them (those are
+        // dropped at ingestion anyway). Real shakers never carry these markers.
         //
-        // İstisna DAR: yalnızca eşleşen tek kelime "shaker" olduğunda ve adda
-        // hediye/ekleme işareti varken geçerli. "Spor Çantası Hediyeli" gibi
-        // bir ad hâlâ eleniyor, çünkü orada eşleşen kelime "çanta".
+        // The exception is NARROW: it applies only when "shaker" is the single
+        // matched word and the name has a gift/addition marker. A name like "Spor
+        // Çantası Hediyeli" (gym bag included) is still dropped, because the matched
+        // word there is "çanta" (bag).
 
-        // TAKVİYE PAKETİ İSTİSNASI. Adında hem PAKET/SET işareti hem de bir
-        // takviye bileşeni geçen ürünler, içindeki aksesuarlar yüzünden
-        // elenmemeli — o aksesuarlar ürünün KENDİSİ değil, paketin içeriği.
+        // SUPPLEMENT BUNDLE EXCEPTION. Products whose name has both a BUNDLE/SET marker
+        // and a supplement ingredient must not be dropped because of the accessories
+        // inside: those accessories aren't the product ITSELF but the bundle's
+        // contents.
         //
-        // 3 Eylül'de Grizzone kataloğunda ölçülerek bulundu; süzgeç üç GERÇEK
-        // takviye paketini eliyordu:
+        // Found by measuring one store's catalog; the filter was dropping three REAL
+        // supplement bundles:
         //   "FİTNESS PAKETİ - PROFESYONEL (WHEY PROTEİN PRO 1800 GR + ...)"
-        //      -> shaker, havlu, strap, anahtarlık kelimelerine takılıyordu
+        //      -> tripped on shaker, towel, strap and keychain words
         //   "GRIZZY IRON PACK (WHEY PROTEIN PRO + ZINC+D3+C + GRIZZONE SHAKER)"
         //   "FİTNESS PAKETİ - ORTA (WHEY PROTEIN 420 GR + BCAA 500 GR + ...)"
         //
-        // Aşağıdaki "hediye shaker" istisnası bunları KURTARMIYORDU: o istisna
-        // yalnızca TEK eşleşme varken ve "+shaker" bitişikken geçerli.
+        // The gifted shaker exception below did NOT save them: it applies only with a
+        // SINGLE match and "+shaker" written together.
         //
-        // İki şart birlikte aranıyor, çünkü tek başına ikisi de yetersiz:
-        // "Grizzone SACKPACK Spor Çanta" içinde "pack" geçiyor (kelime sınırı
-        // bunu eler) ve "Gıda paketi (PANCAKE + ... SOS)" paket işareti taşıyor
-        // ama takviye bileşeni taşımıyor — ikisi de doğru şekilde eleniyor.
+        // Both conditions are required, because each alone is insufficient: "Grizzone
+        // SACKPACK Spor Çanta" contains "pack" (the word boundary rules it out) and a
+        // food bundle "(PANCAKE + ... SOS)" carries a bundle marker but no supplement
+        // ingredient; both are correctly dropped.
         //
-        // İstisna GİYSİ ve ÇANTAYA UZANMIYOR. Mevcut kural şunu diyor:
-        // "hediyeli de olsa çanta çantadır" (bkz. HediyeliCantaYineDeEleniyor
-        // testi). Grizzone'da kurtarılan paketlerin içindekiler shaker, havlu,
-        // strap ve anahtarlık — yani tipik hediye kalemleri; giysi/çanta
-        // geçen bir adda paket istisnası çalışmıyor, ürün yine eleniyor.
+        // The exception does NOT EXTEND to apparel and bags. The standing rule: "a bag
+        // is a bag even as a gift" (see the gifted-bag test). The rescued bundles
+        // contained shakers, towels, straps and keychains, typical gift items; in a
+        // name with apparel or a bag the bundle exception doesn't apply and the product
+        // is still dropped.
         if (BundleMarkerRegex().IsMatch(productName)
             && SupplementMarkerRegex().IsMatch(productName)
             && !ApparelOrBagRegex().IsMatch(productName))
@@ -81,146 +80,125 @@ public static partial class NonSupplementProductFilter
             return false;
         }
 
-        var yalnizcaShaker = match.Value.StartsWith("shaker", StringComparison.OrdinalIgnoreCase)
+        var onlyShaker = match.Value.StartsWith("shaker", StringComparison.OrdinalIgnoreCase)
             && AccessoryKeywordRegex().Matches(productName).Count == 1;
 
-        return !(yalnizcaShaker && GiftedAccessoryRegex().IsMatch(productName));
+        return !(onlyShaker && GiftedAccessoryRegex().IsMatch(productName));
     }
 
-    // Not: liste, kaçan ürünler bulundukça genişliyor — korse/eşofman/çanta
-    // 28 Ağustos'ta eklendi (ilk temizlik turunda gözden kaçmışlardı).
+    // The list grows as leaked products are found; every addition below was made
+    // after measuring a real catalog, not by guessing. Turkish words and what they
+    // mean: tisort (t-shirt), kapuson (hood), kolsuz (sleeveless), tayt (leggings),
+    // sapka (cap), bileklik (wristband), havlu (towel), atlet (tank top), anahtarlik
+    // (keychain), huni (funnel), sort (shorts), korse (lifting belt), esofman
+    // (tracksuit), canta (bag), direnc band (resistance band), agirlik kemer
+    // (weightlifting belt), eldiven (gloves), hap kutusu (pill box), olcu/olcek kasigi
+    // (measuring scoop), bakim/seyahat seti (grooming/travel kit), kase (bowl), kuru
+    // yemislik (nut bowl), himalaya tuzu (Himalayan salt), hardal (mustard), sos
+    // (sauce), ketcap (ketchup), sprey yag (cooking spray), tatlandirici (sweetener).
     //
-    // 31 Ağustos'ta gıda/çeşni grubu eklendi (basmati, himalaya tuzu, hardal,
-    // sriracha, sweet drops): Commander Nutrition katalogunda pirinç, tuz, sos
-    // ve sıvı tatlandırıcı da satılıyor — bunlar spor takviyesi değil.
+    // A food/condiment group is included (basmati, Himalayan salt, mustard, sriracha,
+    // sweet drops): one store also sold rice, salt, sauces and liquid sweeteners,
+    // which aren't sports supplements.
     //
-    // "pirinç"/"rice" BİLİNÇLİ OLARAK LİSTEDE YOK: "Cream of Rice" gerçek bir
-    // sporcu gıdası ve aynı katalogda mevcut ("Dr. Pan Rice Cream"). Genel
-    // kelime yerine yalnızca ayırt edici olanlar (basmati gibi) kullanılıyor —
-    // "performans"ın dışarıda bırakılmasıyla aynı gerekçe.
-    // "performans" gibi genel kelimeler BİLİNÇLİ olarak yok: markaların gerçek
-    // takviye paketleri de o kelimeyi taşıyor (ör. "orta-guc-performans").
+    // "rice" is DELIBERATELY NOT in the list: "Cream of Rice" is a real sports food in
+    // the same catalog. Only distinctive words (such as basmati) are used instead of
+    // the general one. General words like "performans" (performance) are absent for
+    // the same reason: real supplement bundles carry that word too.
     //
-    // 1 Eylül'de İKİ TUR düzeltme yapıldı; ikisi de canlıya ürün girdikten
-    // SONRA fark edildi, yani liste hâlâ "kaçan ürün buldukça genişliyor".
-    // Yeni bir bayi kataloğu eklendiğinde bu sorgu çalıştırılmalı:
+    // When a new retailer catalog is added, run this query and review the result by
+    // eye:
     //   SELECT "Name" FROM "Products" WHERE lower("Name") ~ '(atlet|havlu|çanta|strap|box|kemer|...)';
-    // Sonucu gözle elemek şart — "Kutu" meşru çoklu paketlerde de geçiyor
-    // ("Protein Bar 16lı Kutu"), o yüzden kör silme yapılmamalı.
+    // Blind deletion must be avoided: "Kutu" (box) also appears in legitimate
+    // multi-packs ("Protein Bar 16lı Kutu").
     //
-    // İkinci tur (aynı gün): "Atleti" kaçtı çünkü ek desteği "havlu"/"çanta"ya
-    // eklenip "atlet"e eklenmemişti; "8 Loop Strap" kaçtı çünkü kalıp yalnızca
-    // "lifting strap" idi; "Pill Box"/"Powder Box" kaçtı çünkü listede
-    // yalnızca bitişik "pillbox" vardı. Ders: kalıbı ürünün TÜRÜNE göre yaz,
-    // gördüğün tek yazıma göre değil.
+    // Leaks that shaped the patterns: "Atleti" slipped through because suffix
+    // support was added to "havlu"/"canta" but not "atlet"; "8 Loop Strap" because
+    // the pattern was only "lifting strap"; "Pill Box"/"Powder Box" because only the
+    // joined "pillbox" was listed. Lesson: write the pattern for the product's TYPE,
+    // not the one spelling you saw.
     //
-    // "atlet" bilinçli olarak `[a-zçğıöşü]*` ile YAZILMADI: o hâli "atletik"
-    // kelimesini de yakalar ve "atletik performans" meşru bir takviye ifadesi.
+    // "atlet" is deliberately NOT written with an open suffix: that form would also
+    // catch "atletik" (athletic), and "atletik performans" is a legitimate supplement
+    // phrase.
     //
-    // 1 Eylül'de TÜRKÇE EK sorunu düzeltildi. Listede "havlu" ve "çanta"
-    // vardı ama Provitamin kataloğundan "Antrenman HAVLUSU" ve "Spor
-    // ÇANTASI" geçti: `\b` kelime sınırı ekten ÖNCE kırılmıyor, yani
-    // "havlu" kalıbı "havlusu" ile eşleşmiyor. Ek alabilen isimlere
-    // `[a-zçğıöşü]*` eklendi — kodda bu numara zaten kullanılıyordu
-    // (`eldiven[a-zçğıöşü]*`), sadece tutarsız uygulanmıştı.
-    // "canta[a-z]*" DEĞİL: o hâli "Cantaloupe"u yakalıyordu ve katalogda
-    // gerçek bir kurban var — "Nois Whey Rex 900G Protein Tozu - Cantaloupe".
-    // Bir whey proteini spor çantası sanıp sessizce eleyecekti. Nois scraper'ı
-    // bu yüzden ortak süzgeci hiç kullanmıyor, kaynağın kendi "Aksesuar"
-    // kategorisine bakıyor. Kalıp artık AÇIK EK LİSTESİ kullanıyor —
-    // "atlet(i|ler|leri)?" için daha önce verilen kararın aynısı: Türkçe ek
-    // serbest bırakılınca başka kelimelerin içine denk geliyor.
-    // 1416 ürünlük katalogla doğrulandı: yalnızca gerçek aksesuarlar kalıyor.
+    // TURKISH SUFFIXES: `\b` doesn't break BEFORE a suffix, so "havlu" didn't match
+    // "havlusu". Nouns that take suffixes got `[a-z]*`, except where an open suffix
+    // hits other words: "canta[a-z]*" caught "Cantaloupe" and a real whey protein in
+    // Cantaloupe flavor would have been dropped silently as a gym bag. Those use an
+    // EXPLICIT SUFFIX LIST ("canta(si|lar|lari)?", "atlet(i|ler|leri)?").
     //
-    // 3 Eylül'de iki yeni kaynağın kataloğu ÖLÇÜLEREK genişletildi (tahminle
-    // değil: 79 + 86 ürünün tamamı çekilip mevcut kalıp üzerinden geçirildi,
-    // neyin kaçtığı listelendi).
-    //   Gigi's: 8 el yapımı seramik KASE / kuru yemişlik kaçıyordu (çantaları
-    //   kalıp zaten yakalıyordu).
-    //   MLA Protein: BBQ Sos, Şekersiz Ketçap, Garlic powder, Hot Chili,
-    //   Cajun/Chicken/Vegetable/BBQ Mix, Sprey Yağ, Aromalı Tatlandırıcı
-    //   kaçıyordu (hardal/sriracha/himalaya tuzu/shaker zaten yakalanıyordu).
+    // "sos" uses a word boundary and an explicit suffix list, "sos(u|lar|lari)?": it
+    // does NOT catch "SOSis" (sausage), because the following "is" isn't in the list
+    // and the boundary doesn't hold. The same reasoning applies to "kase".
     //
-    // "sos" kelime sınırıyla ve açık ek listesiyle yazıldı: "sos(u|lar|ları)?"
-    // — bu hâli "SOSis"i YAKALAMAZ, çünkü "sos"tan sonra gelen "is" listede
-    // yok ve sınır tutmuyor. Aynı gerekçe "kase" için de geçerli.
+    // "Flavor Chocolate" was DELIBERATELY not added: it appeared in one product, and
+    // general words like "flavor/chocolate" would drop real flavored products. Missing
+    // a condiment beats dropping a protein powder.
     //
-    // "Flavor Chocolate" BİLİNÇLİ OLARAK eklenmedi: tek bir üründe geçiyor ve
-    // "flavor/chocolate" gibi genel kelimeler gerçek aromalı ürünleri elerdi.
-    // Bir çeşni ürününü kaçırmak, bir protein tozunu elemekten iyidir.
-    // 8 EYLÜL: GİYSİ GRUBUNUN TÜRKÇESİ EKSİKTİ. Kullanıcı canlıda bir ürün
-    // gördü — "Just Raw Edge Series Oversize Kolsuz Kapşonlu"
-    // (provitamin.com.tr). Listede İngilizce giysi adları (t-shirt, hoodie,
-    // sweatshirt) vardı ama Türkçe karşılıkları yoktu; kaynak Türkçe yazdığı
-    // için hiçbiri tutmadı.
+    // THE APPAREL GROUP WAS MISSING ITS TURKISH WORDS. A sleeveless hoodie ("Kolsuz
+    // Kapşonlu") showed up live: the list had English apparel names (t-shirt, hoodie,
+    // sweatshirt) but no Turkish counterparts. The catalog scan found four leaks,
+    // joggers and a measuring scoop among them.
     //
-    // Tek örneği düzeltmek yerine katalog tarandı, DÖRT sızıntı çıktı:
-    //   1986 Just Raw Edge Series Oversize Kolsuz Kapşonlu (provitamin)
-    //   3208 GRİZZONE İMZALI OVERSIZE JOGGERS
-    //   3216 Grizzone Joggers
-    //    294 Dijital Ölçü Kaşığı (Hardline)
-    // Sonuncusu giysi değil ama aynı boşluktan geçmiş bir aksesuar.
+    // "OVERSIZE" was DELIBERATELY NOT added although two leaks carried it: it's a size
+    // adjective, not a product type, and a mass gainer's name could contain it. Both
+    // products are dropped by "kolsuz"/"joggers" anyway, so the pattern looks at the
+    // product's TYPE, not the adjective.
     //
-    // "OVERSIZE" BİLİNÇLİ OLARAK EKLENMEDİ, oysa iki üründe de geçiyor.
-    // O bir BEDEN sıfatı, ürün türü değil — bir kilo aldırıcının adında
-    // "OVERSIZE" geçmesi gayet mümkün. "performans" ve "pirinç" için verilen
-    // kararın aynısı. İki ürün de zaten "kolsuz"/"joggers" ile eleniyor,
-    // yani kalıp ürünün TÜRÜNE bakıyor, gördüğüm sıfata değil.
-    //
-    // YANLIŞ POZİTİF TARAMASI ÖNCE YAPILDI (4.918 adın tamamı): aday
-    // kelimeler yalnızca yukarıdaki dört ürünü yakalıyor, başka hiçbir şeyi.
-    // Tarama sırasında gerçek bir tuzak görüldü ve kalıba GİRMEDİ:
-    // "Bağışıklık Paketi-1 (ZMA+Arginine-Multivitamin 90 Kap.)" — oradaki
-    // "Kap." KAPSÜL kısaltması, kap değil. Genel bir "kap" kalıbı gerçek bir
-    // takviyeyi sessizce elerdi. (Testi var: KapsulKisaltmasiElenmiyor.)
+    // A FALSE POSITIVE SCAN RAN FIRST (all 4,918 names): the candidate words caught
+    // only those four products. The scan also showed a real trap that stayed OUT of
+    // the pattern: "... Multivitamin 90 Kap." where "Kap." abbreviates KAPSÜL
+    // (capsule). A general "kap" pattern would silently drop a real supplement (it has
+    // a test).
     [GeneratedRegex(
         @"\b(t-?shirt|tisort[a-z]*|sweatshirt|sweatpant[a-z]*|hoodie|kap[u]?son[a-z]*|kolsuz|jogger[a-z]*|tayt|legging[a-z]*|sapka[a-z]*|beyzbol|pillbox|pill ?box|powder ?box|saklama kabi|bileklik[a-z]*|havlu[a-z]*|buff|atlet(i|ler|leri)?|anahtarlik[a-z]*|maskot|huni[a-z]*|shaker[a-z]*|sort[a-z]*|korse[a-z]*|esofman[a-z]*|canta(si|lar|lari)?|handbag|direnc band[a-z]*|loop band[a-z]*|strap[a-z]*|wrist wrap[a-z]*|agirlik kemer[a-z]*|dip belt[a-z]*|eldiven[a-z]*|hap kutusu|olcu kasig[a-z]*|olcek kasig[a-z]*|bakim seti|seyahat seti|kase(si|ler|leri)?|kuru yemislik|basmati|himalaya tuzu|hardal|sriracha|sweet drops|sos(u|lar|lari)?|ketcap|ketchup|garlic powder|hot chili|cajun|chicken mix|vegetable mix|bbq|sprey yag[i]?|tatlandirici)\b",
         RegexOptions.IgnoreCase)]
     private static partial Regex AccessoryKeywordRegex();
 
     /// <summary>
-    /// "Hediyeli" / "+ Shaker" — aksesuarın ürünün KENDİSİ değil, yanında
-    /// verilen bir ek olduğunu söyleyen işaretler. Türkçe noktalı İ tuzağı
-    /// yok (hepsi ASCII harf), IgnoreCase yeterli.
+    /// "Hediyeli" (gift included) / "+ Shaker": markers saying the accessory isn't
+    /// the product ITSELF but an extra given with it. No dotted İ trap (all ASCII
+    /// letters), IgnoreCase is enough.
     /// </summary>
     [GeneratedRegex(@"(hediye[a-z]*|\+\s*shaker)", RegexOptions.IgnoreCase)]
     private static partial Regex GiftedAccessoryRegex();
 
     /// <summary>
-    /// Paket/set işareti. KELİME SINIRLI: "Sackpack" gibi adlar "pack"
-    /// içerdiği için sınırsız kalıp gerçek bir çantayı kurtarırdı.
+    /// Bundle/set marker (paket = bundle). WORD-BOUNDED: names such as "Sackpack"
+    /// contain "pack", so an unbounded pattern would rescue a real bag.
     /// </summary>
     [GeneratedRegex(@"\b(paket|paketi|paketleri|set|seti|setleri|pack|kit)\b", RegexOptions.IgnoreCase)]
     private static partial Regex BundleMarkerRegex();
 
     /// <summary>
-    /// Giysi ve çanta grubu — paket istisnasının UZANMADIĞI aksesuarlar.
-    /// Mevcut kural: "hediyeli de olsa çanta çantadır".
-    /// Kalıp ASCII, çünkü ad zaten ASCII'ye indirgenmiş olarak geliyor.
+    /// Apparel and bag group: accessories the bundle exception does NOT extend to.
+    /// The standing rule: "a bag is a bag even as a gift".
+    /// The pattern is ASCII because the name arrives already folded to ASCII.
     /// </summary>
     [GeneratedRegex(@"\b(t-?shirt|tisort[a-z]*|sweatshirt|sweatpant[a-z]*|hoodie|kap[u]?son[a-z]*|kolsuz|jogger[a-z]*|tayt|legging[a-z]*|sapka[a-z]*|sort[a-z]*|korse[a-z]*|esofman[a-z]*|canta(si|lar|lari)?|handbag|atlet(i|ler|leri)?|maskot)\b",
         RegexOptions.IgnoreCase)]
     private static partial Regex ApparelOrBagRegex();
 
     /// <summary>
-    /// Adın içinde gerçek bir takviye bileşeni geçiyor mu? Paket istisnası
-    /// yalnızca bununla birlikte çalışıyor — yoksa "Gıda paketi (PANCAKE +
-    /// ÇİKOLATA SOS)" gibi çeşni paketleri de kurtulurdu.
+    /// Does the name contain a real supplement ingredient? The bundle exception only
+    /// works together with this; otherwise condiment bundles such as a food pack
+    /// "(PANCAKE + CHOCOLATE SAUCE)" would be rescued too.
     /// </summary>
     [GeneratedRegex(@"\b(whey|protein|proteini|bcaa|eaa|kreatin|creatine|amino|vitamin|gainer|glutamin|glutamine|kolajen|collagen|karnitin|carnitine|arginin|arginine)\b",
         RegexOptions.IgnoreCase)]
     private static partial Regex SupplementMarkerRegex();
 
     /// <summary>
-    /// Türkçe harfleri ASCII karşılığına indirger. Kalıplar bu alfabede
-    /// yazıldığı için büyük/küçük harf tuzakları tek noktada bitiyor.
+    /// Folds Turkish letters to their ASCII counterparts. The patterns are written
+    /// in that alphabet, so the letter case traps end in one place.
     /// </summary>
-    private static string TurkceyiAsciiyeIndir(string value)
+    private static string FoldTurkishToAscii(string value)
     {
-        Span<char> tampon = value.Length <= 256 ? stackalloc char[value.Length] : new char[value.Length];
+        Span<char> buffer = value.Length <= 256 ? stackalloc char[value.Length] : new char[value.Length];
         for (var i = 0; i < value.Length; i++)
         {
-            tampon[i] = value[i] switch
+            buffer[i] = value[i] switch
             {
                 'ç' or 'Ç' => 'c',
                 'ğ' or 'Ğ' => 'g',
@@ -232,6 +210,6 @@ public static partial class NonSupplementProductFilter
             };
         }
 
-        return new string(tampon);
+        return new string(buffer);
     }
 }

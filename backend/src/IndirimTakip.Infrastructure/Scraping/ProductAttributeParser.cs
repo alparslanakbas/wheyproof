@@ -3,11 +3,11 @@ using System.Text.RegularExpressions;
 
 namespace IndirimTakip.Infrastructure.Scraping;
 
-// Marka scraper'ları ürün ismini olduğu gibi veriyor (örn. "SSN ... 2100 Gr
-// (Bisküvi) Protein Tozu"). Boyut, aroma ve (eksikse) kategori bilgisini bu
-// tek isimden çıkarıyoruz — böylece 4 farklı sitede ayrı ayrı parse mantığı
-// yazmak yerine tüm markalar için tek bir yerde çözülüyor. Ayrıca arama
-// kutusunun markadan bağımsız çalışması da buna dayanıyor (bkz. Category).
+// Store scrapers pass the product name as is (e.g. "Gold Standard 100% Whey 5 lb
+// (Double Rich Chocolate)"). Size, flavor and (when missing) category are parsed
+// from that one name, so it's solved in one place for every store instead of
+// separate parsing per site. Search working independently of the brand relies on
+// this too (see Category).
 public static partial class ProductAttributeParser
 {
     // Every spelling a store uses for a unit, mapped to one display form.
@@ -146,22 +146,22 @@ public static partial class ProductAttributeParser
                 : null;
     }
 
-    // Aroma sözlüğü. "Parantez içini ya da tireden sonrasını aroma say" gibi
-    // biçimsel bir kural GERÇEK VERİYLE ELENDİ: canlıda dolu olan 80 Flavor
-    // değerinin 42'si aroma değildi — porsiyon/miktar ("40 Servis",
-    // "15 x 4 Doypacks", "1000 IU"), paket içeriği ("EAA + HellFire
-    // Pre-Workout") ve etken madde ("Arginine", "Collagen", "Maca") alana
-    // yazılmıştı. Bu alan kullanıcıya "Aroma: 40 Servis" olarak gösteriliyor
-    // ve DealsQueryService'te ARAMAYA da dahil, yani yanlış değer hem
-    // görünüyor hem eşleşiyordu.
+    // Flavor dictionary. A formal rule such as "treat the text in parentheses or
+    // after a dash as the flavor" was REJECTED BY REAL DATA: of 80 filled Flavor
+    // values on the Turkish site, 42 weren't flavors: servings/amounts ("40
+    // Servings", "15 x 4 Doypacks", "1000 IU"), bundle contents ("EAA + HellFire
+    // Pre-Workout") and active ingredients ("Arginine", "Collagen", "Maca") had been
+    // written into the field. The field is shown as "Flavor: 40 Servings" and is
+    // part of SEARCH in DealsQueryService, so the wrong value both showed and
+    // matched.
     //
-    // Bu yüzden kural tersine çevrildi: aday ancak bilinen bir aroma
-    // kelimesiyle eşleşirse kabul ediliyor. Bilinmeyen yeni bir aroma boş
-    // kalır — bilinçli takas, "uydurma veri yok" kuralıyla aynı yönde:
-    // yanlış göstermektense boş bırak.
+    // So the rule was inverted: a candidate is accepted only when it matches a
+    // known flavor word. An unknown new flavor stays empty; a deliberate trade-off
+    // in line with "no made-up data": better empty than wrong.
     //
-    // Liste uydurulmadı, canlı veriden çıkarıldı. İngilizce yazımlar da var
-    // çünkü markalar karışık kullanıyor (veride "Creme Caramel" bulundu).
+    // The list wasn't invented, it was taken from live data. It holds Turkish and
+    // English words because the Turkish stores mixed both; add US flavor words
+    // here as they show up.
     private static readonly string[] FlavorWords =
     [
         "çikolata", "chocolate", "çilek", "strawberry", "muz", "banana",
@@ -177,19 +177,18 @@ public static partial class ProductAttributeParser
         "nane", "mint", "meyve", "krema", "cream", "yogurt", "yoğurt",
     ];
 
-    // Birden fazla kelimeden oluşanlar ayrı: bunlar token eşleşmesiyle değil
-    // doğrudan aranıyor.
+    // Multi-word flavors are separate: they are searched directly, not by token
+    // match (coconut, blueberry, forest fruit in Turkish).
     private static readonly string[] FlavorPhrases =
     [
         "hindistan cevizi", "yaban mersini", "orman meyve",
     ];
 
     /// <summary>
-    /// Türkçe ünsüz yumuşaması: ek alan kelimenin son sessizi değişiyor
-    /// (çilek → çileği, kitap → kitabı). Sadece "çilek" ile başlayanlara
-    /// bakılsaydı "Ereğli Çileği" elenirdi — Yeşilmarka'nın gerçek bir
-    /// ürünü. Bu yüzden her aroma kelimesinin yumuşamış gövdesi de
-    /// eşleştirmeye giriyor.
+    /// Turkish consonant softening: a suffixed word's final consonant changes
+    /// (çilek → çileği, "strawberry"). Looking only for words starting with "çilek"
+    /// would have missed "Ereğli Çileği", a real product. So the softened stem of
+    /// every flavor word is matched too.
     /// </summary>
     private static string SoftenFinalConsonant(string word) => word.Length == 0 ? word : word[^1] switch
     {
@@ -200,15 +199,15 @@ public static partial class ProductAttributeParser
         _ => word,
     };
 
-    // Eşleştirmede kullanılan gövdeler: sözlüğün kendisi + yumuşamış hâlleri.
+    // Stems used for matching: the dictionary itself + its softened forms.
     private static readonly string[] FlavorStems =
         [.. FlavorWords.Concat(FlavorWords.Select(SoftenFinalConsonant)).Distinct()];
 
     /// <summary>
-    /// Türkçe harf tuzağı için normalleştirme. "AROMASIZ" ToLowerInvariant
-    /// ile "aromasiz" oluyor ama sözlükteki "aromasız" noktasız ı taşıyor;
-    /// "ÇİLEK" ise noktalı İ yüzünden invariant kültürde hiç küçülmüyor.
-    /// Noktalı/noktasız ayrımı iki tarafta da siliniyor.
+    /// Normalization for the Turkish letter trap. "AROMASIZ" becomes "aromasiz" with
+    /// ToLowerInvariant while a dictionary word may carry the dotless ı; "ÇİLEK"
+    /// isn't lowercased at all by the invariant culture because of the dotted İ. The
+    /// dotted/dotless distinction is removed on both sides.
     /// </summary>
     private static string NormalizeForFlavorMatch(string value) =>
         value.Replace('İ', 'i').Replace('I', 'i').Replace('ı', 'i').ToLowerInvariant();
@@ -222,9 +221,9 @@ public static partial class ProductAttributeParser
                 return content;
         }
 
-        // İkinci kaynak: " - Aroma" son eki. Yeşilmarka'nın mağaza API'si her
-        // aromayı ayrı ürün olarak döndürüyor ve aromayı ismin sonuna
-        // koyuyor ("BCAA 4:1:1 - Ananas"); parantez hiç kullanmıyor.
+        // Second source: a " - Flavor" suffix. Some store APIs return every flavor
+        // as a separate product and append the flavor to the name ("BCAA 4:1:1 -
+        // Pineapple") without using parentheses.
         var lastDash = productName.LastIndexOf(" - ", StringComparison.Ordinal);
         if (lastDash >= 0)
         {
@@ -241,12 +240,12 @@ public static partial class ProductAttributeParser
         if (candidate.Length == 0)
             return false;
 
-        // Rakam taşıyan aday neredeyse her zaman miktar/porsiyon bilgisidir.
-        // Canlı veride rakam içeren tek bir gerçek aroma yok.
+        // A candidate containing digits is almost always an amount/serving.
+        // Live data had not a single real flavor with a digit.
         if (candidate.Any(char.IsDigit))
             return false;
 
-        // "+" paket içeriği, "®"/"™" marka adı işaretidir.
+        // "+" marks bundle contents, "®"/"™" a brand name.
         if (candidate.Contains('+') || candidate.Contains('®') || candidate.Contains('™'))
             return false;
 
@@ -258,22 +257,21 @@ public static partial class ProductAttributeParser
         if (FlavorPhrases.Any(phrase => normalized.Contains(phrase, StringComparison.Ordinal)))
             return true;
 
-        // Kelime bazlı eşleşme: "içeriyor mu" yerine "hangi kelimeyle
-        // BAŞLIYOR". Böylece Türkçe ekler yakalanıyor ("çilekli", "muzlu",
-        // "limonlu") ama kısa kelimeler ("bal", "nar") başka bir kelimenin
-        // ortasına denk gelip yanlış eşleşmiyor.
+        // Word-based matching: "which word does it START with" instead of "does it
+        // contain". Turkish suffixes are caught ("çilekli", "muzlu", "limonlu"),
+        // while short words ("bal", "nar": honey, pomegranate) don't match wrongly
+        // in the middle of another word.
         var tokens = normalized.Split([' ', '-', '/', ',', '.', '&', '(', ')', '*'], StringSplitOptions.RemoveEmptyEntries);
         return tokens.Any(token => FlavorStems.Any(stem => token.StartsWith(stem, StringComparison.Ordinal)));
     }
 
     /// <summary>
-    /// Marka adının ürün adı içindeki geçişlerini siler. Marka bilinmiyorsa
-    /// ad olduğu gibi döner.
+    /// Removes occurrences of the brand name from the product name. Without a brand
+    /// the name is returned as is.
     ///
-    /// Not: karşılaştırma OrdinalIgnoreCase — ASCII marka adlarında ("BigJoy",
-    /// "Proteinocean") doğru çalışıyor. Türkçe harf içeren marka adlarında
-    /// (noktalı/noktasız i) eşleşmeyebilir; o markalarda bu sorun gözlenmedi,
-    /// gerekirse normalleştirme eklenir.
+    /// Note: the comparison is OrdinalIgnoreCase, which works for ASCII brand names.
+    /// It may not match brand names with Turkish letters (dotted/dotless i); no such
+    /// case has been seen, add normalization if it comes up.
     /// </summary>
     private static string StripBrandName(string productName, string? brandName)
     {
@@ -282,54 +280,50 @@ public static partial class ProductAttributeParser
 
         var stripped = productName.Replace(brandName, " ", StringComparison.OrdinalIgnoreCase);
 
-        // Marka adı boşluksuz da yazılabiliyor ("Proteinocean" / "Protein Ocean").
+        // A brand name can be written without spaces too ("Proteinocean" / "Protein Ocean").
         var compact = brandName.Replace(" ", "", StringComparison.Ordinal);
         if (compact.Length > 3 && compact.Length != brandName.Length)
             stripped = stripped.Replace(compact, " ", StringComparison.OrdinalIgnoreCase);
 
-        // Adın tamamı markadan ibaretse çıkarım yapacak bir şey kalmıyor;
-        // orijinali döndürmek yanlış kategoriden iyidir.
+        // If the whole name is the brand, nothing is left to infer from; returning
+        // the original beats a wrong category.
         return stripped.Trim().Length == 0 ? productName : stripped;
     }
 
     /// <summary>
-    /// Ürün adından kategori çıkarımı.
+    /// Infers the category from a product name.
     /// </summary>
     /// <param name="brandName">
-    /// Biliniyorsa üretici markası; ad içinden ÇIKARILIYOR. Bayi kaynakları
-    /// ürün adına markayı da yazıyor ("Proteinocean Creatine 300gr Kreatin
-    /// Monohidrat") ve marka adı bir kategori anahtar kelimesi içeriyorsa
-    /// ürün yanlış kategoriye düşüyor: gerçek veride ProteinOcean'ın
-    /// kreatini, omega'sı ve vitamini "protein tozu" olarak kaydedilmişti,
-    /// çünkü "Protein-ocean" içindeki "protein" eşleşiyordu.
+    /// The manufacturer brand if known; it is REMOVED from the name. Retailer
+    /// sources write the brand into the product name ("Proteinocean Creatine 300gr")
+    /// and when the brand name contains a category keyword the product lands in the
+    /// wrong category: in real data one brand's creatine, omega and vitamins were
+    /// stored as protein powder, because "protein" matched inside the brand name.
     ///
-    /// Kategori ürünün NE OLDUĞUNDAN çıkarılmalı, kimin ürettiğinden değil.
+    /// The category must come from WHAT the product is, not who makes it.
     /// </param>
     public static string? InferCategory(string productName, string? brandName = null)
     {
         productName = StripBrandName(productName, brandName);
 
-        // ToLowerInvariant bilinçli — tr-TR kültüründe büyük "I" küçülünce
-        // noktasız "ı" oluyor ("CREATINE" -> "creatıne"), bu da aşağıdaki
-        // İngilizce anahtar kelimelerle ("creatine" gibi) hiç eşleşmiyordu.
-        // İkinci, ayrı bir tuzak daha var: Türkçe büyük noktalı "İ"
-        // (ör. "C VİTAMİNİ") ToLowerInvariant ile HİÇ küçülmüyor (invariant
-        // kültürde bu harf için basit bir eşleme yok) — "vİtamİnİ" olarak
-        // kalıp "vitamin" anahtar kelimesiyle asla eşleşmiyordu (canlı veride
-        // yüzlerce ürünün kategorisiz kalmasının gerçek sebeplerinden biriydi).
-        // Elle .Replace ile düzeltiliyor, culture-sensitive ToLower'a dönmeden.
+        // ToLowerInvariant on purpose: in the tr-TR culture an uppercase "I" becomes
+        // a dotless "ı" ("CREATINE" -> "creatıne"), which never matched English
+        // keywords such as "creatine". There's a second, separate trap: the Turkish
+        // uppercase dotted "İ" (e.g. "C VİTAMİNİ") is NOT lowercased at all by
+        // ToLowerInvariant (the invariant culture has no simple mapping for it), so
+        // "vİtamİnİ" never matched the "vitamin" keyword (one of the real reasons
+        // hundreds of products stayed uncategorised). It's fixed by hand with
+        // .Replace, without going back to a culture-sensitive ToLower.
         var normalized = productName.Replace('İ', 'i').ToLowerInvariant();
 
-        // ÜRÜNÜN BİÇİMİ, İÇERİĞİNDEN ÖNCE GELİR. Anahtar kelime listesi
-        // sırayla taranıyor ve "protein-tozu" en başta; bu yüzden adında
-        // "protein" geçen bir BAR, toz kategorisine düşüyordu. Canlı veride
-        // ölçüldü: 11 markada 39 protein barı "protein-tozu" etiketliydi
-        // (Multipower, Musclestation, Grenade, HIQ, Hardline, Torq...),
-        // 15 tanesi ise doğru kategorideydi — yani aynı ürün tipi iki
-        // kategoriye bölünmüştü.
+        // THE PRODUCT'S FORM COMES BEFORE ITS CONTENT. The keyword list is checked
+        // in order with protein powder near the top, so a BAR with "protein" in its
+        // name landed in the powder category. Measured on the Turkish site: 39
+        // protein bars across 11 brands were tagged as powder while 15 were in the
+        // right category, so one product type was split across two categories.
         //
-        // Kelime sınırı ŞART: liste "bar" alt dizisini arıyordu ve
-        // "Barbekü Baharatı" bu yüzden atıştırmalık sayılıyordu.
+        // The word boundary is REQUIRED: the list searched the substring "bar", so a
+        // barbecue seasoning counted as a snack.
         // Snack words are also flavor names: "Cookies & Cream Protein Powder",
         // "Protein Powder: Brownie Batter", "GHOST WHEY | Cocoa Puffs". In the
         // first US crawl 38 of 329 snacks were powders, stacks or sample
@@ -346,27 +340,24 @@ public static partial class ProductAttributeParser
         return null;
     }
 
-    // Arama kutusu için eşanlamlı gruplar — CategoryKeywords'ten BİLİNÇLİ
-    // OLARAK AYRI bir yapı. CategoryKeywords listeleri KATEGORİ TESPİTİ için
-    // doğru (bir ürünün hangi kategoriye ait olduğunu belirlemek için geniş/
-    // heterojen bir kelime havuzu gerekiyor — "vitamin" kategorisinde 35+
-    // birbiriyle alakasız bileşen olması kategori tespiti açısından sorun
-    // değil). Ama bu geniş listeleri ARAMA EŞANLAMLISI olarak kullanmak
-    // (kullanıcı bir kelime yazınca TÜM kategoriyi eşanlamlı saymak) yanlış
-    // sonuç veriyordu — ilk bulgu 2026-08-24: "magnezyum" araması "vitamin"
-    // kategorisinin tamamını (NMN, ZMA, Biotin dahil, hiçbiri magnezyumla
-    // ilgisi olmayan) eşanlamlı sayıp en üste çıkarıyordu. Kullanıcı sorunca
-    // aynı deseni TÜM kategorilerde kontrol ettik — "amino-asitler" (16
-    // kelime) ve "kilo-hacim" (10 kelime) de aynı şekilde bozuktu (ör.
-    // "taurine"/"glutamin"/"arginin" aramalarının HEPSİ aynı 83 ürünü, aynı
-    // sırayla döndürdüğü doğrulandı).
+    // Synonym groups for the search box, a structure DELIBERATELY SEPARATE from
+    // CategoryKeywords. The CategoryKeywords lists are right for CATEGORY DETECTION
+    // (deciding which category a product belongs to needs a broad, mixed pool of
+    // words; the vitamins category holding 35+ unrelated ingredients is no problem
+    // there). But using those broad lists as SEARCH SYNONYMS (treating the whole
+    // category as synonyms when a shopper types one word) gave wrong results: a
+    // magnesium search returned the entire vitamins category (NMN, ZMA, biotin, none
+    // related to magnesium) as synonyms and put it on top. Checking the same pattern
+    // in EVERY category showed amino acids and mass gainers were broken the same way
+    // (taurine, glutamine and arginine searches ALL returned the same 83 products in
+    // the same order).
     //
-    // Çözüm: her kategori için CategoryKeywords'ü OLDUĞU GİBİ bırakıp (kategori
-    // tespiti hiç etkilenmiyor), SADECE gerçekten aynı kavramın farklı yazımı/
-    // dili/markası olan DAR alt-grupları burada ayrıca tanımlıyoruz. Aynı
-    // kategorideki ama birbirinden farklı bileşenler (ör. "glycine" ve
-    // "taurine", ikisi de amino-asitler ama biri diğerinin eşanlamlısı değil)
-    // BİLİNÇLİ OLARAK hiçbir grupta yer almıyor — kendi başlarına aranıyorlar.
+    // The fix: CategoryKeywords stays AS IS for each category (category detection is
+    // unaffected), and ONLY narrow sub-groups that really are different spellings,
+    // languages or brand names of the same concept are defined here. Different
+    // ingredients in the same category (e.g. glycine and taurine, both amino acids
+    // but not synonyms of each other) DELIBERATELY belong to no group; they are
+    // searched on their own.
     private static readonly string[][] SynonymGroups =
     [
         ["pre workout", "preworkout", "pre-workout"],
@@ -391,14 +382,13 @@ public static partial class ProductAttributeParser
         return [];
     }
 
-    // Markanın kendi ürün açıklamasından porsiyon (servis) büyüklüğünü
-    // çıkarır. HIQ'da bu bilgi zaten yapısal olarak (Shopify'ın besin değeri
-    // tablosundan) geliyordu ama diğer 3 markada hiç yoktu — açıklamalar
-    // çekilmeye başlandıktan sonra bu bilginin metnin içinde ("1 ölçek (30 g)",
-    // "Porsiyon Büyüklüğü: 25 g", "Servis başına 23 g" gibi) serbest formda
-    // durduğu görüldü. Dört farklı yazım kalıbı deneniyor; hiçbiri tutmazsa
-    // null dönüyor (tahmin/varsayım YOK — "30 gr = 1 servis" gibi bir kabul
-    // bu projede bilinçli olarak hiç yapılmadı).
+    // Extracts the serving size from the store's own product description. Some
+    // stores provide it structurally (a nutrition table), others only in free text.
+    // The four patterns below match the Turkish wordings seen in descriptions ("1
+    // ölçek (30 g)" = 1 scoop, "Porsiyon Büyüklüğü: 25 g" = serving size, "Servis
+    // başına 23 g" = per serving); none of them match English text, so US stores
+    // need the structured value. If none matches it returns null (NO guessing: an
+    // assumption like "30 g = 1 serving" was deliberately never made).
     public static decimal? ExtractServingSizeGrams(string? description)
     {
         if (string.IsNullOrWhiteSpace(description))
@@ -419,11 +409,10 @@ public static partial class ProductAttributeParser
                 continue;
             }
 
-            // Makul olmayan eşleşmeleri ele: gerçek veride en küçük porsiyonlar
-            // tekil amino asitlerde 1 g (Citrulline/Glycine), en büyükleri
-            // gainer'larda 200 g civarı. Bunun dışına taşan bir sayı, metinde
-            // porsiyonla ilgisiz bir yerden yakalanmış demektir (ör. bir sos
-            // ürününde 0,22 g).
+            // Drop unreasonable matches: in real data the smallest servings were 1 g
+            // for single amino acids (citrulline/glycine) and the largest around
+            // 200 g for gainers. A number outside that range was captured from a
+            // part of the text unrelated to servings (e.g. 0.22 g in a sauce).
             if (grams is >= 1m and <= 500m)
                 return grams;
         }
@@ -431,8 +420,8 @@ public static partial class ProductAttributeParser
         return null;
     }
 
-    // Sıra önemli: en açık/az yanılabilir kalıptan başlıyor ("Porsiyon
-    // Büyüklüğü: 30 g"), en sonda daha gevşek olan geliyor.
+    // Order matters: from the most explicit, least error-prone pattern ("serving
+    // size: 30 g") to the loosest one last.
     private static readonly Func<Regex>[] ServingSizeRegexes =
     [
         ServingPortionRegex,
@@ -460,9 +449,8 @@ public static partial class ProductAttributeParser
     private static partial Regex ParenthesesRegex();
 
     /// <summary>
-    /// Ürünün bar biçiminde olduğunu söyleyen kelime. Türkçe ekler dahil
-    /// ("barı", "barlar"), ama "Barbekü"/"Barbell" gibi kelimelerin içine
-    /// denk gelmemesi için kelime sınırıyla.
+    /// Words saying the product is a bar or snack, with word boundaries so they
+    /// don't hit inside words such as "Barbell".
     /// </summary>
     [GeneratedRegex(@"\b(bars?|cookies?|chips|crisps|puffs|brownies?|wafers?|pretzels?)\b", RegexOptions.IgnoreCase)]
     private static partial Regex SnackBarFormRegex();
