@@ -4,20 +4,18 @@ using IndirimTakip.Infrastructure.Scraping;
 
 namespace IndirimTakip.Infrastructure.Tests;
 
-// Bu testler gerçek ürün sayfalarından (2026-08-21'de takehiq.com,
-// hardlinenutrition.com, ssnsports.com.tr'den) alınan ham HTML parçalarını
-// kullanıyor — üç markanın yapısı da başlangıçta varsayılandan farklı çıktı
-// (HIQ: 3 kolonlu, son kolon porsiyon başına; Hardline: her satır ayrı
-// div.satirlar; SSN: hiç <table> yok, <strong>etiket</strong> — değer<br>
-// deseni). Bu snapshot'lar bir daha aynı hatanın (yanlış kolonu/yanlış
-// yapıyı okuma) fark edilmeden geri gelmesini engelliyor.
+// These tests use raw HTML fragments taken from real product pages of three Turkish
+// stores. All three structures turned out different from what was first assumed (a
+// 3-column table whose last column is per serving; one div per row; no <table> at all
+// but a <strong>label</strong> — value<br> pattern). The snapshots keep the same
+// mistake (reading the wrong column or structure) from coming back unnoticed.
 public class HtmlNutritionExtractorTests
 {
     [Fact]
-    public void HiqTablosu_SonKolonuPorsiyonBasinaDegerOlarakAlir()
+    public void Table_takes_the_last_column_as_the_per_serving_value()
     {
-        // Gerçek HIQ CREA500 ürününden — "Bileşen | 100 g | 4 g" başlıklı,
-        // son kolon (4 g porsiyon) gerçek servis başı değer.
+        // From a real product: headers "Component | 100 g | 4 g", the last column (a
+        // 4 g serving) is the real per-serving value.
         const string html = """
             <table class="nutrition-table">
             <tbody>
@@ -35,16 +33,16 @@ public class HtmlNutritionExtractorTests
         var json = NutritionParser.BuildNutritionJson(HtmlNutritionExtractor.FromTables(table));
         var parsed = Deserialize(json);
 
-        // 100 g'lık ("75 g") değil, gerçek porsiyon ("3 g") değeri yakalanmalı.
+        // The real serving value ("3 g") must be captured, not the per-100 g one ("75 g").
         Assert.Equal("3 g", parsed["Kreatin Monohidrat 500 Mesh (CREA500®)"]);
-        // Başlık satırı ("Bileşen") veri satırı olarak sızmamalı.
+        // The header row must not leak in as a data row.
         Assert.False(parsed.ContainsKey("Bileşen"));
     }
 
     [Fact]
-    public void HardlineSatirlari_HerBiriAyriDivOlarakOkunur()
+    public void Div_rows_are_read_one_by_one()
     {
-        // Gerçek Hardline "Kreatin % Mikronize 300 Gr" ürününden.
+        // From a real creatine product page.
         const string html = """
             <div class="satirlar"><span class="baslik">Enerji/Calorie</span> <span class="deger">0 kcal (0 kj)</span></div>
             <div class="satirlar"><span class="baslik">Protein/Protein</span> <span class="deger">0 g</span></div>
@@ -66,20 +64,19 @@ public class HtmlNutritionExtractorTests
         var json = NutritionParser.BuildNutritionJson(rows);
         var parsed = Deserialize(json);
 
-        // "Protein/Protein" gibi TAM aynı tekrar sadeleşiyor ama "Kreatin
-        // Monohidrat/Creatine Monohydrate" gerçek bir çeviri (aynı değil),
-        // sadeleştirilmemeli — NormalizeLabel bilinçli olarak sadece
-        // birebir aynı iki yarıyı birleştiriyor.
+        // An EXACT repeat such as "Protein/Protein" is simplified, but "Kreatin
+        // Monohidrat/Creatine Monohydrate" is a real translation (not identical) and
+        // must not be; NormalizeLabel deliberately merges only two identical halves.
         Assert.Equal("5 g", parsed["Kreatin Monohidrat/Creatine Monohydrate"]);
         Assert.Equal(22m, NutritionParser.ExtractProteinGrams(
             NutritionParser.BuildNutritionJson([("Protein/Protein", "22 g")])));
     }
 
     [Fact]
-    public void SsnDesenlerini_TabloOlmadanOkur()
+    public void Label_dash_value_pattern_is_read_without_a_table()
     {
-        // Gerçek SSN "Raw and Natural Creatine" ürününden — hiç <table> yok,
-        // <strong>etiket</strong> — değer<br> art arda.
+        // From a real creatine product page: no <table> at all,
+        // <strong>label</strong> — value<br> one after another.
         const string html = """
             <p><strong>Enerji</strong> — 0 kj / 0 kcal<br>
             <strong>Protein</strong> — 0 g<br>
@@ -94,7 +91,7 @@ public class HtmlNutritionExtractorTests
         var parsed = Deserialize(json);
 
         Assert.Equal("5 g", parsed["Kreatin Monohidrat"]);
-        // Alt kalemdeki öndeki tire hem etikette hem değerde temizlenmeli.
+        // A sub-item's leading dash must be trimmed from both label and value.
         Assert.Equal("0 g", parsed["Şekerler"]);
         Assert.False(parsed.ContainsKey("— Şekerler"));
     }

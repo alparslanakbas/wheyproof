@@ -2,204 +2,204 @@ using IndirimTakip.Infrastructure.Scraping;
 
 namespace IndirimTakip.Infrastructure.Tests;
 
-// Süzgeç, kaçan ürünler bulundukça genişliyor. Test yazmanın asıl sebebi
-// genişlemenin YAN ETKİSİNİ yakalamak: eklenen bir kelime, gerçek bir
-// takviyeyi yanlışlıkla eleyebilir.
+// The filter grows as leaked products are found. The main reason for the tests is
+// catching the SIDE EFFECT of growth: an added word can drop a real supplement by
+// mistake. The product names are real catalog names from Turkish sources, so most
+// are in Turkish.
 public class NonSupplementProductFilterTests
 {
     [Theory]
-    // Giyim / ekipman / aksesuar
+    // Apparel / equipment / accessories
     [InlineData("Commander Gold T-Shirt")]
     [InlineData("Commander 700ml Shaker")]
     [InlineData("Commander Havlu")]
     [InlineData("HIQ Hoodie Siyah")]
     [InlineData("Ağırlık Kemeri L")]
-    // Gıda / çeşni — 31 Ağustos'ta eklendi (Commander Nutrition katalogu)
+    // Food / condiments
     [InlineData("Fit Grains İthal Basmati Pirinç (1000g)")]
     [InlineData("Seed'n Grains Pembe Himalaya Tuzu (250g)")]
     [InlineData("Dr. Pan Bal Aromalı Hardal Şekersiz (260g)")]
     [InlineData("Dr. Pan Sriracha Sos Şekersiz (260g)")]
     [InlineData("Dr.Pan Sweet Drops Lemon Cheesecake (30ml)")]
-    public void Takviye_olmayanlari_eliyor(string productName)
+    public void Drops_non_supplements(string productName)
     {
         Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(productName));
     }
 
     [Theory]
-    // REGRESYON: "pirinç"/"rice" süzgece EKLENMEMELİ — Cream of Rice gerçek
-    // bir sporcu gıdası ve aynı katalogda satılıyor. Genel kelime eklemek
-    // bu ürünleri sessizce siteden düşürürdü.
+    // REGRESSION: "rice" (pirinç) must NOT be added to the filter: Cream of Rice is a
+    // real sports food sold in the same catalog. A general word would silently drop
+    // these products from the site.
     [InlineData("Dr. Pan Rice Cream Çilekli (400g)")]
     [InlineData("Dr. Pan Oat Cream (400g)")]
     [InlineData("HIQ Cream of Rice 1000g")]
-    // Gerçek takviyeler dokunulmadan geçmeli
+    // Real supplements must pass untouched
     [InlineData("Gold Whey Protein 900g (30 Servis)")]
     [InlineData("Creatine Monohydrate Micronized")]
     [InlineData("Overthrow Pre-Workout 375g (25 Servis)")]
     [InlineData("Reload BCAA+ 200g (20 Servis)")]
     [InlineData("Fitnut %100 Badem Ezmesi (Net 250g)")]
-    // "performans" bilinçli olarak süzgeçte yok: gerçek takviye paketleri de
-    // bu kelimeyi taşıyor.
+    // "performans" (performance) is deliberately not in the filter: real supplement
+    // bundles carry the word too.
     [InlineData("Orta Güç Performans Paketi")]
-    public void Gercek_takviyeleri_elemiyor(string productName)
+    public void Does_not_drop_real_supplements(string productName)
     {
         Assert.False(NonSupplementProductFilter.IsAccessoryOrApparel(productName));
     }
 
     [Theory]
-    // REGRESYON: liste "havlu" ve "çanta" içeriyordu ama bu iki ürün canlıya
-    // GİRDİ, çünkü Türkçe ek kelime sınırını kaydırıyor: `havlu` kalıbı
-    // "havlusu" ile eşleşmiyor.
+    // REGRESSION: the list contained "havlu" (towel) and "çanta" (bag) but these
+    // products still went LIVE, because a Turkish suffix shifts the word boundary:
+    // the `havlu` pattern didn't match "havlusu".
     [InlineData("Just Profesyonel Antrenman Havlusu (Smart)")]
     [InlineData("Just Leather Sport Bag -Şık Suni Deri Spor Çantası (Kahverengi & Siyah)")]
     [InlineData("Siyah Havlular")]
     [InlineData("Spor Çantaları")]
     [InlineData("Protein Shakerı")]
-    public void TurkceEkAlanAksesuarlarDaElenir(string ad)
+    public void Accessories_with_turkish_suffixes_are_dropped(string name)
     {
-        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(ad));
+        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(name));
     }
 
     [Theory]
-    // Gerçek takviyeler etkilenmemeli.
+    // Real supplements must not be affected.
     [InlineData("Whey Protein Tozu 2000 Gr")]
     [InlineData("Creatine Monohydrate 300 Gr")]
     [InlineData("Cream of Rice 1000 Gr")]
-    public void GercekTakviyelerElenmiyor(string ad)
+    public void Real_supplements_are_not_dropped(string name)
     {
-        Assert.False(NonSupplementProductFilter.IsAccessoryOrApparel(ad));
+        Assert.False(NonSupplementProductFilter.IsAccessoryOrApparel(name));
     }
 
     [Theory]
-    // REGRESYON: bu altı ürün CANLIYA GİRDİ, kullanıcı ekran görüntüsüyle
-    // bildirdi. Hepsi listedeki bir kelimenin farklı yazımı/ekli hâliydi.
+    // REGRESSION: these six products went LIVE and a user reported them with a
+    // screenshot. Each was a different spelling or suffixed form of a listed word.
     [InlineData("Just Likralı Antrenman Atleti")]
     [InlineData("Just 8 Loop Strap")]
     [InlineData("Protein 7 Pill Box -Tablet Saklama Kabı Aksesuar Protein7 Diğer")]
     [InlineData("Protein 7 Powder Box -Toz Saklama Kabı Aksesuar Protein7 Diğer")]
     [InlineData("Xpro Pill Box -Tablet Saklama Kabı Aksesuar Xpro Nutrition")]
     [InlineData("Antrenman Havlusu 50x90 cm")]
-    public void CanliyaKacanAksesuarlarArtikElenir(string ad)
+    public void Accessories_that_leaked_live_are_now_dropped(string name)
     {
-        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(ad));
+        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(name));
     }
 
     [Theory]
-    // YANLIŞ POZİTİF KORUMASI: "Kutu"/"Box" meşru çoklu paketlerde geçiyor,
-    // kör silme bu ürünleri de götürürdü.
+    // FALSE POSITIVE GUARD: "Kutu"/"Box" appears in legitimate multi-packs; blind
+    // deletion would take these products too.
     [InlineData("Fındıklı Protein Bar 16lı Kutu x 50 gram")]
     [InlineData("SSN Command Quadro Whey 22 Gr x 40 Şase Kutu 880 Gr")]
     [InlineData("SWISS WHEY GOLD DELUXE SERIES SAŞE 24 ADET - 1 Kutu / 24 Servis")]
     [InlineData("PROTEİN BAR KARMA KUTU")]
-    // "atletik" bir aksesuar değil; ek desteği bunu yakalamamalı.
+    // "atletik" (athletic) isn't an accessory; suffix support must not catch it.
     [InlineData("Atletik Performans Kompleksi 90 Kapsül")]
-    // "canta[a-z]*" kalıbı "CANTAloupe"u yakalıyordu — katalogdaki gerçek
-    // kurban. Bir whey proteini spor çantası sanıp sessizce elerdi; Nois
-    // scraper'ı bu yüzden ortak süzgeci hiç kullanmıyordu.
+    // The "canta[a-z]*" pattern caught "CANTAloupe", with a real victim in the
+    // catalog: a whey protein would have been silently dropped as a gym bag.
     [InlineData("Nois Whey Rex 900G Protein Tozu - Cantaloupe")]
     [InlineData("BCAA Cantaloupe Aromalı")]
     [InlineData("Cantaloupe")]
-    public void MesruUrunlerElenmiyor(string ad)
+    public void Legitimate_products_are_not_dropped(string name)
     {
-        Assert.False(NonSupplementProductFilter.IsAccessoryOrApparel(ad));
+        Assert.False(NonSupplementProductFilter.IsAccessoryOrApparel(name));
     }
 
-    // Cantaloupe düzeltmesi gerçek çantaları kaçırmamalı — ek listesi
-    // daraltıldı ama kapsam korundu.
+    // The Cantaloupe fix must not miss real bags: the suffix list was narrowed but
+    // coverage kept.
     [Theory]
     [InlineData("Spor Çantası")]
     [InlineData("Hardline Spor Cantasi")]
     [InlineData("Gym Canta")]
     [InlineData("Antrenman Cantalari")]
-    public void GercekCantalarHalaEleniyor(string ad)
+    public void Real_bags_are_still_dropped(string name)
     {
-        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(ad));
+        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(name));
     }
 
-    // HEDİYE SHAKER: aksesuar hediyeli TAKVİYE, aksesuar değil. Adlar gerçek
-    // kataloglardan (Imperium 7.200 TL'lik set, HIQ başlangıç paketleri).
+    // GIFTED SHAKER: a supplement with a gifted accessory, not an accessory. Names from
+    // real catalogs.
     [Theory]
     [InlineData("Kilo Aldırıcı Ultra Set - Shaker Hediyeli")]
     [InlineData("HIQ Fitness Başlangıç Paketi + Shaker")]
     [InlineData("HIQ Amino Başlangıç Paketi + Shaker")]
     [InlineData("HIQ Enerji Başlangıç Paketi + Shaker")]
-    public void ShakerHediyeliTakviyePaketiElenmiyor(string ad)
+    public void Supplement_bundle_with_gifted_shaker_is_not_dropped(string name)
     {
-        Assert.False(NonSupplementProductFilter.IsAccessoryOrApparel(ad));
+        Assert.False(NonSupplementProductFilter.IsAccessoryOrApparel(name));
     }
 
-    // İstisna DAR olmalı: shaker'ın KENDİSİ ürünse hâlâ eleniyor.
+    // The exception must be NARROW: if the shaker ITSELF is the product, it's still dropped.
     [Theory]
     [InlineData("Renkli Yüksek Kalite Shaker 550cc")]
     [InlineData("Space Shaker")]
     [InlineData("Prime Nutrition Shaker 500 ml.")]
     [InlineData("Batman Shaker")]
-    public void GercekShakerHalaEleniyor(string ad)
+    public void Real_shaker_is_still_dropped(string name)
     {
-        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(ad));
+        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(name));
     }
 
-    // İstisna YALNIZCA shaker için: hediyeli de olsa çanta çantadır.
+    // The exception is ONLY for shakers: a bag is a bag even as a gift.
     [Fact]
-    public void HediyeliCantaYineDeEleniyor()
+    public void Gifted_bag_is_still_dropped()
     {
         Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel("Protein Paketi - Spor Çantası Hediyeli"));
     }
 
     /// <summary>
-    /// 8 Eylül'de canlıda görülen dört sızıntı. Listede giysilerin İNGİLİZCE
-    /// adları vardı (t-shirt, hoodie, sweatshirt) ama Türkçeleri yoktu;
-    /// kaynak Türkçe yazınca hiçbiri tutmadı.
+    /// Four leaks seen live. The list had the ENGLISH names of apparel (t-shirt,
+    /// hoodie, sweatshirt) but not the Turkish ones; when the source wrote Turkish,
+    /// none matched.
     /// </summary>
     [Theory]
     [InlineData("Just Raw Edge Series Oversize Kolsuz Kapşonlu")]
     [InlineData("GRİZZONE İMZALI OVERSIZE JOGGERS")]
     [InlineData("Grizzone Joggers")]
     [InlineData("Dijital Ölçü Kaşığı")]
-    // Aynı türün kaçmış olabilecek diğer yazımları — kalıp ürünün TÜRÜNE
-    // göre yazıldığı için gördüğüm tek biçimle sınırlı kalmamalı.
+    // Other spellings of the same types that may have leaked: the pattern follows the
+    // product TYPE, so it must not be limited to the one form seen.
     [InlineData("Hardline Kapüşonlu Sweatshirt")]
     [InlineData("Space Oversize Tişört")]
     [InlineData("Grizzone Kadın Tayt")]
     [InlineData("Nois Sweatpants Siyah")]
-    public void TurkceGiysiVeAksesuarAdlariEleniyor(string ad)
+    public void Turkish_apparel_and_accessory_names_are_dropped(string name)
     {
-        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(ad));
+        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(name));
     }
 
     /// <summary>
-    /// "OVERSIZE" BİLEREK kalıba girmedi: beden sıfatı, ürün türü değil.
-    /// Bir kilo aldırıcının adında geçmesi mümkün ve o ürün elenmemeli —
-    /// gerçek giysiler zaten "kolsuz"/"joggers" gibi TÜR kelimeleriyle
-    /// yakalanıyor.
+    /// "OVERSIZE" DELIBERATELY stayed out of the pattern: it's a size adjective, not a
+    /// product type. It can appear in a mass gainer's name and that product must not be
+    /// dropped; real apparel is already caught by TYPE words such as "kolsuz"/"joggers".
     /// </summary>
     [Fact]
-    public void OversizeTekBasinaElemiyor()
+    public void Oversize_alone_does_not_drop()
     {
         Assert.False(NonSupplementProductFilter.IsAccessoryOrApparel("Oversize Mass Gainer 3000 gr"));
     }
 
     /// <summary>
-    /// Yanlış pozitif taramasında çıkan gerçek tuzak: buradaki "Kap."
-    /// KAPSÜL kısaltması, kap değil. Genel bir "kap" kalıbı bu takviyeyi
-    /// sessizce elerdi — kalıba bu yüzden girmedi.
+    /// A real trap found in the false positive scan: "Kap." here abbreviates KAPSÜL
+    /// (capsule). A general "kap" pattern would silently drop this supplement, which is
+    /// why it stayed out.
     /// </summary>
     [Fact]
-    public void KapsulKisaltmasiElenmiyor()
+    public void Capsule_abbreviation_is_not_dropped()
     {
         Assert.False(NonSupplementProductFilter.IsAccessoryOrApparel(
             "Bağışıklık Paketi-1 (ZMA+Arginine-Multivitamin 90 Kap.)"));
     }
 
     /// <summary>
-    /// "kapşonlu" kalıbı kapsülü yakalamamalı: fold sonrası "kapsul",
-    /// kalıp ise "kap(u)?son..." — çakışma yok, ama bu sınır teste bağlı.
+    /// The "kapşonlu" (hooded) pattern must not catch capsules: after folding it's
+    /// "kapsul" while the pattern is "kap(u)?son...". They don't collide, but the
+    /// boundary is pinned by a test.
     /// </summary>
     [Theory]
     [InlineData("Hardline Omega 3 100 Kapsül")]
     [InlineData("Multivitamin 60 Kapsul")]
-    public void KapsulUrunleriElenmiyor(string ad)
+    public void Capsule_products_are_not_dropped(string name)
     {
-        Assert.False(NonSupplementProductFilter.IsAccessoryOrApparel(ad));
+        Assert.False(NonSupplementProductFilter.IsAccessoryOrApparel(name));
     }
 }
