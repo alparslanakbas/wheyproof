@@ -141,6 +141,17 @@ builder.Services.Configure<AffiliateOptions>(builder.Configuration.GetSection("A
 
 var app = builder.Build();
 
+// Which stores have an affiliate link rule, by host. Rules come from .env and
+// fail silently (a store without a rule just keeps its plain URL), so the
+// startup log is the one place a missing or unread rule shows up. Only hosts
+// are logged: the rules themselves carry account keys.
+{
+    var affiliateLinks = app.Services
+        .GetRequiredService<Microsoft.Extensions.Options.IOptions<AffiliateOptions>>().Value.Links;
+    app.Logger.LogInformation("Affiliate link rules loaded for {Count} stores: {Hosts}",
+        affiliateLinks.Count, string.Join(", ", affiliateLinks.Keys.Order()));
+}
+
 // /api/dev/* endpoints (manual scrapes, coupons) must not be public. A full
 // user/auth system would be over-engineering; a shared key (in a header) is
 // enough. With no key configured (forgotten locally, say) we stay on the
