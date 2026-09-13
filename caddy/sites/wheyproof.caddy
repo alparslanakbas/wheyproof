@@ -112,22 +112,5 @@ www.wheyproof.com {
 
 api.wheyproof.com {
 	import wheyproof-access-log
-
-	# EMAIL SIGN-UPS ARE PAUSED. Link scanners (Gmail's included) open the
-	# confirmation link and confirm the subscription on their own, so double
-	# opt-in proves nothing until confirming takes a button press. Both routes
-	# that send a confirmation email stay closed until then; confirm and
-	# unsubscribe links keep working for anyone who already got one.
-	@paused-signups {
-		method POST
-		path /api/subscribe /api/products/*/watch
-	}
-	handle @paused-signups {
-		header Content-Type "application/json; charset=utf-8"
-		respond `{"message":"Email sign-ups are paused for a moment. Please check back soon."}` 503
-	}
-
-	handle {
-		reverse_proxy wheyproof-backend:8080
-	}
+	reverse_proxy wheyproof-backend:8080
 }

@@ -49,21 +49,49 @@ internal static class SubscriptionEndpoints
         // a simple HTML page, not JSON; a separate frontend route for these static
         // messages would be overkill. charset=utf-8 is set explicitly so the
         // browser never guesses the encoding.
+        //
+        // GET NEVER CHANGES STATE. The GET used to confirm directly, and Gmail's
+        // link scanner confirmed a test subscription one second before the
+        // recipient could click: double opt-in proved nothing. GET now shows a
+        // button, and only the POST it submits confirms or unsubscribes.
+        // Unsubscribe follows the same rule, or scanners would quietly drop
+        // real subscribers once the digest runs.
+        const string InvalidHeading = "This link isn't valid.";
+        const string InvalidMessage = "The link may have expired or already been used.";
+
         app.MapGet("/api/subscribe/confirm/{token}", async (string token, SubscriberService subscribers, CancellationToken ct) =>
+        {
+            var html = await subscribers.TokenExistsAsync(token, ct)
+                ? EndpointHelpers.BuildActionPage("Confirm your subscription", "One click and the week's top price drops start landing in your inbox.",
+                    "Confirm my subscription", $"/api/subscribe/confirm/{Uri.EscapeDataString(token)}", frontendBaseUrl)
+                : EndpointHelpers.BuildInfoPage(InvalidHeading, InvalidMessage, frontendBaseUrl);
+            return Results.Content(html, "text/html; charset=utf-8");
+        });
+
+        app.MapPost("/api/subscribe/confirm/{token}", async (string token, SubscriberService subscribers, CancellationToken ct) =>
         {
             var success = await subscribers.ConfirmAsync(token, ct);
             var html = success
                 ? EndpointHelpers.BuildSubscriptionConfirmedPage(frontendBaseUrl)
-                : EndpointHelpers.BuildInfoPage("This link isn't valid.", "The confirmation link may have expired or already been used.", frontendBaseUrl);
+                : EndpointHelpers.BuildInfoPage(InvalidHeading, InvalidMessage, frontendBaseUrl);
             return Results.Content(html, "text/html; charset=utf-8");
         });
 
         app.MapGet("/api/subscribe/unsubscribe/{token}", async (string token, SubscriberService subscribers, CancellationToken ct) =>
         {
+            var html = await subscribers.TokenExistsAsync(token, ct)
+                ? EndpointHelpers.BuildActionPage("Unsubscribe from WheyProof?", "You'll stop getting the weekly price drops. You can subscribe again anytime.",
+                    "Unsubscribe", $"/api/subscribe/unsubscribe/{Uri.EscapeDataString(token)}", frontendBaseUrl)
+                : EndpointHelpers.BuildInfoPage(InvalidHeading, InvalidMessage, frontendBaseUrl);
+            return Results.Content(html, "text/html; charset=utf-8");
+        });
+
+        app.MapPost("/api/subscribe/unsubscribe/{token}", async (string token, SubscriberService subscribers, CancellationToken ct) =>
+        {
             var success = await subscribers.UnsubscribeAsync(token, ct);
             var html = success
                 ? EndpointHelpers.BuildInfoPage("You're unsubscribed.", "If you change your mind, you can subscribe again anytime.", frontendBaseUrl)
-                : EndpointHelpers.BuildInfoPage("This link isn't valid.", "The link may have expired or already been used.", frontendBaseUrl);
+                : EndpointHelpers.BuildInfoPage(InvalidHeading, InvalidMessage, frontendBaseUrl);
             return Results.Content(html, "text/html; charset=utf-8");
         });
     }

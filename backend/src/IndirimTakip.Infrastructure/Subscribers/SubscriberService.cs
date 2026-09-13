@@ -167,6 +167,11 @@ public class SubscriberService(
             content);
     }
 
+    // Read-only lookup for the pages that ask for a button press, so an unknown
+    // link says so up front instead of after the click.
+    public Task<bool> TokenExistsAsync(string token, CancellationToken cancellationToken = default) =>
+        db.Subscribers.AnyAsync(s => s.Token == token, cancellationToken);
+
     public async Task<bool> ConfirmAsync(string token, CancellationToken cancellationToken = default)
     {
         var subscriber = await db.Subscribers.FirstOrDefaultAsync(s => s.Token == token, cancellationToken);

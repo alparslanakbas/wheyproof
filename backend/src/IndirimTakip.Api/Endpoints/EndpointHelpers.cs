@@ -216,6 +216,42 @@ internal static class EndpointHelpers
         </html>
         """;
 
+    // Same card as BuildInfoPage, but the button submits a POST back to the link.
+    // Email link scanners (Gmail's included) open every link they find; a GET
+    // that changed state let them confirm subscriptions nobody asked for. They
+    // don't submit forms, so the change only happens on a real click.
+    // actionPath carries the token from the URL, which is visitor input: it is
+    // escaped as a path segment by the caller and HTML-encoded here.
+    internal static string BuildActionPage(string heading, string message, string buttonLabel, string actionPath, string frontendBaseUrl)
+    {
+        var action = System.Net.WebUtility.HtmlEncode(actionPath);
+        return $"""
+            <!doctype html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <meta name="robots" content="noindex">
+              <title>WheyProof</title>
+            </head>
+            <body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;background:#fafaf9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+              <div style="max-width:420px;width:100%;background:#ffffff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.08);padding:40px 32px;text-align:center;">
+                <div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:28px;">
+                  <div style="width:36px;height:36px;border-radius:8px;background:#6556e8;color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;">WP</div>
+                  <span style="font-size:18px;font-weight:700;color:#1c1917;">Whey<span style="color:#6556e8;">Proof</span></span>
+                </div>
+                <h1 style="font-size:20px;font-weight:800;color:#1c1917;margin:0 0 8px;">{heading}</h1>
+                <p style="font-size:14px;color:#78716c;margin:0 0 28px;line-height:1.5;">{message}</p>
+                <form method="post" action="{action}" style="margin:0 0 16px;">
+                  <button type="submit" style="display:inline-block;border:0;cursor:pointer;background:#6556e8;color:#fff;font-weight:700;font-size:15px;padding:13px 32px;border-radius:9999px;">{buttonLabel}</button>
+                </form>
+                <a href="{frontendBaseUrl}" style="color:#78716c;font-size:13px;">Back to the site</a>
+              </div>
+            </body>
+            </html>
+            """;
+    }
+
     // Checking only for "@" let strings that are invalid even by RFC 5322
     // ("a;b@x.com", "a\"b@x.com") into the Subscribers table. SQL injection was
     // never possible (EF Core parameterizes queries); this is data hygiene, and
