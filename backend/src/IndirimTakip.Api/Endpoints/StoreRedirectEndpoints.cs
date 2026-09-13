@@ -25,11 +25,6 @@ internal static class StoreRedirectEndpoints
             if (product is null)
                 return Results.NotFound();
 
-            var brandName = await db.Brands
-                .Where(b => b.Id == product.BrandId)
-                .Select(b => b.Name)
-                .FirstOrDefaultAsync(ct);
-
             // The redirect always happens, but the click COUNTER doesn't move for
             // search engine bots: it feeds the click report shared with brands,
             // and bot traffic would make that data misleading. The frontend's
@@ -41,15 +36,16 @@ internal static class StoreRedirectEndpoints
                 await db.SaveChangesAsync(ct);
             }
 
-            // For brands with an affiliate program the tracking code is added to
-            // the URL; the brand reads it and attributes the sale to us. Codes come
-            // from configuration (never the repo); an unconfigured brand keeps the
-            // URL as is. Bot requests don't get it either, for the same reason as
-            // the click counter: not to inflate the brand's statistics.
+            // For stores with an affiliate program the link carries our tracking
+            // (a query pair or the network's redirect, chosen by the store's host);
+            // the store reads it and attributes the sale to us. Rules come from
+            // configuration (never the repo); a store without one keeps the URL
+            // as is. Bot requests don't get it either, for the same reason as the
+            // click counter: not to inflate the store's statistics.
             var url = product.Url;
             if (http.Request.Headers["X-Bot-Request"] != "1")
             {
-                url = AffiliateLinkBuilder.Apply(url, brandName, affiliateOptions.Value);
+                url = AffiliateLinkBuilder.Apply(url, affiliateOptions.Value);
             }
 
             return Results.Redirect(url, permanent: false);

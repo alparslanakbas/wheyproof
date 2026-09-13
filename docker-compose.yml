@@ -70,9 +70,13 @@ services:
       - Brevo__SenderEmail=${BREVO_SENDER_EMAIL:-newsletter@wheyproof.com}
       # IndexNow key; not secret, it is published at /{key}.txt.
       - IndexNow__Key=${INDEXNOW_KEY}
-      # Affiliate tracking codes go here per brand, e.g.
-      #   - Affiliate__TrackingCodes__Ghost=${AFFILIATE_GHOST}
-      # A brand without a code keeps its store URL unchanged.
+      # Affiliate link rules go here per STORE HOST (not brand: Bodybuilding.com
+      # sells other brands and pays its own commission). Either a query pair
+      # (UpPromote, Refersion) or a redirect template with {url} (Awin, CJ,
+      # Impact); values live in .env, e.g.
+      #   - Affiliate__Links__transparentlabs.com=${AFFILIATE_TRANSPARENTLABS}
+      #   - Affiliate__Links__bulksupplements.com=${AFFILIATE_BULKSUPPLEMENTS}
+      # A store without a rule keeps its URL unchanged.
       - PublicBaseUrl=https://api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com
       # Product images are resized and served by .NET, not Caddy (see Program.cs).

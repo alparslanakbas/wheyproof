@@ -117,7 +117,7 @@ public partial class DealsQueryService(
             RatingCount: row.Product.RatingCount,
             InStock: row.Product.InStock,
             Seller: row.Product.Seller,
-            AffiliateLinkBuilder.Apply(row.Product.Url, row.BrandName, affiliateOptions.Value));
+            AffiliateLinkBuilder.Apply(row.Product.Url, affiliateOptions.Value));
     }
 
     public async Task<PagedResult<DealDto>> GetDealsAsync(
