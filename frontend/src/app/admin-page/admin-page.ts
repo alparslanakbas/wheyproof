@@ -188,7 +188,16 @@ export class AdminPage implements OnInit {
     });
   }
 
+  /**
+   * Ends BOTH sessions. Deleting our cookie alone isn't a sign-out: the
+   * Cloudflare Access session stays, the next reload sends its token again and
+   * the panel opens without asking. /cdn-cgi/access/logout on this host clears
+   * the Access cookie, so the next visit goes back through the Access login.
+   * The redirect runs even if our DELETE fails; the Access session is the one
+   * that actually lets the browser back in.
+   */
   signOut(): void {
+    const leaveAccess = () => window.location.assign('/cdn-cgi/access/logout');
     this.api.signOut().subscribe({
       next: () => {
         this.signedIn.set(false);
@@ -200,7 +209,9 @@ export class AdminPage implements OnInit {
         this.brands.set([]);
         this.products.set([]);
         this.brandsLoadedOnce = false;
+        leaveAccess();
       },
+      error: leaveAccess,
     });
   }
 
