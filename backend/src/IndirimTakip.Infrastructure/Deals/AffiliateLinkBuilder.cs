@@ -7,18 +7,33 @@ namespace IndirimTakip.Infrastructure.Deals;
 public sealed class AffiliateOptions
 {
     /// <summary>
-    /// Store host (without "www.") -> link rule. Two shapes, matching how the
-    /// networks build links:
+    /// One rule per store. A LIST, NOT A DICTIONARY KEYED BY HOST: the host
+    /// would end up in the environment variable name
+    /// (Affiliate__Links__transparentlabs.com), and in the production Linux
+    /// container those dotted names never reached the configuration. The
+    /// variables were in the container, the app loaded 0 rules and every link
+    /// stayed untracked, while the same binding passed on Windows. Here the
+    /// host is a value: Affiliate__Rules__0__Host / Affiliate__Rules__0__Link.
+    /// </summary>
+    public List<AffiliateRule> Rules { get; set; } = [];
+}
+
+public sealed class AffiliateRule
+{
+    /// <summary>Store host, with or without "www.".</summary>
+    public string? Host { get; set; }
+
+    /// <summary>
+    /// Two shapes, matching how the networks build links:
     /// <list type="bullet">
     /// <item>A query pair, appended to the product URL. UpPromote and Refersion
     /// work this way: <c>sca_ref=12345.abcde</c>, <c>rfsn=123456.abc123</c>.</item>
     /// <item>A redirect template containing <c>{url}</c>, replaced by the encoded
-    /// product URL. Awin, CJ and Impact send the click through their own domain:
-    /// <c>https://www.awin1.com/cread.php?awinmid=1&amp;awinaffid=2&amp;ued={url}</c>.</item>
+    /// product URL. Awin, CJ, Impact and Sovrn send the click through their own
+    /// domain: <c>https://www.awin1.com/cread.php?awinmid=1&amp;awinaffid=2&amp;ued={url}</c>.</item>
     /// </list>
-    /// Example: <c>Affiliate__Links__bulksupplements.com=https://www.awin1.com/cread.php?...&amp;ued={url}</c>
     /// </summary>
-    public Dictionary<string, string> Links { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public string? Link { get; set; }
 }
 
 /// <summary>
@@ -41,16 +56,17 @@ public static class AffiliateLinkBuilder
     /// </summary>
     public static string Apply(string url, AffiliateOptions options)
     {
-        if (string.IsNullOrWhiteSpace(url) || options.Links is not { Count: > 0 } links)
+        if (string.IsNullOrWhiteSpace(url) || options.Rules is not { Count: > 0 } rules)
             return url;
 
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return url;
 
         var host = NormalizeHost(uri.Host);
-        // Configuration binding may not keep the dictionary's comparer, so the
-        // lookup normalizes both sides itself.
-        var rule = links.FirstOrDefault(l => NormalizeHost(l.Key) == host).Value?.Trim();
+        var rule = rules
+            .FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.Host) && !string.IsNullOrWhiteSpace(r.Link)
+                                 && NormalizeHost(r.Host) == host)
+            ?.Link?.Trim();
         if (string.IsNullOrEmpty(rule))
             return url;
 
@@ -65,6 +81,13 @@ public static class AffiliateLinkBuilder
 
         return AppendQueryPair(url, rule);
     }
+
+    /// <summary>Hosts that have a usable rule, for the startup log.</summary>
+    public static IEnumerable<string> ConfiguredHosts(AffiliateOptions options) =>
+        (options.Rules ?? [])
+            .Where(r => !string.IsNullOrWhiteSpace(r.Host) && !string.IsNullOrWhiteSpace(r.Link))
+            .Select(r => NormalizeHost(r.Host!))
+            .Order();
 
     private static string AppendQueryPair(string url, string pair)
     {

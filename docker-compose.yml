@@ -70,18 +70,23 @@ services:
       - Brevo__SenderEmail=${BREVO_SENDER_EMAIL:-newsletter@wheyproof.com}
       # IndexNow key; not secret, it is published at /{key}.txt.
       - IndexNow__Key=${INDEXNOW_KEY}
-      # Affiliate link rules go here per STORE HOST (not brand: Bodybuilding.com
-      # sells other brands and pays its own commission). Either a query pair
-      # (UpPromote, Refersion) or a redirect template with {url} (Awin, CJ,
-      # Impact); values live in .env, e.g.
-      #   - Affiliate__Links__transparentlabs.com=${AFFILIATE_TRANSPARENTLABS}
-      #   - Affiliate__Links__bulksupplements.com=${AFFILIATE_BULKSUPPLEMENTS}
-      # A store without a rule keeps its URL unchanged.
-      # Sovrn Commerce (one publisher key, redirect.viglink.com?key=...&u={url}).
-      - Affiliate__Links__transparentlabs.com=${AFFILIATE_TRANSPARENTLABS:-}
-      - Affiliate__Links__questnutrition.com=${AFFILIATE_QUESTNUTRITION:-}
-      - Affiliate__Links__promixnutrition.com=${AFFILIATE_PROMIXNUTRITION:-}
-      - Affiliate__Links__orgain.com=${AFFILIATE_ORGAIN:-}
+      # Affiliate link rules, one per STORE HOST (not brand: Bodybuilding.com
+      # sells other brands and pays its own commission). Link is either a query
+      # pair (UpPromote, Refersion) or a redirect template with {url} (Awin, CJ,
+      # Impact, Sovrn); values live in .env. A store without a Link keeps its
+      # URL unchanged.
+      # NO DOTS IN THESE VARIABLE NAMES: Affiliate__Links__transparentlabs.com
+      # reached the container but not the app's configuration (0 rules loaded).
+      # The host goes in the value instead. New stores take the next index.
+      # Sovrn Commerce (one publisher key, redirect.viglink.com?key=...&u={url}):
+      - Affiliate__Rules__0__Host=transparentlabs.com
+      - Affiliate__Rules__0__Link=${AFFILIATE_TRANSPARENTLABS:-}
+      - Affiliate__Rules__1__Host=questnutrition.com
+      - Affiliate__Rules__1__Link=${AFFILIATE_QUESTNUTRITION:-}
+      - Affiliate__Rules__2__Host=promixnutrition.com
+      - Affiliate__Rules__2__Link=${AFFILIATE_PROMIXNUTRITION:-}
+      - Affiliate__Rules__3__Host=orgain.com
+      - Affiliate__Rules__3__Link=${AFFILIATE_ORGAIN:-}
       - PublicBaseUrl=https://api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com
       # Product images are resized and served by .NET, not Caddy (see Program.cs).

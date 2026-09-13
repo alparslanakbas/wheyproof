@@ -6,13 +6,10 @@ namespace IndirimTakip.Infrastructure.Tests;
 // Codes and ids here are made up for the tests, not real accounts.
 public class AffiliateLinkBuilderTests
 {
-    private static AffiliateOptions Options(params (string Host, string Rule)[] rules)
+    private static AffiliateOptions Options(params (string Host, string Link)[] rules) => new()
     {
-        var options = new AffiliateOptions();
-        foreach (var (host, rule) in rules)
-            options.Links[host] = rule;
-        return options;
-    }
+        Rules = rules.Select(r => new AffiliateRule { Host = r.Host, Link = r.Link }).ToList(),
+    };
 
     // UpPromote's default link: the store URL plus sca_ref.
     [Fact]
@@ -39,9 +36,9 @@ public class AffiliateLinkBuilderTests
             url);
     }
 
-    // The bug this design fixes: Bodybuilding.com sells Optimum Nutrition under
-    // Optimum's brand name. Its links must carry Bodybuilding.com's code, the
-    // store that pays, and Optimum's own code must stay on Optimum's site.
+    // Bodybuilding.com sells Optimum Nutrition under Optimum's brand name. Its
+    // links must carry Bodybuilding.com's code, the store that pays, and
+    // Optimum's own code must stay on Optimum's site.
     [Fact]
     public void Rule_follows_the_store_host_not_the_brand()
     {
@@ -74,6 +71,18 @@ public class AffiliateLinkBuilderTests
         Assert.Equal(original, AffiliateLinkBuilder.Apply(original, Options(("kaged.com", "ref=k1"))));
     }
 
+    // docker-compose declares every store's rule; a store whose value is not
+    // set in .env arrives as an empty Link and must change nothing.
+    [Fact]
+    public void Rule_with_an_empty_link_is_ignored()
+    {
+        const string original = "https://www.orgain.com/products/shake";
+        var options = Options(("orgain.com", ""));
+
+        Assert.Equal(original, AffiliateLinkBuilder.Apply(original, options));
+        Assert.Empty(AffiliateLinkBuilder.ConfiguredHosts(options));
+    }
+
     [Fact]
     public void Ampersand_is_used_when_the_url_already_has_a_query()
     {
@@ -104,43 +113,43 @@ public class AffiliateLinkBuilderTests
     [InlineData("=value-without-name")]
     [InlineData("name-without-value=")]
     [InlineData("http://insecure.example/c?u={url}")]
-    public void Malformed_rule_leaves_the_url_alone(string rule)
+    public void Malformed_rule_leaves_the_url_alone(string link)
     {
         const string original = "https://nutricost.com/products/whey";
-        Assert.Equal(original, AffiliateLinkBuilder.Apply(original, Options(("nutricost.com", rule))));
+        Assert.Equal(original, AffiliateLinkBuilder.Apply(original, Options(("nutricost.com", link))));
     }
 
     // The rules reach the app as environment variables from .env through
-    // docker-compose. The key carries a dotted host and an Awin template
-    // carries & and =; if either broke binding, links would silently stay
-    // untracked. This goes through the same provider and binder the app uses.
+    // docker-compose. No dots in the variable names (see AffiliateOptions); a
+    // Sovrn template carries & and =, which must survive binding. This goes
+    // through the same provider and binder the app uses.
     [Fact]
-    public void Rules_bind_from_environment_variables_with_a_dotted_host()
+    public void Rules_bind_from_environment_variables()
     {
-        const string prefix = "WPTEST_AFFILIATE_BINDING_";
-        const string awin = "https://www.awin1.com/cread.php?awinmid=111&awinaffid=222&ued={url}";
-        Environment.SetEnvironmentVariable($"{prefix}Affiliate__Links__bulksupplements.com", awin);
-        Environment.SetEnvironmentVariable($"{prefix}Affiliate__Links__transparentlabs.com", "sca_ref=12345.abcde");
+        const string prefix = "WPTEST_AFFILIATE_RULES_";
+        const string sovrn = "https://redirect.viglink.com?key=0123456789abcdef0123456789abcdef&u={url}";
+        var vars = new Dictionary<string, string?>
+        {
+            [$"{prefix}Affiliate__Rules__0__Host"] = "transparentlabs.com",
+            [$"{prefix}Affiliate__Rules__0__Link"] = sovrn,
+            [$"{prefix}Affiliate__Rules__1__Host"] = "orgain.com",
+            [$"{prefix}Affiliate__Rules__1__Link"] = "",
+        };
+        foreach (var (k, v) in vars) Environment.SetEnvironmentVariable(k, v);
         try
         {
-            var configuration = new ConfigurationBuilder()
-                .AddEnvironmentVariables(prefix)
-                .Build();
+            var configuration = new ConfigurationBuilder().AddEnvironmentVariables(prefix).Build();
             var options = new AffiliateOptions();
             configuration.GetSection("Affiliate").Bind(options);
 
-            Assert.Equal(awin, options.Links["bulksupplements.com"]);
+            Assert.Equal(["transparentlabs.com"], AffiliateLinkBuilder.ConfiguredHosts(options));
             Assert.StartsWith(
-                "https://www.awin1.com/cread.php?awinmid=111&awinaffid=222&ued=https%3A%2F%2F",
-                AffiliateLinkBuilder.Apply("https://www.bulksupplements.com/products/creatine", options));
-            Assert.EndsWith(
-                "?sca_ref=12345.abcde",
+                "https://redirect.viglink.com?key=0123456789abcdef0123456789abcdef&u=https%3A%2F%2Fwww.transparentlabs.com",
                 AffiliateLinkBuilder.Apply("https://www.transparentlabs.com/products/bulk", options));
         }
         finally
         {
-            Environment.SetEnvironmentVariable($"{prefix}Affiliate__Links__bulksupplements.com", null);
-            Environment.SetEnvironmentVariable($"{prefix}Affiliate__Links__transparentlabs.com", null);
+            foreach (var k in vars.Keys) Environment.SetEnvironmentVariable(k, null);
         }
     }
 
