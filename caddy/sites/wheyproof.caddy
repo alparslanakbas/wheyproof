@@ -112,5 +112,10 @@ www.wheyproof.com {
 
 api.wheyproof.com {
 	import wheyproof-access-log
+	# The API serves JSON for the site, not pages for people. Without a robots
+	# file of its own, Cloudflare answers /robots.txt here with a content-signals
+	# text that doesn't block crawling, so the header keeps JSON URLs out of
+	# search results. The www pages that use this data are unaffected.
+	header X-Robots-Tag "noindex, nofollow"
 	reverse_proxy wheyproof-backend:8080
 }
