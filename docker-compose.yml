@@ -77,6 +77,11 @@ services:
       #   - Affiliate__Links__transparentlabs.com=${AFFILIATE_TRANSPARENTLABS}
       #   - Affiliate__Links__bulksupplements.com=${AFFILIATE_BULKSUPPLEMENTS}
       # A store without a rule keeps its URL unchanged.
+      # Sovrn Commerce (one publisher key, redirect.viglink.com?key=...&u={url}).
+      - Affiliate__Links__transparentlabs.com=${AFFILIATE_TRANSPARENTLABS:-}
+      - Affiliate__Links__questnutrition.com=${AFFILIATE_QUESTNUTRITION:-}
+      - Affiliate__Links__promixnutrition.com=${AFFILIATE_PROMIXNUTRITION:-}
+      - Affiliate__Links__orgain.com=${AFFILIATE_ORGAIN:-}
       - PublicBaseUrl=https://api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com
       # Product images are resized and served by .NET, not Caddy (see Program.cs).
