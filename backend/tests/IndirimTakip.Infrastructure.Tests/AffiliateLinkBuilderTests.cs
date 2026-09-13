@@ -4,7 +4,7 @@ namespace IndirimTakip.Infrastructure.Tests;
 
 public class AffiliateLinkBuilderTests
 {
-    // Gerçek takip kodu değil, test için uydurulmuş bir değer.
+    // Not a real tracking code; a value made up for the test.
     private const string Code = "abc123test";
 
     private static AffiliateOptions Options() => new()
@@ -16,9 +16,9 @@ public class AffiliateLinkBuilderTests
     };
 
     [Fact]
-    public void ProgramiOlanMarkadaTakipKoduEkleniyor()
+    public void Tracking_code_is_added_for_a_brand_with_a_program()
     {
-        // Markanın kendi aracının ürettiği biçimin birebir aynısı:
+        // Exactly the format the brand's own affiliate tool produced:
         // https://www.hardlinenutrition.com/meet-fit-paketi?tracking=...
         var url = AffiliateLinkBuilder.Apply(
             "https://www.hardlinenutrition.com/meet-fit-paketi", "Hardline", Options());
@@ -27,23 +27,23 @@ public class AffiliateLinkBuilderTests
     }
 
     [Fact]
-    public void ProgramiOlmayanMarkadaAdresDegismiyor()
+    public void Url_is_unchanged_for_a_brand_without_a_program()
     {
         const string original = "https://takehiq.com/products/creatine";
         Assert.Equal(original, AffiliateLinkBuilder.Apply(original, "HIQ", Options()));
     }
 
     [Fact]
-    public void MarkaAdiBuyukKucukHarfeDuyarsizEslesiyor()
+    public void Brand_name_matches_case_insensitively()
     {
         var url = AffiliateLinkBuilder.Apply("https://x.com/a", "hardline", Options());
         Assert.Contains($"tracking={Code}", url);
     }
 
     [Fact]
-    public void AdresteZatenSorguVarsaAmpersandKullaniliyor()
+    public void Ampersand_is_used_when_the_url_already_has_a_query()
     {
-        // Yanlış ayraç linki tamamen bozardı.
+        // The wrong separator would break the link entirely.
         var url = AffiliateLinkBuilder.Apply(
             "https://www.hardlinenutrition.com/urun?renk=mavi", "Hardline", Options());
 
@@ -51,9 +51,9 @@ public class AffiliateLinkBuilderTests
     }
 
     [Fact]
-    public void BaglantiCapasiVarsaParametreOndanOnceGeliyor()
+    public void Parameter_goes_before_a_fragment()
     {
-        // Çapadan sonra eklenirse sunucu parametreyi hiç görmez.
+        // Added after the fragment, the server would never see the parameter.
         var url = AffiliateLinkBuilder.Apply(
             "https://www.hardlinenutrition.com/urun#detay", "Hardline", Options());
 
@@ -61,14 +61,14 @@ public class AffiliateLinkBuilderTests
     }
 
     [Fact]
-    public void AyniParametreZatenVarsaIkinciKezEklenmiyor()
+    public void Existing_parameter_is_not_added_twice()
     {
-        const string original = "https://www.hardlinenutrition.com/urun?tracking=baskabiri";
+        const string original = "https://www.hardlinenutrition.com/urun?tracking=someoneelse";
         Assert.Equal(original, AffiliateLinkBuilder.Apply(original, "Hardline", Options()));
     }
 
     [Fact]
-    public void KodBosSaBirakiliyor()
+    public void Blank_code_leaves_the_url_alone()
     {
         var options = new AffiliateOptions
         {
@@ -79,7 +79,7 @@ public class AffiliateLinkBuilderTests
     }
 
     [Fact]
-    public void MarkaAdiYoksaAdresDegismiyor()
+    public void Url_is_unchanged_without_a_brand_name()
     {
         const string original = "https://www.hardlinenutrition.com/urun";
         Assert.Equal(original, AffiliateLinkBuilder.Apply(original, null, Options()));

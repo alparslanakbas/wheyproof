@@ -2,13 +2,13 @@ using IndirimTakip.Infrastructure.Scraping;
 
 namespace IndirimTakip.Infrastructure.Tests;
 
-// Örnekler gerçek ürün sayfalarından alındı (2026-08-29). Markaların
-// altyapıları farklı ama hepsi aynı schema.org alanlarını kullanıyor;
-// bu testler o varsayımın sessizce bozulmasını engelliyor.
+// Samples were taken from real product pages. The stores run on different
+// platforms but all use the same schema.org fields; these tests keep that
+// assumption from breaking silently.
 public class AggregateRatingParserTests
 {
     [Fact]
-    public void HiqSayfasindakiPuaniOkur()
+    public void Reads_the_rating_from_a_shopify_page()
     {
         const string html = """
             <script type="application/ld+json">
@@ -25,7 +25,7 @@ public class AggregateRatingParserTests
     }
 
     [Fact]
-    public void YesilmarkaSayfasindakiPuaniOkur()
+    public void Reads_a_numeric_rating_value()
     {
         const string html = """{"aggregateRating":{"@type":"AggregateRating","ratingValue":4.77,"reviewCount":30}}""";
 
@@ -36,10 +36,10 @@ public class AggregateRatingParserTests
     }
 
     [Fact]
-    public void TekTekYorumlarinPuaniniOrtalamaSanmaz()
+    public void Does_not_mistake_a_single_review_for_the_average()
     {
-        // Sayfada aggregateRating'ten ÖNCE tek bir yorumun kendi bloğu
-        // geliyor. Ortalama olmayan bu değeri almamalı.
+        // A single review's own block comes BEFORE aggregateRating on the page. That
+        // value isn't an average and must not be taken.
         const string html = """
             {"review":{"@type":"Review","reviewRating":{"ratingValue":5,"bestRating":5}},
              "aggregateRating":{"@type":"AggregateRating","ratingValue":"4.12","reviewCount":9}}
@@ -52,18 +52,18 @@ public class AggregateRatingParserTests
     }
 
     [Fact]
-    public void PuanBloguYoksaNullDoner()
+    public void Returns_null_without_a_rating_block()
     {
-        var (value, count) = AggregateRatingParser.Parse("""<div class="rating no-rating">0 yorum</div>""");
+        var (value, count) = AggregateRatingParser.Parse("""<div class="rating no-rating">0 reviews</div>""");
 
         Assert.Null(value);
         Assert.Null(count);
     }
 
     [Theory]
-    [InlineData("""{"aggregateRating":{"ratingValue":9.4,"reviewCount":12}}""")]   // 5'lik olmayan ölçek
-    [InlineData("""{"aggregateRating":{"ratingValue":4.5,"reviewCount":0}}""")]    // puanlayan yok
-    public void GecersizDegerleriEler(string html)
+    [InlineData("""{"aggregateRating":{"ratingValue":9.4,"reviewCount":12}}""")]   // not a 5-point scale
+    [InlineData("""{"aggregateRating":{"ratingValue":4.5,"reviewCount":0}}""")]    // nobody rated
+    public void Rejects_invalid_values(string html)
     {
         var (value, count) = AggregateRatingParser.Parse(html);
 
@@ -72,10 +72,10 @@ public class AggregateRatingParserTests
     }
 
     [Fact]
-    public void OndalikAyraciniKulturdenBagimsizOkur()
+    public void Reads_the_decimal_separator_independently_of_culture()
     {
-        // Makinenin yerel ayarı Türkçe olsa bile "4.88" 488 olarak
-        // okunmamalı — JSON her zaman nokta kullanır.
+        // Even on a machine with a comma decimal locale "4.88" must not be read as
+        // 488: JSON always uses a dot.
         var (value, _) = AggregateRatingParser.Parse("""{"aggregateRating":{"ratingValue":4.88,"reviewCount":278}}""");
 
         Assert.Equal(4.88m, value);

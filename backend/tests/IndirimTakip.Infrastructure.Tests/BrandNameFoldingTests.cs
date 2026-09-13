@@ -3,22 +3,22 @@ using IndirimTakip.Infrastructure.Scraping;
 namespace IndirimTakip.Infrastructure.Tests;
 
 /// <summary>
-/// Marka eşleştirmesinin harf/boşluk katmanı. Bu testler olmasaydı her yeni
-/// bayi katalogda KOPYA marka üretirdi: marka önbelleği ordinal ve büyük/küçük
-/// harf duyarlı, yani "TREC" ile "Trec" ayrı kabul ediliyordu.
+/// The letter/space layer of brand matching. Without these tests every new retailer
+/// would create DUPLICATE brands in the catalog: the brand cache is ordinal and
+/// case-sensitive, so "TREC" and "Trec" were treated as different.
 /// </summary>
-public class MarkaEslestirmeTests
+public class BrandNameFoldingTests
 {
     [Theory]
-    // Salt büyük/küçük harf.
+    // Letter case only.
     [InlineData("TREC", "Trec")]
     [InlineData("CELLUCOR", "Cellucor")]
     [InlineData("ZOOMAD LABS", "Zoomad Labs")]
     [InlineData("JNX Sports", "Jnx Sports")]
     [InlineData("DY NUTRITION", "DY Nutrition")]
     [InlineData("ON THE GO", "On The Go")]
-    // Türkçe NOKTALI İ — .NET'in kültürden bağımsız karşılaştırması bunu
-    // "i" ile katlamıyor, yani bu satırların hiçbiri kendiliğinden eşleşmez.
+    // Turkish DOTTED İ: .NET's culture-independent comparison doesn't fold it to "i",
+    // so none of these rows would match on their own.
     [InlineData("PRİME NUTRİTİON", "Prime Nutrition")]
     [InlineData("APPLİED NUTRİTİON", "Applied Nutrition")]
     [InlineData("EFFİVE NUTRİTİON", "Effive Nutrition")]
@@ -27,26 +27,26 @@ public class MarkaEslestirmeTests
     [InlineData("DYMATİZE", "Dymatize")]
     [InlineData("SİS", "SiS")]
     [InlineData("BİTE & MORE", "Bite & More")]
-    // Boşluk ve nokta.
+    // Spaces and dots.
     [InlineData("MEAL JOY", "Mealjoy")]
     [InlineData("Dr. Pan", "Dr Pan")]
     [InlineData("Big Joy", "BigJoy")]
-    public void AyniMarkaninFarkliYazimlariAyniKovayaDusuyor(string a, string b)
+    public void Spellings_of_the_same_brand_fall_into_one_bucket(string a, string b)
         => Assert.Equal(ScrapeIngestionService.FoldBrandName(a), ScrapeIngestionService.FoldBrandName(b));
 
     [Theory]
-    // Farklı üreticiler birleşmemeli.
+    // Different manufacturers must not merge.
     [InlineData("Prime Nutrition", "Prime Hydration")]
-    [InlineData("Z-Konzept", "Zkonzept")]   // tire bilerek atılmıyor
+    [InlineData("Z-Konzept", "Zkonzept")]   // the hyphen is kept on purpose
     [InlineData("Nuclear Nutrition", "Nuclear")]
     [InlineData("BigJoy", "Big Joy Sports")]
-    public void FarkliAdlarAyriKaliyor(string a, string b)
+    public void Different_names_stay_apart(string a, string b)
         => Assert.NotEqual(ScrapeIngestionService.FoldBrandName(a), ScrapeIngestionService.FoldBrandName(b));
 
     [Fact]
-    public void NoktasizIVeNoktaliIAyniKarakteregeIniyor()
+    public void All_four_turkish_i_letters_fold_to_one_character()
     {
-        // Türkçe'nin dört i harfi de tek bir kovaya inmeli: I ı İ i.
+        // I ı İ i must all land in one bucket.
         Assert.Equal("iiii", ScrapeIngestionService.FoldBrandName("Iıİi"));
     }
 }

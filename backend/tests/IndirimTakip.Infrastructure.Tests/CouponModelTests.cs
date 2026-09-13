@@ -10,19 +10,19 @@ public class CouponModelTests
 {
     [Theory]
     [InlineData("SSN", null, true)]
-    [InlineData(null, "provitamin.com.tr", true)]
-    [InlineData("SSN", "provitamin.com.tr", false)]
+    [InlineData(null, "bodybuilding.com", true)]
+    [InlineData("SSN", "bodybuilding.com", false)]
     [InlineData(null, null, false)]
     [InlineData(" ", " ", false)]
-    public void KuponIstegiTamBirHedefIster(string? brandName, string? seller, bool expected)
+    public void Coupon_request_needs_exactly_one_target(string? brandName, string? seller, bool expected)
     {
-        var request = new CreateCouponRequest(brandName, seller, "KOD", "Açıklama", null);
+        var request = new CreateCouponRequest(brandName, seller, "CODE", "Description", null);
 
         Assert.Equal(expected, request.HasExactlyOneTarget);
     }
 
     [Fact]
-    public void KuponYalnizcaMarkaVeyaSaticidanBirineBaglanir()
+    public void Coupon_belongs_to_either_a_brand_or_a_seller()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql("Host=localhost;Database=model_test;Username=model_test;Password=model_test")
@@ -36,10 +36,10 @@ public class CouponModelTests
         Assert.True(coupon.FindProperty(nameof(Coupon.BrandId))!.IsNullable);
         Assert.Equal(200, coupon.FindProperty(nameof(Coupon.Seller))!.GetMaxLength());
 
-        // Kod OPSİYONEL: her kampanyanın kodu yok. Swiss Nutrition'ın "yeni
-        // üyeye ilk alışverişte ek %5" kampanyası üyelikle otomatik uygulanıyor;
-        // zorunlu tutulsaydı ya kampanya hiç gösterilemez ya da boş bir kod
-        // rozeti çizilip kullanıcı olmayan bir kodu arardı.
+        // The code is OPTIONAL: not every promotion has one. An automatic first-order
+        // discount for new members applies by itself; if the code were required, the
+        // promotion either couldn't be shown at all or an empty code badge would send
+        // shoppers looking for a code that doesn't exist.
         Assert.True(coupon.FindProperty(nameof(Coupon.Code))!.IsNullable);
 
         var constraint = Assert.Single(

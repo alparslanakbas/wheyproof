@@ -2,58 +2,58 @@ using IndirimTakip.Infrastructure.Scraping;
 
 namespace IndirimTakip.Infrastructure.Tests;
 
-// Bu sınıfın çıktısı frontend'deki `core/slugify.ts` ile BİREBİR aynı olmak
-// zorunda: IndexNow'a bildirdiğimiz adres kanonik adresle eşleşmezse bildirim
-// yönlendirmeye düşer ve değerini kaybeder.
+// This class's output must be EXACTLY the same as the frontend's `core/slugify.ts`:
+// if the URL reported to IndexNow doesn't match the canonical URL, the notification
+// lands on a redirect and loses its value.
 //
-// Beklenen değerler canlı sitedeki gerçek adreslerden alındı.
+// The expected values were taken from real URLs on the live Turkish site.
 public class SlugifierTests
 {
     [Theory]
-    // Canlı adreslerden birebir doğrulanmış örnekler
+    // Samples verified against live URLs
     [InlineData("HIQ ALPHA T-MAN 30 CAPS.", "hiq-alpha-t-man-30-caps")]
     [InlineData("Creatine Creapure® 500 Gr", "creatine-creapure-500-gr")]
     [InlineData("HIQ Vitargo Dual Force 1000g", "hiq-vitargo-dual-force-1000g")]
     [InlineData("Pre-Season Fırsatları-1", "pre-season-firsatlari-1")]
     [InlineData("HIQ Bcaa Nrg 390g", "hiq-bcaa-nrg-390g")]
-    public void GercekUrunAdlariniKanonikAdreseCevirir(string name, string expected)
+    public void Converts_real_product_names_to_canonical_urls(string name, string expected)
     {
         Assert.Equal(expected, Slugifier.Slugify(name));
     }
 
     [Theory]
-    // Türkçe harfler: bu projede üç kez hataya yol açtı (tr-TR ile büyük I
-    // noktasız ı oluyor, ToLowerInvariant ile büyük İ hiç küçülmüyor).
+    // Turkish letters caused bugs three times (with tr-TR an uppercase I becomes a
+    // dotless ı, with ToLowerInvariant an uppercase İ isn't lowercased at all).
     [InlineData("Çikolatalı Protein Bar", "cikolatali-protein-bar")]
     [InlineData("ÜZÜM AROMALI", "uzum-aromali")]
     [InlineData("İZOLE WHEY", "izole-whey")]
     [InlineData("Şeftali & Ğ Testi", "seftali-g-testi")]
     [InlineData("KREATİN MİKRONİZE", "kreatin-mikronize")]
-    public void TurkceHarfleriDogruEsler(string name, string expected)
+    public void Maps_turkish_letters_correctly(string name, string expected)
     {
         Assert.Equal(expected, Slugifier.Slugify(name));
     }
 
     [Theory]
-    [InlineData("  Baştaki ve sondaki boşluk  ", "bastaki-ve-sondaki-bosluk")]
-    [InlineData("Çoklu   boşluk", "coklu-bosluk")]
-    [InlineData("Noktalama!!! ??? ...", "noktalama")]
+    [InlineData("  Leading and trailing space  ", "leading-and-trailing-space")]
+    [InlineData("Multiple   spaces", "multiple-spaces")]
+    [InlineData("Punctuation!!! ??? ...", "punctuation")]
     [InlineData("100% Pure & Natural", "100-pure-natural")]
     [InlineData("", "")]
     [InlineData("   ", "")]
-    public void NoktalamaVeBoslugiTemizler(string name, string expected)
+    public void Cleans_punctuation_and_whitespace(string name, string expected)
     {
         Assert.Equal(expected, Slugifier.Slugify(name));
     }
 
     [Fact]
-    public void UzunAdlariKelimeOrtasindanKesmeden_KirpAr()
+    public void Truncates_long_names_without_cutting_a_word()
     {
-        var uzun = "SSN Whey Refuel 1800g Çikolatalı Artı SSN Creatine 300g Artı SSN Glutamine 300g Kombinasyon Paketi";
-        var slug = Slugifier.Slugify(uzun);
+        var longName = "SSN Whey Refuel 1800g Chocolate Plus SSN Creatine 300g Plus SSN Glutamine 300g Combination Bundle";
+        var slug = Slugifier.Slugify(longName);
 
         Assert.True(slug.Length <= 80);
-        // Kelime ortasından kesilmemeli: sonda yarım kelime kalmamalı.
+        // Must not cut mid-word: no half word left at the end.
         Assert.DoesNotContain("--", slug);
         Assert.False(slug.EndsWith('-'));
     }
