@@ -1,6 +1,6 @@
 import { PLATFORM_ID } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { PageMetaService } from '../core/page-meta.service';
@@ -13,6 +13,22 @@ describe('AdminPage visibility safety', () => {
     setProductActive: vi.fn(() => of({ id: 34, name: 'Sample product', isActive: false })),
     brands: vi.fn(() => of([])),
     products: vi.fn(() => of([])),
+    subscribers: vi.fn(() => of({ subscribers: [], summary: { total: 0, active: 0, pending: 0, unsubscribed: 0 } })),
+    deactivateSubscriber: vi.fn(() => of({})),
+    sendSubscriberConfirmation: vi.fn(() => of({ message: 'sent' })),
+  };
+
+  const subscriber = {
+    id: 7,
+    email: 'reader@example.com',
+    status: 'active' as const,
+    subscribedAt: '2026-09-13T02:40:51Z',
+    confirmedAt: '2026-09-13T16:45:22Z',
+    unsubscribedAt: null,
+    lastConfirmationEmailSentAt: null,
+    lastDigestSentAt: null,
+    watchCount: 0,
+    favoriteCount: 0,
   };
 
   let page: AdminPage;
@@ -47,5 +63,29 @@ describe('AdminPage visibility safety', () => {
 
     expect(page.pendingChange()).toBeNull();
     expect(api.setProductActive).toHaveBeenCalledWith(34, true);
+  });
+
+  it('asks before deactivating a subscriber, and deactivates only after it', () => {
+    page.requestDeactivation(subscriber);
+
+    expect(page.pendingDeactivation()).toEqual(subscriber);
+    expect(api.deactivateSubscriber).not.toHaveBeenCalled();
+
+    page.confirmDeactivation();
+
+    expect(api.deactivateSubscriber).toHaveBeenCalledWith(7);
+    expect(page.pendingDeactivation()).toBeNull();
+    expect(api.subscribers).toHaveBeenCalled();
+  });
+
+  it('shows the backend reason when a confirmation email is refused', () => {
+    api.sendSubscriberConfirmation.mockReturnValueOnce(
+      throwError(() => ({ status: 429, error: { message: 'A confirmation email went out less than 5 minutes ago.' } })),
+    );
+
+    page.sendConfirmation({ ...subscriber, status: 'pending', confirmedAt: null });
+
+    expect(page.subscriberMessage()).toBe('A confirmation email went out less than 5 minutes ago.');
+    expect(page.subscriberBusyId()).toBeNull();
   });
 });

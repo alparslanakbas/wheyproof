@@ -76,6 +76,42 @@ export class AdminService {
   setProductActive(id: number, isActive: boolean): Observable<VisibilityUpdate> {
     return this.http.put<VisibilityUpdate>(`${this.base}/products/${id}`, { isActive });
   }
+
+  subscribers(): Observable<SubscribersResponse> {
+    return this.http.get<SubscribersResponse>(`${this.base}/subscribers`);
+  }
+
+  deactivateSubscriber(id: number): Observable<unknown> {
+    return this.http.post(`${this.base}/subscribers/${id}/deactivate`, {});
+  }
+
+  /**
+   * There is deliberately no "activate": with double opt-in only the person
+   * can turn a subscription on. The panel can only resend the email.
+   */
+  sendSubscriberConfirmation(id: number): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.base}/subscribers/${id}/send-confirmation`, {});
+  }
+}
+
+export type SubscriberStatus = 'active' | 'pending' | 'unsubscribed';
+
+export interface AdminSubscriber {
+  id: number;
+  email: string;
+  status: SubscriberStatus;
+  subscribedAt: string;
+  confirmedAt: string | null;
+  unsubscribedAt: string | null;
+  lastConfirmationEmailSentAt: string | null;
+  lastDigestSentAt: string | null;
+  watchCount: number;
+  favoriteCount: number;
+}
+
+export interface SubscribersResponse {
+  subscribers: AdminSubscriber[];
+  summary: { total: number; active: number; pending: number; unsubscribed: number };
 }
 
 export interface AdminStatus {

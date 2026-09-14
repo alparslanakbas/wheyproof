@@ -382,6 +382,93 @@ internal static class AdminEndpoints
             return Results.Ok(coupons);
         }).RequireAdminKey(adminApiKey);
 
+        // --- Newsletter subscribers (admin panel) ---
+        //
+        // THE SUMMARY IS COUNTED SEPARATELY FROM THE LIST, as with security
+        // events: the list is capped, and counting a capped list would
+        // understate the total.
+        app.MapGet("/api/dev/subscribers", async (AppDbContext db, CancellationToken ct) =>
+        {
+            var rows = await db.Subscribers
+                .AsNoTracking()
+                .OrderByDescending(s => s.SubscribedAt)
+                .Take(1000)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.Email,
+                    s.IsConfirmed,
+                    s.SubscribedAt,
+                    s.ConfirmedAt,
+                    s.UnsubscribedAt,
+                    s.LastConfirmationEmailSentAt,
+                    s.LastDigestSentAt,
+                    // The same table backs price alerts and the watchlist; these
+                    // counts show what a deactivation would also affect.
+                    watchCount = db.ProductWatches.Count(w => w.SubscriberId == s.Id),
+                    favoriteCount = db.ProductFavorites.Count(f => f.SubscriberId == s.Id),
+                })
+                .ToListAsync(ct);
+
+            var subscribers = rows.Select(s => new
+            {
+                s.Id,
+                s.Email,
+                status = SubscriberService.StatusOf(s.IsConfirmed, s.UnsubscribedAt).ToString().ToLowerInvariant(),
+                s.SubscribedAt,
+                s.ConfirmedAt,
+                s.UnsubscribedAt,
+                s.LastConfirmationEmailSentAt,
+                s.LastDigestSentAt,
+                s.watchCount,
+                s.favoriteCount,
+            });
+
+            var summary = await db.Subscribers
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    total = g.Count(),
+                    active = g.Count(x => x.IsConfirmed && x.UnsubscribedAt == null),
+                    pending = g.Count(x => !x.IsConfirmed && x.UnsubscribedAt == null),
+                    unsubscribed = g.Count(x => x.UnsubscribedAt != null),
+                })
+                .FirstOrDefaultAsync(ct);
+
+            return Results.Ok(new
+            {
+                subscribers,
+                summary = summary ?? new { total = 0, active = 0, pending = 0, unsubscribed = 0 },
+            });
+        }).RequireAdminKey(adminApiKey);
+
+        app.MapPost("/api/dev/subscribers/{id:int}/deactivate", async (int id, SubscriberService subscribers, CancellationToken ct) =>
+            await subscribers.DeactivateAsync(id, ct)
+                ? Results.Ok(new { id, status = "unsubscribed" })
+                : Results.NotFound($"Subscriber {id} not found.")).RequireAdminKey(adminApiKey);
+
+        app.MapPost("/api/dev/subscribers/{id:int}/send-confirmation", async (
+            int id, SubscriberService subscribers, IConfiguration config, CancellationToken ct) =>
+        {
+            // NOT the request's host: the panel reaches this endpoint through
+            // www.wheyproof.com/admin/api, and www doesn't route /api/subscribe
+            // to the backend, so a link built from it would be a dead end.
+            var confirmBaseUrl = (config["PublicBaseUrl"] ?? "https://api.wheyproof.com").TrimEnd('/');
+
+            return await subscribers.ResendConfirmationAsync(id, confirmBaseUrl, ct) switch
+            {
+                AdminConfirmationResult.Sent => Results.Ok(new { message = "Confirmation email sent." }),
+                AdminConfirmationResult.NotFound => Results.NotFound($"Subscriber {id} not found."),
+                AdminConfirmationResult.AlreadyActive => Results.Conflict("This subscriber is already active."),
+                AdminConfirmationResult.CoolingDown => Results.Json(
+                    new { message = "A confirmation email went out less than 5 minutes ago. Try again later." },
+                    statusCode: StatusCodes.Status429TooManyRequests),
+                _ => Results.Json(
+                    new { message = "The email provider didn't accept the message. Check the backend logs." },
+                    statusCode: StatusCodes.Status502BadGateway),
+            };
+        }).RequireAdminKey(adminApiKey);
+
         // WHY admin operations failed. Shown on the panel's "Events" tab NEXT
         // TO the security events but SEPARATELY: they answer different
         // questions ("who is attacking me" vs "why didn't my action work"),

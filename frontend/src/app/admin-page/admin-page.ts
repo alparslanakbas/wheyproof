@@ -12,11 +12,15 @@ import {
   AdminProduct,
   AdminService,
   AdminStatus,
+  AdminSubscriber,
   Coupon,
   SecurityEventsResponse,
+  SubscriberStatus,
+  SubscribersResponse,
 } from './admin.service';
 
-type Tab = 'status' | 'events' | 'coupons' | 'visibility';
+type Tab = 'status' | 'events' | 'coupons' | 'visibility' | 'subscribers';
+type SubscriberFilter = 'all' | SubscriberStatus;
 type VisibilityView = 'brands' | 'products';
 type BrandFilter = 'all' | 'visible' | 'hidden';
 
@@ -98,6 +102,23 @@ export class AdminPage implements OnInit {
   readonly visibilityUpdatedAt = signal<Date | null>(null);
   readonly pendingChange = signal<PendingVisibilityChange | null>(null);
   readonly changeInProgress = signal(false);
+
+  readonly subscriberData = signal<SubscribersResponse | null>(null);
+  readonly subscribersLoading = signal(false);
+  readonly subscriberSearch = signal('');
+  readonly subscriberFilter = signal<SubscriberFilter>('all');
+  readonly subscriberMessage = signal<string | null>(null);
+  readonly pendingDeactivation = signal<AdminSubscriber | null>(null);
+  /** Id of the row whose request is running, so only that row's buttons disable. */
+  readonly subscriberBusyId = signal<number | null>(null);
+
+  readonly filteredSubscribers = computed(() => {
+    const query = this.subscriberSearch().trim().toLowerCase();
+    const filter = this.subscriberFilter();
+    return (this.subscriberData()?.subscribers ?? []).filter(
+      (s) => (filter === 'all' || s.status === filter) && (!query || s.email.includes(query)),
+    );
+  });
 
   readonly filteredBrands = computed(() => {
     const query = normalizeSearchText(this.brandSearch());
@@ -208,6 +229,7 @@ export class AdminPage implements OnInit {
         this.editingCoupon.set(null);
         this.brands.set([]);
         this.products.set([]);
+        this.subscriberData.set(null);
         this.brandsLoadedOnce = false;
         leaveAccess();
       },
@@ -224,6 +246,89 @@ export class AdminPage implements OnInit {
     const needsBrands = tab === 'visibility' || tab === 'coupons';
     if (needsBrands && !this.brandsLoadedOnce) {
       this.loadBrands(false);
+    }
+    // Loaded on every visit, not once: a subscription can be confirmed from
+    // an inbox while the panel is open.
+    if (tab === 'subscribers') this.loadSubscribers();
+  }
+
+  loadSubscribers(): void {
+    this.subscribersLoading.set(true);
+    this.api.subscribers().subscribe({
+      next: (data) => {
+        this.subscriberData.set(data);
+        this.subscribersLoading.set(false);
+      },
+      error: (e) => {
+        this.subscribersLoading.set(false);
+        this.subscriberMessage.set(this.errorText(e, "Couldn't load subscribers."));
+      },
+    });
+  }
+
+  /** Deactivating stops someone's email; it asks first, like hiding a brand. */
+  requestDeactivation(subscriber: AdminSubscriber): void {
+    this.subscriberMessage.set(null);
+    this.pendingDeactivation.set(subscriber);
+  }
+
+  cancelDeactivation(): void {
+    if (this.subscriberBusyId() !== null) return;
+    this.pendingDeactivation.set(null);
+  }
+
+  confirmDeactivation(): void {
+    const subscriber = this.pendingDeactivation();
+    if (!subscriber) return;
+
+    this.subscriberBusyId.set(subscriber.id);
+    this.api.deactivateSubscriber(subscriber.id).subscribe({
+      next: () => {
+        this.subscriberBusyId.set(null);
+        this.pendingDeactivation.set(null);
+        this.subscriberMessage.set(`${subscriber.email} is no longer subscribed.`);
+        this.loadSubscribers();
+      },
+      error: (e) => {
+        this.subscriberBusyId.set(null);
+        this.pendingDeactivation.set(null);
+        this.subscriberMessage.set(this.errorText(e, "Couldn't deactivate the subscriber."));
+      },
+    });
+  }
+
+  sendConfirmation(subscriber: AdminSubscriber): void {
+    this.subscriberMessage.set(null);
+    this.subscriberBusyId.set(subscriber.id);
+    this.api.sendSubscriberConfirmation(subscriber.id).subscribe({
+      next: () => {
+        this.subscriberBusyId.set(null);
+        this.subscriberMessage.set(`Confirmation email sent to ${subscriber.email}.`);
+        this.loadSubscribers();
+      },
+      error: (e) => {
+        this.subscriberBusyId.set(null);
+        // The backend explains the cooldown and provider failures in its own
+        // words; a generic "failed" would hide which one happened.
+        const body = (e as { error?: unknown } | null)?.error;
+        const message = typeof body === 'string' ? body : (body as { message?: string } | null)?.message;
+        this.subscriberMessage.set(message?.trim() || this.errorText(e, "Couldn't send the confirmation email."));
+      },
+    });
+  }
+
+  selectSubscriberFilter(filter: SubscriberFilter): void {
+    this.subscriberFilter.set(filter);
+  }
+
+  subscriberStatusLabel(status: SubscriberStatus): string {
+    switch (status) {
+      case 'active':
+        return 'Active';
+      case 'pending':
+        return 'Awaiting confirmation';
+      default:
+        return 'Unsubscribed';
     }
   }
 

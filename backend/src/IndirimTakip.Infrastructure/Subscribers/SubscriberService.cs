@@ -188,9 +188,49 @@ public class SubscriberService(
     public async Task<bool> UnsubscribeAsync(string token, CancellationToken cancellationToken = default)
     {
         var subscriber = await db.Subscribers.FirstOrDefaultAsync(s => s.Token == token, cancellationToken);
-        if (subscriber is null)
-            return false;
+        return subscriber is not null && await MarkUnsubscribedAsync(subscriber, cancellationToken);
+    }
 
+    // Admin panel: the same state change as the person's own unsubscribe link,
+    // so the digest and every other flow treat both the same way.
+    public async Task<bool> DeactivateAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var subscriber = await db.Subscribers.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+        return subscriber is not null && await MarkUnsubscribedAsync(subscriber, cancellationToken);
+    }
+
+    // THERE IS NO ADMIN "ACTIVATE". Double opt-in means only the person can turn
+    // a subscription on, by pressing the button in their own inbox; a panel
+    // switch would mail someone who never confirmed (or who unsubscribed). What
+    // the panel can do is send them the confirmation email again.
+    //
+    // The cooldown is reported instead of passed off as "sent": the public path
+    // returns true inside the cooldown on purpose, but here the admin would be
+    // told an email went out when none did.
+    public async Task<AdminConfirmationResult> ResendConfirmationAsync(int id, string confirmBaseUrl, CancellationToken cancellationToken = default)
+    {
+        var subscriber = await db.Subscribers.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+        if (subscriber is null)
+            return AdminConfirmationResult.NotFound;
+        if (StatusOf(subscriber.IsConfirmed, subscriber.UnsubscribedAt) == SubscriberStatus.Active)
+            return AdminConfirmationResult.AlreadyActive;
+        if (subscriber.LastConfirmationEmailSentAt is { } lastSent && DateTimeOffset.UtcNow - lastSent < ConfirmationEmailCooldown)
+            return AdminConfirmationResult.CoolingDown;
+
+        return await SendConfirmationEmailAsync(subscriber, confirmBaseUrl, cancellationToken)
+            ? AdminConfirmationResult.Sent
+            : AdminConfirmationResult.Failed;
+    }
+
+    // One definition of "active", shared by the panel list and the resend check.
+    // The status counts in /api/dev/status use the same two conditions.
+    public static SubscriberStatus StatusOf(bool isConfirmed, DateTimeOffset? unsubscribedAt) =>
+        unsubscribedAt is not null ? SubscriberStatus.Unsubscribed
+        : isConfirmed ? SubscriberStatus.Active
+        : SubscriberStatus.Pending;
+
+    private async Task<bool> MarkUnsubscribedAsync(Subscriber subscriber, CancellationToken cancellationToken)
+    {
         // IsConfirmed is reset too: otherwise the "already confirmed" shortcut in
         // SubscribeAsync would kick in on a later re-subscribe and no new
         // confirmation mail would ever go out.
@@ -200,3 +240,7 @@ public class SubscriberService(
         return true;
     }
 }
+
+public enum SubscriberStatus { Active, Pending, Unsubscribed }
+
+public enum AdminConfirmationResult { NotFound, AlreadyActive, CoolingDown, Sent, Failed }

@@ -642,3 +642,16 @@ tr.editing {
   outline: 0;
   box-shadow: 0 0 0 3px var(--pa-focus);
 }
+
+/* Subscribers: search + status filters inside a panel (the visibility
+   toolbar's margins assume a borderless container). */
+.subscriber-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.subscriber-tools .search-field {
+  flex: 1 1 240px;
+}

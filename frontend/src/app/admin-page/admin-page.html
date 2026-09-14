@@ -52,6 +52,9 @@
         <button type="button" [class.active]="tab() === 'visibility'" (click)="selectTab('visibility')">
           Visibility
         </button>
+        <button type="button" [class.active]="tab() === 'subscribers'" (click)="selectTab('subscribers')">
+          Subscribers
+        </button>
       </nav>
 
       <div class="admin-session">
@@ -794,7 +797,162 @@
           </aside>
         </div>
       }
+
+      @if (tab() === 'subscribers') {
+        <section class="page-head">
+          <div>
+            <p class="eyebrow">Newsletter</p>
+            <h1>Subscribers</h1>
+            <p>Everyone who signed up for the newsletter or a price alert, newest first.</p>
+          </div>
+          <span class="date"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span>
+        </section>
+
+        @if (subscriberData(); as data) {
+          <section class="cards" aria-label="Subscriber figures">
+            <article class="card">
+              <span class="card-icon"><i class="ph ph-check-circle" aria-hidden="true"></i></span>
+              <span class="label">Active</span>
+              <strong>{{ data.summary.active }}</strong>
+              <span class="sub">receive email</span>
+            </article>
+            <article class="card">
+              <span class="card-icon"><i class="ph ph-envelope-simple" aria-hidden="true"></i></span>
+              <span class="label">Awaiting confirmation</span>
+              <strong>{{ data.summary.pending }}</strong>
+              <span class="sub">no email until confirmed</span>
+            </article>
+            <article class="card">
+              <span class="card-icon"><i class="ph ph-minus-circle" aria-hidden="true"></i></span>
+              <span class="label">Unsubscribed</span>
+              <strong>{{ data.summary.unsubscribed }}</strong>
+              <span class="sub">{{ data.summary.total }} total</span>
+            </article>
+          </section>
+        }
+
+        <section class="panel">
+          <div class="subscriber-tools">
+            <label class="search-field">
+              <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+              <span class="sr-only">Search email addresses</span>
+              <input
+                type="search"
+                placeholder="Search email…"
+                [ngModel]="subscriberSearch()"
+                (ngModelChange)="subscriberSearch.set($event)"
+              />
+            </label>
+            <div class="status-filters" aria-label="Subscriber status">
+              @for (f of ['all', 'active', 'pending', 'unsubscribed']; track f) {
+                <button type="button" [class.active]="subscriberFilter() === f" (click)="selectSubscriberFilter($any(f))">
+                  {{ f === 'all' ? 'All' : subscriberStatusLabel($any(f)) }}
+                </button>
+              }
+            </div>
+          </div>
+
+          @if (subscriberMessage()) {
+            <p class="info" role="status">{{ subscriberMessage() }}</p>
+          }
+
+          @if (subscribersLoading() && !subscriberData()) {
+            <p class="empty-state">Loading subscribers…</p>
+          } @else {
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Signed up</th>
+                    <th>Confirmed</th>
+                    <th>Last digest</th>
+                    <th>Alerts</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (s of filteredSubscribers(); track s.id) {
+                    <tr [class.inactive]="s.status !== 'active'">
+                      <td class="mono">{{ s.email }}</td>
+                      <td>
+                        <span class="row-status" [class.is-hidden]="s.status !== 'active'"
+                          ><span></span>{{ subscriberStatusLabel(s.status) }}</span
+                        >
+                      </td>
+                      <td>{{ date(s.subscribedAt) }}</td>
+                      <td>{{ s.status === 'unsubscribed' ? 'left ' + date(s.unsubscribedAt) : date(s.confirmedAt) }}</td>
+                      <td>{{ date(s.lastDigestSentAt) }}</td>
+                      <td>{{ s.watchCount }}</td>
+                      <td>
+                        <div class="row-actions">
+                          @if (s.status === 'active') {
+                            <button
+                              type="button"
+                              class="row-action"
+                              [disabled]="subscriberBusyId() === s.id"
+                              (click)="requestDeactivation(s)"
+                            >
+                              Deactivate
+                            </button>
+                          } @else {
+                            <button
+                              type="button"
+                              class="row-action primary"
+                              [disabled]="subscriberBusyId() === s.id"
+                              (click)="sendConfirmation(s)"
+                            >
+                              {{ subscriberBusyId() === s.id ? 'Sending…' : 'Send confirmation' }}
+                            </button>
+                          }
+                        </div>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="7"><p class="empty-state">No subscriber matches.</p></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <p class="impact-note">
+              <i class="ph ph-info" aria-hidden="true"></i>A subscription only turns on when the person confirms it from
+              their inbox, so there's no activate switch here. "Send confirmation" mails them the button again.
+            </p>
+          }
+        </section>
+      }
     </main>
+
+    @if (pendingDeactivation(); as sub) {
+      <div class="confirm-backdrop" (click)="cancelDeactivation()">
+        <section
+          class="confirm-dialog"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="deactivate-title"
+          (click)="$event.stopPropagation()"
+        >
+          <span class="confirm-icon"><i class="ph ph-warning-circle" aria-hidden="true"></i></span>
+          <p class="eyebrow">Subscriber</p>
+          <h2 id="deactivate-title">Deactivate {{ sub.email }}?</h2>
+          <p>
+            They stop getting the digest{{ sub.watchCount > 0 ? ' and their ' + sub.watchCount + ' price alerts' : '' }}.
+            Coming back needs a new confirmation from their own inbox.
+          </p>
+          <div class="confirm-actions">
+            <button type="button" class="cancel" [disabled]="subscriberBusyId() !== null" (click)="cancelDeactivation()">
+              Cancel
+            </button>
+            <button type="button" class="confirm-hide" [disabled]="subscriberBusyId() !== null" (click)="confirmDeactivation()">
+              {{ subscriberBusyId() !== null ? 'Saving…' : 'Deactivate' }}
+            </button>
+          </div>
+        </section>
+      </div>
+    }
 
     @if (pendingChange(); as change) {
       <div class="confirm-backdrop" (click)="cancelChange()">
