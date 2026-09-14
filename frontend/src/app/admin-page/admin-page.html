@@ -839,6 +839,10 @@
             <p class="eyebrow">Newsletter</p>
             <h1>Subscribers</h1>
             <p>Everyone who signed up for the newsletter or a price alert, newest first.</p>
+            <!-- Same origin (/admin/api), so the preview stays behind Cloudflare Access. -->
+            <a class="link-button" href="/admin/api/digest/preview" target="_blank" rel="noopener">
+              Preview this week's digest ↗
+            </a>
           </div>
           <span class="date"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span>
         </section>

@@ -80,14 +80,11 @@ public class DigestService(
         if (remainingQuota <= 0)
             return new DigestResult(0, 0, pendingCount);
 
-        var deals = await dealsQuery.GetDealsAsync(
-            referenceWindowDays: 30, brands: null, categories: null, sellers: null, search: null,
-            minPrice: null, maxPrice: null, onlyDiscounted: true, onlyStoreDiscounted: false,
-            sortBy: null, page: 1, pageSize: FeaturedDealCount, cancellationToken);
+        var deals = await FeaturedDealsAsync(cancellationToken);
 
         // With no real discount to show, send nothing rather than an empty or
         // pointless email.
-        if (deals.Items.Count == 0)
+        if (deals.Count == 0)
             return new DigestResult(0, 0, pendingCount);
 
         var subscribers = await pendingQuery
@@ -96,7 +93,7 @@ public class DigestService(
             .ToListAsync(cancellationToken);
 
         var frontendBaseUrl = configuration["FrontendBaseUrl"] ?? EmailTemplate.ProductionFrontendUrl;
-        var dealsHtml = BuildDealGridHtml(deals.Items, frontendBaseUrl);
+        var dealsHtml = BuildDealGridHtml(deals, frontendBaseUrl);
 
         // Each send has its own try/catch: one recipient failing (a temporary
         // provider error, say) mustn't mean nobody else on the list gets that
@@ -123,7 +120,42 @@ public class DigestService(
         if (sentCount > 0)
             await db.SaveChangesAsync(cancellationToken);
 
-        return new DigestResult(deals.Items.Count, sentCount, pendingCount - sentCount);
+        return new DigestResult(deals.Count, sentCount, pendingCount - sentCount);
+    }
+
+    /// <summary>
+    /// This week's digest exactly as a subscriber would get it, for review in the
+    /// admin panel. Nothing is sent and nothing is stamped. Null when there is no
+    /// real discount to feature, which is also when a send would skip the round.
+    /// </summary>
+    public async Task<string?> BuildPreviewAsync(CancellationToken cancellationToken = default)
+    {
+        var deals = await FeaturedDealsAsync(cancellationToken);
+        if (deals.Count == 0)
+            return null;
+
+        var frontendBaseUrl = configuration["FrontendBaseUrl"] ?? EmailTemplate.ProductionFrontendUrl;
+        return BuildDigestHtml(
+            BuildDealGridHtml(deals, frontendBaseUrl), "#preview-unsubscribe", frontendBaseUrl, PreviewPostalAddress(configuration));
+    }
+
+    /// <summary>
+    /// The real footer address, or a visible notice in its place: a preview must
+    /// not look ready to send while sending is blocked.
+    /// </summary>
+    public static string PreviewPostalAddress(IConfiguration configuration) =>
+        PostalAddressFrom(configuration)
+        ?? "POSTAL ADDRESS NOT SET (sending is blocked until Newsletter:PostalAddress is configured)";
+
+    // One query for both the send and the preview, so the preview can't drift
+    // from what subscribers receive.
+    private async Task<IReadOnlyList<DealDto>> FeaturedDealsAsync(CancellationToken cancellationToken)
+    {
+        var deals = await dealsQuery.GetDealsAsync(
+            referenceWindowDays: 30, brands: null, categories: null, sellers: null, search: null,
+            minPrice: null, maxPrice: null, onlyDiscounted: true, onlyStoreDiscounted: false,
+            sortBy: null, page: 1, pageSize: FeaturedDealCount, cancellationToken);
+        return deals.Items;
     }
 
     private static string BuildDealGridHtml(IReadOnlyList<DealDto> deals, string frontendBaseUrl)

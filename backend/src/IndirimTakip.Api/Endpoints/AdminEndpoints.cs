@@ -166,6 +166,21 @@ internal static class AdminEndpoints
             return Results.Ok(result);
         }).RequireAdminKey(adminApiKey);
 
+        // This week's digest rendered with live deals, for review; sends nothing.
+        // The API's default CSP only allows images from itself and the site, but
+        // the email shows product images from store CDNs, so this response
+        // allows https images. Scripts stay blocked: it is static email HTML.
+        app.MapGet("/api/dev/digest/preview", async (DigestService digest, HttpContext http, CancellationToken ct) =>
+        {
+            var html = await digest.BuildPreviewAsync(ct);
+            if (html is null)
+                return Results.NotFound("No real discount to feature right now, so this week's digest would be skipped.");
+
+            http.Response.Headers.ContentSecurityPolicy =
+                "default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; frame-ancestors 'none'";
+            return Results.Content(html, "text/html; charset=utf-8");
+        }).RequireAdminKey(adminApiKey);
+
         // Description backfill runs automatically in
         // DescriptionBackfillBackgroundService; this is the manual trigger.
         app.MapPost("/api/dev/backfill-descriptions", async (ProductDetailBackfillService backfill, CancellationToken ct) =>

@@ -42,4 +42,13 @@ public class DigestPostalAddressTests
         Assert.Contains("PO Box 100 &lt;Suite 5&gt;", html);
         Assert.Contains("Unsubscribe", html);
     }
+
+    // The preview must not look ready to send while sending is blocked.
+    [Fact]
+    public void Preview_without_an_address_says_sending_is_blocked() =>
+        Assert.Contains("NOT SET", DigestService.PreviewPostalAddress(Config(null)));
+
+    [Fact]
+    public void Preview_uses_the_real_address_once_set() =>
+        Assert.Equal("PO Box 100, Austin, TX 78701", DigestService.PreviewPostalAddress(Config("PO Box 100\nAustin, TX 78701")));
 }
