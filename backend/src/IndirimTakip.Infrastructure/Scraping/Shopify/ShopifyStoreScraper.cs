@@ -187,6 +187,9 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
 
         var hasSizeDimension = groups.Any(g => g.Key.Length > 0);
 
+        // Product-level: every size row shares the product's images.
+        var labelImage = NutritionLabels.NutritionLabelImagePicker.Pick(product.Images.Select(i => i.Src));
+
         foreach (var group in groups)
         {
             var inStock = group.Where(v => v.Available).ToList();
@@ -224,7 +227,8 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
                 BrandName: brand,
                 InStock: inStock.Count > 0,
                 Seller: seller,
-                ServingsPerPackage: ProductAttributeParser.ExtractServings(label.Length > 0 ? label : title));
+                ServingsPerPackage: ProductAttributeParser.ExtractServings(label.Length > 0 ? label : title),
+                NutritionLabelImageUrl: labelImage);
         }
     }
 

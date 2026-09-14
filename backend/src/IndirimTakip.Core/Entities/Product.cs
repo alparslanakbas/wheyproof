@@ -90,6 +90,22 @@ public class Product
     // forever.
     public DateTimeOffset? NutritionCheckedAt { get; set; }
 
+    // The store's Nutrition/Supplement Facts panel IMAGE, picked by file name
+    // during the scrape (see NutritionLabelImagePicker). US brands publish the
+    // label as a picture, not as text: in a 2026-09-14 survey no store had a
+    // nutrition table in its product description, while most named the label
+    // image "..._SFP_..." or "...-nutrition-facts...".
+    public string? NutritionLabelImageUrl { get; set; }
+
+    // The label image URL that was last READ. A label is read once per image
+    // URL: nutrition panels rarely change, and when a brand does change one the
+    // file (and so the URL) changes too, which queues the new image by itself.
+    public string? NutritionLabelReadUrl { get; set; }
+
+    // Outcome of the last label read, for review: "accepted: ..." or
+    // "rejected: ...". A rejected read writes NO nutrition data.
+    public string? NutritionLabelStatus { get; set; }
+
     // When the page's CONTENT last really changed; the sitemap's <lastmod> uses it.
     //
     // Why a separate field: the last scrape time (PriceHistory.ScrapedAt) was used

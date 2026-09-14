@@ -253,6 +253,7 @@ public class ScrapeIngestionService(
                     Description = scraped.Description,
                     NutritionJson = scraped.NutritionJson,
                     ProteinPerServingGrams = scraped.ProteinPerServingGrams,
+                    NutritionLabelImageUrl = scraped.NutritionLabelImageUrl,
                 };
                 product.ContentUpdatedAt = DateTimeOffset.UtcNow;
                 db.Products.Add(product);
@@ -325,8 +326,19 @@ public class ScrapeIngestionService(
                 // The serving size is computed AFTER the Description assignment, to use
                 // the current description. A structured value from the scraper wins,
                 // otherwise it's inferred from the description.
+                //
+                // NOTHING FOUND KEEPS THE STORED VALUE. The US scrape carries no
+                // description, so both sources are null on every crawl; assigning
+                // that would erase the serving size read from the label image every
+                // six hours, without an error anywhere.
                 product.ServingSizeGrams = scraped.ServingSizeGrams
-                    ?? ProductAttributeParser.ExtractServingSizeGrams(product.Description);
+                    ?? ProductAttributeParser.ExtractServingSizeGrams(product.Description)
+                    ?? product.ServingSizeGrams;
+
+                // Kept when the store stops naming a label image, like the fields
+                // above; a new image URL queues the product for a new read.
+                if (scraped.NutritionLabelImageUrl is not null)
+                    product.NutritionLabelImageUrl = scraped.NutritionLabelImageUrl;
 
                 // Updated only when the store provides it, so stores that don't keep
                 // their existing value.

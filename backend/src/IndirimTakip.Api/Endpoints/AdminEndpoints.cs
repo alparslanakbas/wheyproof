@@ -4,6 +4,7 @@ using IndirimTakip.Infrastructure;
 using IndirimTakip.Infrastructure.Articles;
 using IndirimTakip.Infrastructure.Coupons;
 using IndirimTakip.Infrastructure.Deals;
+using IndirimTakip.Infrastructure.NutritionLabels;
 using IndirimTakip.Infrastructure.Scraping;
 using IndirimTakip.Infrastructure.Subscribers;
 using Microsoft.EntityFrameworkCore;
@@ -467,6 +468,59 @@ internal static class AdminEndpoints
                     new { message = "The email provider didn't accept the message. Check the backend logs." },
                     statusCode: StatusCodes.Status502BadGateway),
             };
+        }).RequireAdminKey(adminApiKey);
+
+        // --- Nutrition label reading ---
+        //
+        // PILOT: reads label images with the real model and returns what it read
+        // and whether validation passed, WITHOUT writing anything. Accuracy (by
+        // comparing a sample against the images) and token cost are measured here
+        // before the background job is switched on. Runs sequentially: a few
+        // dozen images, and the request stays within Cloudflare's ~100 s limit
+        // only for small batches, hence the cap.
+        app.MapPost("/api/dev/nutrition-labels/pilot", async (
+            NutritionLabelService labels, NutritionLabelOptions options, AppDbContext db,
+            string? source, int? limit, string? model, CancellationToken ct) =>
+        {
+            if (!options.IsConfigured)
+                return Results.BadRequest(new { message = "No API key configured for nutrition label reading." });
+
+            var queue = await labels.QueueAsync(Math.Clamp(limit ?? 5, 1, 10), source, ct);
+            var outcomes = new List<NutritionLabelOutcome>();
+            var retryLater = 0;
+            foreach (var item in queue)
+            {
+                var outcome = await labels.ProcessAsync(item, write: false, model, ct);
+                if (outcome is null) retryLater++;
+                else outcomes.Add(outcome);
+            }
+
+            // How much of each source could be covered at all: products whose
+            // store names a label image. The rest need another route.
+            var coverage = await db.Products.IgnoreQueryFilters()
+                .GroupBy(p => p.Seller ?? p.Brand!.Name)
+                .Select(g => new
+                {
+                    source = g.Key,
+                    products = g.Count(),
+                    withLabelImage = g.Count(p => p.NutritionLabelImageUrl != null),
+                    distinctLabelImages = g.Where(p => p.NutritionLabelImageUrl != null)
+                        .Select(p => p.NutritionLabelImageUrl).Distinct().Count(),
+                })
+                .OrderByDescending(x => x.products)
+                .ToListAsync(ct);
+
+            return Results.Ok(new
+            {
+                model = model ?? options.Model,
+                read = outcomes.Count,
+                accepted = outcomes.Count(o => o.Accepted),
+                retryLater,
+                inputTokens = outcomes.Sum(o => o.InputTokens),
+                outputTokens = outcomes.Sum(o => o.OutputTokens),
+                outcomes,
+                coverage,
+            });
         }).RequireAdminKey(adminApiKey);
 
         // WHY admin operations failed. Shown on the panel's "Events" tab NEXT

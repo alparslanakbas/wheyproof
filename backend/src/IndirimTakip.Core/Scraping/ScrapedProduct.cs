@@ -52,4 +52,7 @@ public record ScrapedProduct(
     //
     // The same product at two sellers is kept as two records; without a barcode
     // (GTIN) there is NO cross-seller matching.
-    string? Seller = null);
+    string? Seller = null,
+    // The store's nutrition label image, when one can be told apart by its file
+    // name. Read later by the nutrition label job; the scrape only records it.
+    string? NutritionLabelImageUrl = null);

@@ -4,6 +4,7 @@ using IndirimTakip.Infrastructure.Articles;
 using IndirimTakip.Infrastructure.Coupons;
 using IndirimTakip.Infrastructure.Deals;
 using IndirimTakip.Infrastructure.Images;
+using IndirimTakip.Infrastructure.NutritionLabels;
 using IndirimTakip.Infrastructure.Scraping;
 using IndirimTakip.Infrastructure.Scraping.Shopify;
 using IndirimTakip.Infrastructure.Security;
@@ -112,6 +113,20 @@ public static class DependencyInjection
             client.DefaultRequestHeaders.UserAgent.ParseAdd(
                 "Mozilla/5.0 (compatible; WheyProofBot/1.0; +https://www.wheyproof.com)");
         });
+        // NUTRITION LABELS. Read from the stores' label images with Claude's
+        // vision model; see NutritionLabelService. Options as a POCO like the
+        // image options. The key only ever goes into a request header.
+        var labelOptions = new NutritionLabelOptions();
+        configuration.GetSection("NutritionLabels").Bind(labelOptions);
+        services.AddSingleton(labelOptions);
+        services.AddScoped<NutritionLabelService>();
+        services.AddHostedService<NutritionLabelBackgroundService>();
+        services.AddHttpClient<NutritionLabelReader>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.anthropic.com/");
+            client.Timeout = TimeSpan.FromSeconds(90);
+        });
+
         services.AddHostedService<SecurityEventRetentionService>();
 
         services.AddHttpClient<IEmailSender, BrevoEmailSender>(client =>
