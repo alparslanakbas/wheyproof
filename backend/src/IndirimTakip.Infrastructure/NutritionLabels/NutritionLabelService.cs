@@ -90,12 +90,17 @@ public sealed class NutritionLabelService(AppDbContext db, INutritionLabelReader
 
         if (!verdict.Accepted || reading is null)
         {
-            // Marked as read so the same image isn't paid for again on every
-            // run; a new image URL queues the product again.
+            // Marked as read so the same image isn't read again on every run; a
+            // new image URL queues the product again.
+            //
+            // NutritionCheckedAt is deliberately NOT stamped here. That stamp
+            // tells the detail backfill "checked, skip for 30 days", and a
+            // rejected label image says nothing about the product PAGE: Naked's
+            // pages carry the panel as JSON while its label images failed OCR,
+            // so stamping would have hidden readable data for a month.
             await rows.ExecuteUpdateAsync(s => s
                 .SetProperty(p => p.NutritionLabelReadUrl, url)
-                .SetProperty(p => p.NutritionLabelStatus, status)
-                .SetProperty(p => p.NutritionCheckedAt, now), cancellationToken);
+                .SetProperty(p => p.NutritionLabelStatus, status), cancellationToken);
             return;
         }
 

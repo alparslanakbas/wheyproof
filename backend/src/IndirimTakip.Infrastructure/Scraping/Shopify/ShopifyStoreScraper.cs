@@ -53,7 +53,9 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
             return none;
 
         var html = await httpClient.GetStringAsync(productUrl, cancellationToken);
-        var reading = NutritionLabels.PageNutritionText.Read(html);
+        // Structured JSON first (Naked), then the visible panel text (Quest).
+        var reading = NutritionLabels.PageNutritionJson.Read(html, HandleFrom(productUrl))
+            ?? NutritionLabels.PageNutritionText.Read(html);
         if (reading is null)
             return none;
 
@@ -347,6 +349,14 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
     // "Category:Pre Workout", "Category: Fat Burners".
     [GeneratedRegex(@"^\s*category\s*:\s*(?<kind>.+)$", RegexOptions.IgnoreCase)]
     private static partial Regex CategoryTagRegex();
+
+    // ".../products/double-chocolate-whey-protein-2lb?variant=123" -> the handle.
+    internal static string HandleFrom(string productUrl)
+    {
+        var path = new Uri(productUrl).AbsolutePath;
+        var marker = path.IndexOf("/products/", StringComparison.OrdinalIgnoreCase);
+        return marker < 0 ? string.Empty : path[(marker + "/products/".Length)..].Trim('/');
+    }
 
     private static bool IsLetterSize(string? value) =>
         value is not null && LetterSizeRegex().IsMatch(value.Trim());

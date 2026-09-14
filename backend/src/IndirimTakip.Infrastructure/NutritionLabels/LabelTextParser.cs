@@ -67,6 +67,15 @@ internal static partial class LabelTextParser
             ProteinGrams = Grab(ProteinRegex, normalized),
         };
 
+        return reading with { Rows = CheckedRows(reading) };
+    }
+
+    /// <summary>
+    /// The rows published for a reading: only the fields the calorie check covers,
+    /// in one order and wording whichever source (OCR text or page JSON) read them.
+    /// </summary>
+    internal static List<NutritionLabelRow> CheckedRows(NutritionLabelReading reading)
+    {
         var rows = new List<NutritionLabelRow>();
         AddRow(rows, "Serving Size", reading.ServingSizeGrams, "g");
         AddRow(rows, "Calories", reading.Calories, "");
@@ -74,8 +83,7 @@ internal static partial class LabelTextParser
         AddRow(rows, "Total Carbohydrate", reading.CarbohydrateGrams, "g");
         AddRow(rows, "Dietary Fiber", reading.FiberGrams, "g");
         AddRow(rows, "Protein", reading.ProteinGrams, "g");
-
-        return reading with { Rows = rows };
+        return rows;
     }
 
     private static string Normalize(string text)

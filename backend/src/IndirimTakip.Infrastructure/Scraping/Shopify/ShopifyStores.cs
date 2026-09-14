@@ -13,9 +13,10 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 /// go too. For stores whose catalog is mostly outside our scope.
 /// </param>
 /// <param name="NutritionOnPage">
-/// True when the store prints the Nutrition Facts panel as TEXT on its product
-/// pages, so the detail backfill reads it there. Measured on 2026-09-14 across
-/// 10 stores: only Quest does; the rest publish the panel as an image.
+/// True when the store's product pages carry the Nutrition Facts panel in a
+/// readable form, so the detail backfill reads it there: as visible text
+/// (Quest, measured 2026-09-14) or as a JSON object in the page (Naked
+/// Nutrition, measured 2026-09-15). The other stores publish it as an image.
 /// </param>
 public sealed record ShopifyStore(
     string BrandName, string BaseUrl, bool IsRetailer = false, IReadOnlySet<string>? OnlyCategories = null,
@@ -45,7 +46,7 @@ public static class ShopifyStores
     public static readonly IReadOnlyList<ShopifyStore> All =
     [
         new("BulkSupplements", "https://www.bulksupplements.com", OnlyCategories: SportCategories),
-        new("Naked Nutrition", "https://www.nakednutrition.com"),
+        new("Naked Nutrition", "https://www.nakednutrition.com", NutritionOnPage: true),
         new("Transparent Labs", "https://www.transparentlabs.com"),
         new("Momentous", "https://www.livemomentous.com"),
         new("RAW Nutrition", "https://getrawnutrition.com"),
