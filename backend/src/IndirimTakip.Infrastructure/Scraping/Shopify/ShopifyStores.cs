@@ -64,5 +64,17 @@ public static class ShopifyStores
         new("Ascent", "https://ascentprotein.com"),
         new("Ghost", "https://www.ghostlifestyle.com"),
         new("Bodybuilding.com", "https://www.bodybuilding.com", IsRetailer: true),
+        // Added 2026-09-14, all on Awin (applications pending). Measured from
+        // the production server: products.json 200 and a USD storefront for
+        // each; domains checked, not assumed. AnimalPak's brand is "Animal"
+        // (64 of its 87 products carry that vendor). "CON-CRET" matches the
+        // brand row Bodybuilding.com already created, so both sources share
+        // one brand page.
+        new("MusclePharm", "https://musclepharm.com"),
+        new("Animal", "https://www.animalpak.com"),
+        new("Bare Performance Nutrition", "https://www.bareperformancenutrition.com"),
+        new("Bounce Nutrition", "https://bouncenutrition.com"),
+        new("Ultimate Paleo Protein", "https://ultimatepaleoprotein.com"),
+        new("CON-CRET", "https://con-cret.com"),
     ];
 }

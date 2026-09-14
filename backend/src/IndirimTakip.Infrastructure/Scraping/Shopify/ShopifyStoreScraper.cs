@@ -82,6 +82,12 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
     {
         "gift card", "gift cards", "apparel", "clothing", "merch", "merchandise", "accessories",
         "accessory", "gear", "shaker", "shakers", "hats", "headwear", "athletics", "pantry", "drinkware",
+        // Added with the 2026-09-14 stores: AnimalPak files 30 tees, bags and
+        // shakers as "Apparel and Accessories", Bounce its shirts as "T-Shirt",
+        // MusclePharm a storefront placeholder as "Hidden". Ultimate Paleo
+        // lists reseller price sheets as "Wholesale": real rows, but not a
+        // price a shopper can pay.
+        "apparel and accessories", "t-shirt", "t-shirts", "hidden", "wholesale",
     };
 
     private static readonly HashSet<string> ColorOptionNames = new(StringComparer.OrdinalIgnoreCase)
@@ -193,7 +199,7 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         // The store's product type ("PRE-WORKOUT", "Carb Powders") is a useful
         // second signal next to the name.
         var categoryText = string.IsNullOrWhiteSpace(product.ProductType) ? title : $"{title} {product.ProductType}";
-        var category = ProductAttributeParser.InferCategory(categoryText, brand ?? store.BrandName);
+        var category = InferCategory(product, categoryText, brand ?? store.BrandName);
 
         if (store.OnlyCategories is { } allowed && (category is null || !allowed.Contains(category)))
             yield break;
@@ -300,6 +306,48 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
             || NonSupplementProductFilter.IsAccessoryOrApparel(product.Title);
     }
 
+    /// <summary>
+    /// Category from the title and product type; two fallbacks ONLY when that
+    /// finds nothing, so a product that already has a category never changes.
+    /// </summary>
+    /// <remarks>
+    /// 1. Brand stripped (the normal rule): a retailer's "Proteinocean Creatine"
+    ///    must not become protein because of the brand name.
+    /// 2. Brand kept: when the brand's own name is the product word, stripping
+    ///    leaves nothing. "Ultimate Paleo Protein, Vanilla" became ", Vanilla"
+    ///    and 18 of that store's 40 rows had no category (measured 2026-09-14).
+    /// 3. Tags that SAY they are a category: AnimalPak names products "Animal
+    ///    Fury" or "Animal Cuts" and states the kind only as "Category:Pre
+    ///    Workout" or "Category: Fat Burners".
+    ///
+    /// <b>Free tags were tried and dropped.</b> Using every tag categorised 242
+    /// rows across the existing stores in a before/after crawl, and many were
+    /// wrong: Naked Fiber, Naked Reds and a mushroom blend as protein powder,
+    /// Ghost digestive enzymes as pre-workout, a face cream as vitamins, a
+    /// coffee as hydration. It also let 262 herbal extracts through
+    /// BulkSupplements' sport-only filter. Stores tag for marketing, not
+    /// taxonomy, so an unlabelled tag says nothing about the product.
+    /// </remarks>
+    private static string? InferCategory(ShopifyProduct product, string categoryText, string brandName)
+    {
+        var category = ProductAttributeParser.InferCategory(categoryText, brandName)
+            ?? ProductAttributeParser.InferCategory(categoryText);
+
+        if (category is not null)
+            return category;
+
+        var declared = product.Tags
+            .Select(t => CategoryTagRegex().Match(t))
+            .Where(m => m.Success)
+            .Select(m => m.Groups["kind"].Value);
+
+        return ProductAttributeParser.InferCategory(string.Join(" ", declared), brandName);
+    }
+
+    // "Category:Pre Workout", "Category: Fat Burners".
+    [GeneratedRegex(@"^\s*category\s*:\s*(?<kind>.+)$", RegexOptions.IgnoreCase)]
+    private static partial Regex CategoryTagRegex();
+
     private static bool IsLetterSize(string? value) =>
         value is not null && LetterSizeRegex().IsMatch(value.Trim());
 
@@ -341,7 +389,7 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
     //   bottles match;
     // - "cup" is food ("PB Cup Nut Butter") and "cooler" can be a flavor name;
     // - "tumbler" is left out: Transparent Labs bundles a real tub with one.
-    [GeneratedRegex(@"\b((t-?)?shirts?|button\s*downs?|tees?|tank\s*tops?|tanks?|hoodies?|crewnecks?|sweatshirts?|sweatpants|joggers?|shorts|socks|hats?|beanies?|snapbacks?|(baseball|dad|swim)\s*caps?|headbands?|jackets?|leggings|sports?\s*bras?|apparel|towels?|backpacks?|duffels?|gym\s*bags?|cooler\s*bags?|retro\s*cooler|totes?|stickers?|posters?|keychains?|lockbox(es)?|scarf|scarves|watch(es)?|(exercise|resistance)\s*bands?|(weight)?lifting\s*belts?|gift\s*cards?|shipping\s*protection|free\s*shipping|shakers?|(blender|water|sport|squeeze|trimr|classic)\s*bottles?|jugs?|mugs?|(metal|enamel)\s*cups?|crunchcup|pill\s*(cases?|organizers?)|funnels?|lanyards?|empty\s*capsules|pantry|drinkware)\b",
+    [GeneratedRegex(@"\b((t-?)?shirts?|button\s*downs?|tees?|tank\s*tops?|tanks?|hoodies?|crewnecks?|sweatshirts?|sweatpants|joggers?|shorts|socks|hats?|beanies?|snapbacks?|(baseball|dad|swim)\s*caps?|headbands?|jackets?|leggings|sports?\s*bras?|apparel|towels?|backpacks?|duff(el|le)s?|gym\s*bags?|mystery\s*(bottles?|box(es)?|bags?)|cooler\s*bags?|retro\s*cooler|totes?|stickers?|posters?|keychains?|lockbox(es)?|scarf|scarves|watch(es)?|(exercise|resistance)\s*bands?|(weight)?lifting\s*belts?|gift\s*cards?|shipping\s*protection|free\s*shipping|shakers?|(blender|water|sport|squeeze|trimr|classic)\s*bottles?|jugs?|mugs?|(metal|enamel)\s*cups?|crunchcup|pill\s*(cases?|organizers?)|funnels?|lanyards?|empty\s*capsules|pantry|drinkware)\b",
         RegexOptions.IgnoreCase)]
     private static partial Regex ApparelOrMerchRegex();
 }

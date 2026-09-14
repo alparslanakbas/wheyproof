@@ -452,7 +452,10 @@ public static partial class ProductAttributeParser
     /// Words saying the product is a bar or snack, with word boundaries so they
     /// don't hit inside words such as "Barbell".
     /// </summary>
-    [GeneratedRegex(@"\b(bars?|cookies?|chips|crisps|puffs|brownies?|wafers?|pretzels?)\b", RegexOptions.IgnoreCase)]
+    // "protein bites" and "protein candy" as phrases: Bounce's snacks were filed
+    // as protein powder (2026-09-14). The words alone can't be added: "Cotton
+    // Candy" is a pre-workout flavor and "Brownie Bites" a powder flavor.
+    [GeneratedRegex(@"\b(bars?|cookies?|chips|crisps|puffs|brownies?|wafers?|pretzels?|protein\s+(bites|candy))\b", RegexOptions.IgnoreCase)]
     private static partial Regex SnackBarFormRegex();
 
     /// <summary>

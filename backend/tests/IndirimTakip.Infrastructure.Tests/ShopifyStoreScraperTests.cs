@@ -157,6 +157,12 @@ public class ShopifyStoreScraperTests
     [InlineData("Bodybuilding.com Contour Nylon Weightlifting Belt", "")]
     [InlineData("Shipping Protection", "")]
     [InlineData("Free Shipping", "")]
+    // Leaks found in the 2026-09-14 candidate stores.
+    [InlineData("Animal Built. Not Born. Shaker", "Apparel and Accessories")]
+    [InlineData("Animal Gym Duffle Bag Gray with Yellow A Logo", "")]
+    [InlineData("Mystery Bottle ($39 value)", "")]
+    [InlineData("Bounce Classic Logo", "T-Shirt")]
+    [InlineData("Ultimate Paleo Protein, Vanilla (Wholesale)", "Wholesale")]
     public void Non_supplements_are_dropped(string title, string type)
     {
         var p = Product(title, type, ["Title"], (30, "Default Title", null, 25m, true));
