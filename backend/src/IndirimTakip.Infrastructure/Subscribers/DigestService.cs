@@ -102,7 +102,7 @@ public class DigestService(
         foreach (var subscriber in subscribers)
         {
             var unsubscribeUrl = $"{unsubscribeBaseUrl}/api/subscribe/unsubscribe/{subscriber.Token}";
-            var html = BuildDigestHtml(dealsHtml, unsubscribeUrl, frontendBaseUrl, postalAddress);
+            var html = BuildDigestHtml(dealsHtml, deals.Count, unsubscribeUrl, frontendBaseUrl, postalAddress);
             try
             {
                 await emailSender.SendAsync(subscriber.Email, "WheyProof: this week's top price drops", html, cancellationToken);
@@ -136,7 +136,7 @@ public class DigestService(
 
         var frontendBaseUrl = configuration["FrontendBaseUrl"] ?? EmailTemplate.ProductionFrontendUrl;
         return BuildDigestHtml(
-            BuildDealGridHtml(deals, frontendBaseUrl), "#preview-unsubscribe", frontendBaseUrl, PreviewPostalAddress(configuration));
+            BuildDealGridHtml(deals, frontendBaseUrl), deals.Count, "#preview-unsubscribe", frontendBaseUrl, PreviewPostalAddress(configuration));
     }
 
     /// <summary>
@@ -216,8 +216,13 @@ public class DigestService(
     // A <table> layout for deal cards on purpose: across email clients (especially
     // multi-column layouts with an image beside text) tables are the most
     // reliable, not flex or grid.
-    internal static string BuildDigestHtml(string dealsHtml, string unsubscribeUrl, string frontendBaseUrl, string postalAddress)
+    // THE COUNT COMES FROM THE DEALS ACTUALLY SHOWN. The copy used to say "6 real
+    // price drops" as fixed text; the first preview showed 4 cards under it,
+    // because only 4 products had a real discount that week. A number the email
+    // doesn't back up is exactly the kind of claim this site exists to expose.
+    internal static string BuildDigestHtml(string dealsHtml, int dealCount, string unsubscribeUrl, string frontendBaseUrl, string postalAddress)
     {
+        var dropsText = dealCount == 1 ? "1 real price drop" : $"{dealCount} real price drops";
         var tagImageUrl = EmailTemplate.AssetUrl(frontendBaseUrl, "weekly-price-tag.png");
         var shieldIconUrl = EmailTemplate.AssetUrl(frontendBaseUrl, "trust-shield.png");
 
@@ -230,7 +235,7 @@ public class DigestService(
                     <tr>
                       <td class="mobile-block mobile-center" width="68%" valign="middle" style="width:68%;font-family:Arial,Helvetica,sans-serif;">
                         <h1 class="email-title" style="margin:0;color:#ffffff;font-size:34px;font-weight:800;line-height:1.1;letter-spacing:-1px;">Your weekly price summary</h1>
-                        <p style="margin:12px 0 0;color:#c7cbe0;font-size:14px;line-height:21px;">6 real price drops that stood out against the last 30 days</p>
+                        <p style="margin:12px 0 0;color:#c7cbe0;font-size:14px;line-height:21px;">{dropsText} that stood out against the last 30 days</p>
                       </td>
                       <td class="mobile-hide" width="32%" align="right" valign="middle" style="width:32%;padding-left:12px;">
                         <img src="{EmailTemplate.Encode(tagImageUrl)}" width="150" height="113" alt="" style="display:block;width:150px;height:113px;object-fit:cover;">
@@ -276,7 +281,7 @@ public class DigestService(
             """;
 
         return EmailTemplate.Document(
-            "6 real price drops that stood out against the last 30 days of prices.",
+            $"{dropsText} that stood out against the last 30 days of prices.",
             content);
     }
 }

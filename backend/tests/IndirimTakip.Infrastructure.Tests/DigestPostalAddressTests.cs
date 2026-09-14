@@ -37,10 +37,22 @@ public class DigestPostalAddressTests
     [Fact]
     public void The_address_appears_in_the_footer_encoded()
     {
-        var html = DigestService.BuildDigestHtml("", "https://api.example.com/u/t", "https://www.wheyproof.com", "PO Box 100 <Suite 5>");
+        var html = DigestService.BuildDigestHtml("", 4, "https://api.example.com/u/t", "https://www.wheyproof.com", "PO Box 100 <Suite 5>");
 
         Assert.Contains("PO Box 100 &lt;Suite 5&gt;", html);
         Assert.Contains("Unsubscribe", html);
+    }
+
+    // The first preview showed 4 cards under a fixed "6 real price drops".
+    [Theory]
+    [InlineData(4, "4 real price drops")]
+    [InlineData(1, "1 real price drop ")]
+    public void The_headline_count_is_the_number_of_deals_shown(int count, string expected)
+    {
+        var html = DigestService.BuildDigestHtml("", count, "https://api.example.com/u/t", "https://www.wheyproof.com", "PO Box 100");
+
+        Assert.Contains(expected, html);
+        Assert.DoesNotContain("6 real price drops", html);
     }
 
     // The preview must not look ready to send while sending is blocked.
