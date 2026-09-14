@@ -65,16 +65,32 @@ export class AdminService {
     return this.http.put<VisibilityUpdate>(`${this.base}/brands/${id}`, { isActive });
   }
 
-  products(search: string, hiddenOnly: boolean): Observable<AdminProduct[]> {
+  products(search: string, hiddenOnly: boolean, missingNutrition = false, uncategorised = false): Observable<AdminProduct[]> {
     const params = new URLSearchParams();
     if (search.trim()) params.set('search', search.trim());
     if (hiddenOnly) params.set('hiddenOnly', 'true');
+    if (missingNutrition) params.set('missingNutrition', 'true');
+    if (uncategorised) params.set('uncategorised', 'true');
     const query = params.toString();
     return this.http.get<AdminProduct[]>(`${this.base}/products${query ? `?${query}` : ''}`);
   }
 
   setProductActive(id: number, isActive: boolean): Observable<VisibilityUpdate> {
     return this.http.put<VisibilityUpdate>(`${this.base}/products/${id}`, { isActive });
+  }
+
+  /** A category slug, or null to go back to the automatic category. Applies to every size of the page. */
+  setProductCategory(id: number, category: string | null): Observable<ManualEditResponse> {
+    return this.http.put<ManualEditResponse>(`${this.base}/products/${id}/category`, { category });
+  }
+
+  /** Nutrition from the brand's label; refused with a reason when calories don't match the macros. */
+  setProductNutrition(id: number, nutrition: ManualNutrition): Observable<ManualEditResponse> {
+    return this.http.put<ManualEditResponse>(`${this.base}/products/${id}/nutrition`, nutrition);
+  }
+
+  clearProductNutrition(id: number): Observable<ManualEditResponse> {
+    return this.http.delete<ManualEditResponse>(`${this.base}/products/${id}/nutrition`);
   }
 
   subscribers(): Observable<SubscribersResponse> {
@@ -208,6 +224,25 @@ export interface AdminProduct {
   seller: string | null;
   isActive: boolean;
   latestPrice: number | null;
+  category: string | null;
+  categoryIsManual: boolean;
+  /** Normalized table, e.g. {"Calories":"160","Protein":"25g"}; null when missing. */
+  nutritionJson: string | null;
+  nutritionIsManual: boolean;
+  servingSizeGrams: number | null;
+}
+
+export interface ManualNutrition {
+  servingSizeGrams: number | null;
+  calories: number | null;
+  proteinGrams: number | null;
+  carbohydrateGrams: number | null;
+  fatGrams: number | null;
+  fiberGrams: number | null;
+}
+
+export interface ManualEditResponse {
+  rowsUpdated: number;
 }
 
 export interface VisibilityUpdate {

@@ -106,6 +106,16 @@ public class Product
     // "rejected: ...". A rejected read writes NO nutrition data.
     public string? NutritionLabelStatus { get; set; }
 
+    // A person set this product's category in the admin panel. Scrapes then
+    // leave Category alone; without the flag the next crawl (every six hours)
+    // would silently put the inferred value back. Cleared by "Automatic".
+    public bool CategoryIsManual { get; set; }
+
+    // A person entered the nutrition panel in the admin panel, typically from
+    // the brand's site where no scraper or OCR could read it. The label reader
+    // and scrapes then leave NutritionJson alone.
+    public bool NutritionIsManual { get; set; }
+
     // When the page's CONTENT last really changed; the sitemap's <lastmod> uses it.
     //
     // Why a separate field: the last scrape time (PriceHistory.ScrapedAt) was used

@@ -5,6 +5,7 @@ using IndirimTakip.Infrastructure.Articles;
 using IndirimTakip.Infrastructure.Coupons;
 using IndirimTakip.Infrastructure.Deals;
 using IndirimTakip.Infrastructure.NutritionLabels;
+using IndirimTakip.Infrastructure.Catalog;
 using IndirimTakip.Infrastructure.Scraping;
 using IndirimTakip.Infrastructure.Subscribers;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,20 @@ namespace IndirimTakip.Api.Endpoints;
 // coupons.
 internal static class AdminEndpoints
 {
+    // 404 for an unknown product, 400 with the reason for a refused value (the
+    // panel shows it as-is), otherwise the list cache is refreshed: without it
+    // the change stays invisible on the site for the output cache's hour.
+    private static async Task<IResult> ManualEditResponse(ManualEditResult result, int id, IPublicCacheRefresher cache, CancellationToken ct)
+    {
+        if (!result.Found)
+            return Results.NotFound($"Product {id} not found.");
+        if (!result.Accepted)
+            return Results.BadRequest(new { message = result.Reason });
+
+        await cache.RefreshAsync(ct);
+        return Results.Ok(new { rowsUpdated = result.RowsUpdated });
+    }
+
     public static void MapAdminEndpoints(this WebApplication app, string? adminApiKey)
     {
         // Triggers a scrape by hand. The work runs IN THE BACKGROUND and the
@@ -295,13 +310,19 @@ internal static class AdminEndpoints
         }).RequireAdminKey(adminApiKey);
 
         // The catalog has thousands of products; listing REQUIRES a search.
+        // The filters list without a search: "missing nutrition" and
+        // "uncategorised" are the worklists for entering data by hand.
         app.MapGet("/api/dev/products", async (
-            AppDbContext db, string? search, bool? hiddenOnly, CancellationToken ct) =>
+            AppDbContext db, string? search, bool? hiddenOnly, bool? missingNutrition, bool? uncategorised, CancellationToken ct) =>
         {
             var query = db.Products.IgnoreQueryFilters().AsNoTracking();
 
             if (hiddenOnly == true)
                 query = query.Where(p => !p.IsActive);
+            if (missingNutrition == true)
+                query = query.Where(p => p.NutritionJson == null);
+            if (uncategorised == true)
+                query = query.Where(p => p.Category == null);
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -315,7 +336,7 @@ internal static class AdminEndpoints
                     || EF.Functions.ILike(p.Name, "%" + lower + "%")
                     || EF.Functions.ILike(p.Brand!.Name, "%" + raw + "%"));
             }
-            else if (hiddenOnly != true)
+            else if (hiddenOnly != true && missingNutrition != true && uncategorised != true)
             {
                 // Without a search the list would be uselessly large.
                 return Results.Ok(Array.Empty<object>());
@@ -333,6 +354,11 @@ internal static class AdminEndpoints
                     p.Seller,
                     p.IsActive,
                     p.LatestPrice,
+                    p.Category,
+                    p.CategoryIsManual,
+                    p.NutritionJson,
+                    p.NutritionIsManual,
+                    p.ServingSizeGrams,
                 })
                 .ToListAsync(ct);
 
@@ -353,6 +379,22 @@ internal static class AdminEndpoints
             await cache.RefreshAsync(ct);
             return Results.Ok(new { product.Id, product.Name, product.IsActive });
         }).RequireAdminKey(adminApiKey);
+
+        // --- Category and nutrition entered by hand (see ManualProductDataService) ---
+        app.MapPut("/api/dev/products/{id:int}/category", async (
+            int id, ProductCategoryRequest request, ManualProductDataService data, IPublicCacheRefresher cache, CancellationToken ct) =>
+            await ManualEditResponse(await data.SetCategoryAsync(id, request.Category, ct), id, cache, ct))
+            .RequireAdminKey(adminApiKey);
+
+        app.MapPut("/api/dev/products/{id:int}/nutrition", async (
+            int id, ManualNutritionRequest request, ManualProductDataService data, IPublicCacheRefresher cache, CancellationToken ct) =>
+            await ManualEditResponse(await data.SetNutritionAsync(id, request, ct), id, cache, ct))
+            .RequireAdminKey(adminApiKey);
+
+        app.MapDelete("/api/dev/products/{id:int}/nutrition", async (
+            int id, ManualProductDataService data, IPublicCacheRefresher cache, CancellationToken ct) =>
+            await ManualEditResponse(await data.ClearNutritionAsync(id, ct), id, cache, ct))
+            .RequireAdminKey(adminApiKey);
 
         // Coupon list for the panel's editing screen. The public /api/coupons
         // endpoint returns ONLY active, unexpired coupons (what visitors should
@@ -701,3 +743,6 @@ internal static class AdminEndpoints
 }
 
 internal record VisibilityRequest(bool IsActive);
+
+/// <summary>A category slug, or null to hand the product back to the automatic category.</summary>
+internal record ProductCategoryRequest(string? Category);

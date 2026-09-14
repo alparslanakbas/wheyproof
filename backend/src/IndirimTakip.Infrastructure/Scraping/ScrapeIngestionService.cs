@@ -312,7 +312,9 @@ public class ScrapeIngestionService(
                     product.LocalImagePath = null;
 
                 product.ImageUrl = scraped.ImageUrl;
-                product.Category = category;
+                // A category set by hand in the admin panel survives the crawl.
+                if (!product.CategoryIsManual)
+                    product.Category = category;
                 product.Size = size;
                 product.Flavor = flavor;
                 product.InStock = scraped.InStock;
@@ -348,7 +350,7 @@ public class ScrapeIngestionService(
                 // Nutrition from the regular scrape only where the store's scrape
                 // carries it; the backfill service fills the rest (same pattern as
                 // Description: a store that doesn't send it keeps the existing value).
-                if (scraped.NutritionJson is not null)
+                if (scraped.NutritionJson is not null && !product.NutritionIsManual)
                 {
                     product.NutritionJson = scraped.NutritionJson;
                     product.ProteinPerServingGrams = scraped.ProteinPerServingGrams;

@@ -702,6 +702,22 @@
                     (ngModelChange)="onHiddenOnlyChange($event)"
                   />Hidden only</label
                 >
+                <label class="checkbox"
+                  ><input
+                    type="checkbox"
+                    name="missingNutrition"
+                    [ngModel]="missingNutritionOnly()"
+                    (ngModelChange)="onDataFilterChange('missingNutrition', $event)"
+                  />Missing nutrition</label
+                >
+                <label class="checkbox"
+                  ><input
+                    type="checkbox"
+                    name="uncategorised"
+                    [ngModel]="uncategorisedOnly()"
+                    (ngModelChange)="onDataFilterChange('uncategorised', $event)"
+                  />Uncategorised</label
+                >
                 <button type="submit">Search</button>
               </form>
 
@@ -714,7 +730,10 @@
                 <div class="empty-state large">
                   <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
                   <h2>Search to see products</h2>
-                  <p>Because of the catalog's size, products are only listed by search or with the hidden filter.</p>
+                  <p>
+                    Because of the catalog's size, products are only listed by search or with a filter. "Missing
+                    nutrition" and "Uncategorised" list what still needs data entered by hand.
+                  </p>
                 </div>
               } @else if (products().length === 0) {
                 <div class="empty-state large">
@@ -731,6 +750,8 @@
                         <th>Brand</th>
                         <th>Price</th>
                         <th>Seller</th>
+                        <th>Category</th>
+                        <th>Nutrition</th>
                         <th>Status</th>
                         <th>Action</th>
                       </tr>
@@ -745,20 +766,34 @@
                           <td>{{ price(p.latestPrice) }}</td>
                           <td>{{ p.seller || "Brand's own store" }}</td>
                           <td>
+                            {{ categoryLabel(p.category) }}
+                            @if (p.categoryIsManual) {
+                              <span class="manual-tag">manual</span>
+                            }
+                          </td>
+                          <td>
+                            <span class="row-status" [class.is-hidden]="!p.nutritionJson"
+                              ><span></span>{{ p.nutritionJson ? (p.nutritionIsManual ? 'Manual' : 'Yes') : 'Missing' }}</span
+                            >
+                          </td>
+                          <td>
                             <span class="row-status" [class.is-hidden]="!p.isActive"
                               ><span></span>{{ p.isActive ? 'Live' : 'Hidden' }}</span
                             >
                           </td>
                           <td>
-                            <button
-                              type="button"
-                              class="row-toggle"
-                              [class.publish]="!p.isActive"
-                              [disabled]="changeInProgress()"
-                              (click)="requestVisibilityChange('product', p.id, p.name, p.isActive)"
-                            >
-                              {{ p.isActive ? 'Hide' : 'Publish' }}
-                            </button>
+                            <div class="row-actions">
+                              <button type="button" class="row-action" (click)="openDataEditor(p)">Edit data</button>
+                              <button
+                                type="button"
+                                class="row-toggle"
+                                [class.publish]="!p.isActive"
+                                [disabled]="changeInProgress()"
+                                (click)="requestVisibilityChange('product', p.id, p.name, p.isActive)"
+                              >
+                                {{ p.isActive ? 'Hide' : 'Publish' }}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       }
@@ -925,6 +960,81 @@
         </section>
       }
     </main>
+
+    @if (editingData(); as form) {
+      <div class="confirm-backdrop" (click)="closeDataEditor()">
+        <section
+          class="confirm-dialog data-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="data-title"
+          (click)="$event.stopPropagation()"
+        >
+          <p class="eyebrow">Catalog data · {{ form.product.brand }}</p>
+          <h2 id="data-title">{{ form.product.name }}</h2>
+          <p class="data-note">
+            Saved to every size on this product page. Values entered here are never overwritten by the scrapers or the
+            label reader.
+          </p>
+
+          <h3>Category</h3>
+          <div class="data-row">
+            <select
+              aria-label="Category"
+              [ngModel]="form.category"
+              (ngModelChange)="updateDataField('category', $event)"
+              [ngModelOptions]="{ standalone: true }"
+            >
+              <option value="">
+                Automatic{{ form.product.categoryIsManual ? '' : ' (now: ' + categoryLabel(form.product.category) + ')' }}
+              </option>
+              @for (c of categoryOptions; track c.slug) {
+                <option [value]="c.slug">{{ c.label }}</option>
+              }
+            </select>
+            <button type="button" class="row-action primary" [disabled]="dataSaving()" (click)="saveCategory()">
+              Save category
+            </button>
+          </div>
+
+          <h3>Nutrition facts <small>per serving, from the brand's label</small></h3>
+          <div class="data-grid">
+            @for (f of nutritionFields; track f.key) {
+              <label
+                >{{ f.label }}
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  inputmode="decimal"
+                  [ngModel]="form[f.key]"
+                  (ngModelChange)="updateDataField(f.key, $event)"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </label>
+            }
+          </div>
+          <p class="data-note">
+            Calories, protein, carbohydrate and fat are required, and calories must match the macros (4/4/9 kcal per
+            gram), the same check automatic readings pass.
+          </p>
+
+          @if (dataMessage()) {
+            <p class="info" role="status">{{ dataMessage() }}</p>
+          }
+
+          <div class="confirm-actions">
+            @if (form.product.nutritionJson) {
+              <button type="button" class="cancel" [disabled]="dataSaving()" (click)="clearNutrition()">Clear nutrition</button>
+            }
+            <button type="button" class="cancel" [disabled]="dataSaving()" (click)="closeDataEditor()">Close</button>
+            <button type="button" class="row-action primary" [disabled]="dataSaving()" (click)="saveNutrition()">
+              {{ dataSaving() ? 'Saving…' : 'Save nutrition' }}
+            </button>
+          </div>
+        </section>
+      </div>
+    }
 
     @if (pendingDeactivation(); as sub) {
       <div class="confirm-backdrop" (click)="cancelDeactivation()">

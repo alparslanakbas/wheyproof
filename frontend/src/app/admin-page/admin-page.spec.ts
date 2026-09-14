@@ -16,6 +16,23 @@ describe('AdminPage visibility safety', () => {
     subscribers: vi.fn(() => of({ subscribers: [], summary: { total: 0, active: 0, pending: 0, unsubscribed: 0 } })),
     deactivateSubscriber: vi.fn(() => of({})),
     sendSubscriberConfirmation: vi.fn(() => of({ message: 'sent' })),
+    setProductNutrition: vi.fn(() => of({ rowsUpdated: 3 })),
+    setProductCategory: vi.fn(() => of({ rowsUpdated: 3 })),
+    clearProductNutrition: vi.fn(() => of({ rowsUpdated: 3 })),
+  };
+
+  const product = {
+    id: 21,
+    name: 'Double Chocolate Whey Protein Powder 2LB',
+    brand: 'Naked Nutrition',
+    seller: null,
+    isActive: true,
+    latestPrice: 49.99,
+    category: 'protein-powder',
+    categoryIsManual: false,
+    nutritionJson: '{"Serving Size":"43g","Calories":"160","Total Fat":"2.5g","Total Carbohydrate":"11g","Protein":"25g"}',
+    nutritionIsManual: false,
+    servingSizeGrams: 43,
   };
 
   const subscriber = {
@@ -76,6 +93,45 @@ describe('AdminPage visibility safety', () => {
     expect(api.deactivateSubscriber).toHaveBeenCalledWith(7);
     expect(page.pendingDeactivation()).toBeNull();
     expect(api.subscribers).toHaveBeenCalled();
+  });
+
+  it('prefills the editor from the stored table and sends numbers, blank as null', () => {
+    page.openDataEditor(product);
+    expect(page.editingData()?.protein).toBe('25');
+    expect(page.editingData()?.fat).toBe('2.5');
+
+    page.saveNutrition();
+
+    expect(api.setProductNutrition).toHaveBeenCalledWith(21, {
+      servingSizeGrams: 43,
+      calories: 160,
+      proteinGrams: 25,
+      carbohydrateGrams: 11,
+      fatGrams: 2.5,
+      fiberGrams: null,
+    });
+  });
+
+  it('shows the backend reason when typed nutrition is refused', () => {
+    api.setProductNutrition.mockReturnValueOnce(
+      throwError(() => ({ status: 400, error: { message: "calories 400 don't match the macros (expected 160-166)" } })),
+    );
+    page.openDataEditor(product);
+    page.updateDataField('calories', 400);
+
+    page.saveNutrition();
+
+    expect(page.dataMessage()).toBe("calories 400 don't match the macros (expected 160-166)");
+    expect(page.dataSaving()).toBe(false);
+  });
+
+  it('sends null to put a product back on the automatic category', () => {
+    page.openDataEditor({ ...product, categoryIsManual: true, category: 'vitamins' });
+    page.updateDataField('category', '');
+
+    page.saveCategory();
+
+    expect(api.setProductCategory).toHaveBeenCalledWith(21, null);
   });
 
   it('shows the backend reason when a confirmation email is refused', () => {

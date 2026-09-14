@@ -5,6 +5,7 @@ using IndirimTakip.Infrastructure.Coupons;
 using IndirimTakip.Infrastructure.Deals;
 using IndirimTakip.Infrastructure.Images;
 using IndirimTakip.Infrastructure.NutritionLabels;
+using IndirimTakip.Infrastructure.Catalog;
 using IndirimTakip.Infrastructure.Scraping;
 using IndirimTakip.Infrastructure.Scraping.Shopify;
 using IndirimTakip.Infrastructure.Security;
@@ -73,6 +74,7 @@ public static class DependencyInjection
 
         services.AddScoped<ScrapeIngestionService>();
         services.AddScoped<ProductDetailBackfillService>();
+        services.AddScoped<ManualProductDataService>();
         services.AddScoped<DealsQueryService>();
         services.AddScoped<PriceHistoryQueryService>();
         services.AddScoped<CouponService>();

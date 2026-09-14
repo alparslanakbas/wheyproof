@@ -98,9 +98,10 @@ public sealed class NutritionLabelService(AppDbContext db, INutritionLabelReader
             // rejected label image says nothing about the product PAGE: Naked's
             // pages carry the panel as JSON while its label images failed OCR,
             // so stamping would have hidden readable data for a month.
-            await rows.ExecuteUpdateAsync(s => s
+            await rows.Where(p => !p.NutritionIsManual).ExecuteUpdateAsync(s => s
                 .SetProperty(p => p.NutritionLabelReadUrl, url)
                 .SetProperty(p => p.NutritionLabelStatus, status), cancellationToken);
+            await MarkManualRowsReadAsync(rows, url, cancellationToken);
             return;
         }
 
@@ -109,7 +110,9 @@ public sealed class NutritionLabelService(AppDbContext db, INutritionLabelReader
             .Select(r => (r.Label, r.Amount)));
         var protein = reading.ProteinGrams is > 0 and <= 100 ? reading.ProteinGrams : NutritionParser.ExtractProteinGrams(nutritionJson);
 
-        await rows.ExecuteUpdateAsync(s => s
+        await MarkManualRowsReadAsync(rows, url, cancellationToken);
+
+        await rows.Where(p => !p.NutritionIsManual).ExecuteUpdateAsync(s => s
             .SetProperty(p => p.NutritionJson, nutritionJson)
             .SetProperty(p => p.ProteinPerServingGrams, protein)
             .SetProperty(p => p.ServingSizeGrams, p => reading.ServingSizeGrams ?? p.ServingSizeGrams)
@@ -118,6 +121,12 @@ public sealed class NutritionLabelService(AppDbContext db, INutritionLabelReader
             .SetProperty(p => p.NutritionCheckedAt, now)
             .SetProperty(p => p.ContentUpdatedAt, now), cancellationToken);
     }
+
+    // A person entered these rows' panel by hand: the image is recorded as read
+    // so it isn't queued again, and their values and status stay as they are.
+    private static Task MarkManualRowsReadAsync(IQueryable<IndirimTakip.Core.Entities.Product> rows, string url, CancellationToken cancellationToken) =>
+        rows.Where(p => p.NutritionIsManual)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.NutritionLabelReadUrl, url), cancellationToken);
 
     private static string Truncate(string value, int length) => value.Length <= length ? value : value[..length];
 }

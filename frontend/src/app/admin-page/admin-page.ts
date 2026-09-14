@@ -1,7 +1,9 @@
 import { isPlatformBrowser } from '@angular/common';
 import { Component, OnInit, PLATFORM_ID, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Observable } from 'rxjs';
 
+import { CATEGORY_LABELS } from '../core/category-labels';
 import { MARKET, formatPrice } from '../core/market';
 import { PageMetaService } from '../core/page-meta.service';
 import { normalizeSearchText } from '../core/search-normalize';
@@ -20,6 +22,14 @@ import {
 } from './admin.service';
 
 type Tab = 'status' | 'events' | 'coupons' | 'visibility' | 'subscribers';
+type NutritionField = 'servingSizeGrams' | 'calories' | 'protein' | 'carbs' | 'fat' | 'fiber';
+
+/** The admin editor's working copy; inputs are kept as text until saved. */
+interface ProductDataForm extends Record<NutritionField, string> {
+  product: AdminProduct;
+  /** '' = automatic. */
+  category: string;
+}
 type SubscriberFilter = 'all' | SubscriberStatus;
 type VisibilityView = 'brands' | 'products';
 type BrandFilter = 'all' | 'visible' | 'hidden';
@@ -43,7 +53,7 @@ const BRAND_PAGE_SIZE = 5;
   selector: 'app-admin-page',
   imports: [FormsModule],
   templateUrl: './admin-page.html',
-  styleUrls: ['./admin-page.css', './admin-page-support.css'],
+  styleUrls: ['./admin-page.css', './admin-page-support.css', './admin-page-data.css'],
 })
 export class AdminPage implements OnInit {
   private readonly api = inject(AdminService);
@@ -97,6 +107,22 @@ export class AdminPage implements OnInit {
   readonly productsLoading = signal(false);
   readonly productSearch = signal('');
   readonly hiddenOnly = signal(false);
+  readonly missingNutritionOnly = signal(false);
+  readonly uncategorisedOnly = signal(false);
+
+  readonly categoryOptions = Object.entries(CATEGORY_LABELS).map(([slug, label]) => ({ slug, label }));
+  readonly nutritionFields: { key: NutritionField; label: string }[] = [
+    { key: 'servingSizeGrams', label: 'Serving size (g)' },
+    { key: 'calories', label: 'Calories' },
+    { key: 'protein', label: 'Protein (g)' },
+    { key: 'carbs', label: 'Total carbohydrate (g)' },
+    { key: 'fat', label: 'Total fat (g)' },
+    { key: 'fiber', label: 'Dietary fiber (g)' },
+  ];
+  /** The product whose category and nutrition are being edited; null when closed. */
+  readonly editingData = signal<ProductDataForm | null>(null);
+  readonly dataSaving = signal(false);
+  readonly dataMessage = signal<string | null>(null);
   readonly productSearchDone = signal(false);
   readonly visibilityMessage = signal<string | null>(null);
   readonly visibilityUpdatedAt = signal<Date | null>(null);
@@ -566,7 +592,8 @@ export class AdminPage implements OnInit {
 
   searchProducts(): void {
     const query = this.productSearch().trim();
-    if (!query && !this.hiddenOnly()) {
+    const anyFilter = this.hiddenOnly() || this.missingNutritionOnly() || this.uncategorisedOnly();
+    if (!query && !anyFilter) {
       this.products.set([]);
       this.productSearchDone.set(false);
       return;
@@ -575,7 +602,7 @@ export class AdminPage implements OnInit {
     this.productsLoading.set(true);
     this.productSearchDone.set(true);
     this.visibilityMessage.set(null);
-    this.api.products(query, this.hiddenOnly()).subscribe({
+    this.api.products(query, this.hiddenOnly(), this.missingNutritionOnly(), this.uncategorisedOnly()).subscribe({
       next: (products) => {
         this.products.set(products);
         this.productsLoading.set(false);
@@ -591,6 +618,107 @@ export class AdminPage implements OnInit {
   onHiddenOnlyChange(value: boolean): void {
     this.hiddenOnly.set(value);
     this.searchProducts();
+  }
+
+  onDataFilterChange(filter: 'missingNutrition' | 'uncategorised', value: boolean): void {
+    (filter === 'missingNutrition' ? this.missingNutritionOnly : this.uncategorisedOnly).set(value);
+    this.searchProducts();
+  }
+
+  categoryLabel(slug: string | null): string {
+    return slug ? (CATEGORY_LABELS[slug] ?? slug) : '—';
+  }
+
+  openDataEditor(product: AdminProduct): void {
+    const table = this.parseNutrition(product.nutritionJson);
+    // "160", "2.5g" -> the number as text for the input.
+    const value = (label: string) => table[label]?.match(/\d+(?:\.\d+)?/)?.[0] ?? '';
+    this.dataMessage.set(null);
+    this.editingData.set({
+      product,
+      category: product.categoryIsManual ? (product.category ?? '') : '',
+      servingSizeGrams: product.servingSizeGrams?.toString() ?? value('Serving Size'),
+      calories: value('Calories'),
+      protein: value('Protein'),
+      carbs: value('Total Carbohydrate'),
+      fat: value('Total Fat'),
+      fiber: value('Dietary Fiber'),
+    });
+  }
+
+  closeDataEditor(): void {
+    if (this.dataSaving()) return;
+    this.editingData.set(null);
+  }
+
+  updateDataField(field: NutritionField | 'category', value: unknown): void {
+    const form = this.editingData();
+    if (!form) return;
+    this.editingData.set({ ...form, [field]: value == null ? '' : String(value) });
+  }
+
+  saveCategory(): void {
+    const form = this.editingData();
+    if (!form) return;
+    this.runDataEdit(this.api.setProductCategory(form.product.id, form.category || null), 'Category saved');
+  }
+
+  saveNutrition(): void {
+    const form = this.editingData();
+    if (!form) return;
+
+    // Empty stays null (not 0): a blank fiber means "not entered", and the
+    // backend requires the four core values itself.
+    const number = (text: string) => (text.trim() === '' ? null : Number(text));
+    const body = {
+      servingSizeGrams: number(form.servingSizeGrams),
+      calories: number(form.calories),
+      proteinGrams: number(form.protein),
+      carbohydrateGrams: number(form.carbs),
+      fatGrams: number(form.fat),
+      fiberGrams: number(form.fiber),
+    };
+    if (Object.values(body).some((v) => v !== null && Number.isNaN(v))) {
+      this.dataMessage.set('Enter numbers only.');
+      return;
+    }
+
+    this.runDataEdit(this.api.setProductNutrition(form.product.id, body), 'Nutrition saved');
+  }
+
+  clearNutrition(): void {
+    const form = this.editingData();
+    if (!form) return;
+    this.runDataEdit(this.api.clearProductNutrition(form.product.id), 'Nutrition cleared');
+  }
+
+  private runDataEdit(request: Observable<{ rowsUpdated: number }>, done: string): void {
+    this.dataSaving.set(true);
+    this.dataMessage.set(null);
+    request.subscribe({
+      next: (r) => {
+        this.dataSaving.set(false);
+        this.dataMessage.set(`${done} for ${r.rowsUpdated} row${r.rowsUpdated === 1 ? '' : 's'} (every size of this page).`);
+        this.searchProducts();
+      },
+      error: (e) => {
+        this.dataSaving.set(false);
+        // A refused value comes back with its reason ("calories 400 don't match
+        // the macros"); a generic "failed" would hide what to fix.
+        const body = (e as { error?: unknown } | null)?.error;
+        const message = typeof body === 'string' ? body : (body as { message?: string } | null)?.message;
+        this.dataMessage.set(message?.trim() || this.errorText(e, "Couldn't save."));
+      },
+    });
+  }
+
+  private parseNutrition(json: string | null): Record<string, string> {
+    if (!json) return {};
+    try {
+      return JSON.parse(json) as Record<string, string>;
+    } catch {
+      return {};
+    }
   }
 
   // Hiding asks for confirmation; publishing again applies right away.

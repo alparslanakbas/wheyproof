@@ -60,6 +60,14 @@ public static partial class ProductAttributeParser
         ("vitamins", ["vitamin", "multivitamin", "mineral", "magnesium", "zinc", "omega", "fish oil", "krill", "biotin", "iron", "calcium", "potassium", "d3", "d3k2", "k2", "b12", "b-complex", "greens", "probiotic", "prebiotic", "synbiotic", "ashwagandha", "turmeric", "curcumin", "ginger", "elderberry", "melatonin", "nmn", "coq10", "berberine", "ginseng", "moringa", "extract", "testosterone", "glucosamine", "chondroitin", "msm", "tudca", "quercetin", "spirulina", "maca", "rhodiola"]),
     ];
 
+    /// <summary>
+    /// Every valid category slug: the keyword families plus "protein-snacks",
+    /// which is decided by product form rather than a keyword. Built from the
+    /// list above so a manual category can never drift from the automatic ones.
+    /// </summary>
+    public static readonly IReadOnlySet<string> CategorySlugs =
+        CategoryKeywords.Select(c => c.Category).Append("protein-snacks").ToHashSet(StringComparer.Ordinal);
+
     private static readonly (string Category, Regex Pattern)[] CategoryPatterns =
     [
         .. CategoryKeywords.Select(c => (c.Category, new Regex(
