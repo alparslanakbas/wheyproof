@@ -101,6 +101,10 @@ services:
       # confirmations and price alerts still send; flip this to true once the
       # address is in place.
       - Digest__Enabled=false
+      # The postal address the footer prints. The digest also refuses to send
+      # while this is empty (DigestService), so switching Digest__Enabled on
+      # without an address can't break CAN-SPAM. Value lives in .env.
+      - Newsletter__PostalAddress=${NEWSLETTER_POSTAL_ADDRESS:-}
       # Nutrition facts read from the stores' label images. Engine "tesseract"
       # is free OCR inside this container (calorie-checked Nutrition Facts only);
       # "claude" is the paid vision API and needs ANTHROPIC_API_KEY. The background

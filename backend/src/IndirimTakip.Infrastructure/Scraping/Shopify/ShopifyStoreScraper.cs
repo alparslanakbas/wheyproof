@@ -35,8 +35,32 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 /// partial catalog would lose that day's price points for everything fetched.
 /// </remarks>
 public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifyStore store, ILogger<ShopifyStoreScraper> logger)
-    : IBrandScraper
+    : IBrandScraper, IProductDetailFetcher
 {
+    // Only stores that print the nutrition panel as text on the product page
+    // (see ShopifyStore.NutritionOnPage); the backfill skips every other store.
+    public bool HasProductDetails => store.NutritionOnPage;
+
+    /// <summary>
+    /// Reads the Nutrition Facts panel from the product page's text. Published
+    /// only when it passes the same calorie check as label images; the fields
+    /// are the ones that check covers. No description: US pages don't show one.
+    /// </summary>
+    public async Task<ProductDetails> FetchDetailsAsync(string productUrl, CancellationToken cancellationToken = default)
+    {
+        var none = new ProductDetails(null, null, null);
+        if (!store.NutritionOnPage)
+            return none;
+
+        var html = await httpClient.GetStringAsync(productUrl, cancellationToken);
+        var reading = NutritionLabels.PageNutritionText.Read(html);
+        if (reading is null)
+            return none;
+
+        var nutritionJson = NutritionParser.BuildNutritionJson(reading.Rows.Select(r => (r.Label, r.Amount)));
+        return new ProductDetails(null, nutritionJson, reading.ProteinGrams, reading.ServingSizeGrams);
+    }
+
     public const string HttpClientName = "shopify";
 
     private const string UsdQuery = "currency=USD";

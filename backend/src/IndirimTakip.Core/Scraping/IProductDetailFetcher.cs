@@ -27,4 +27,10 @@ public record ProductDetails(
 public interface IProductDetailFetcher
 {
     Task<ProductDetails> FetchDetailsAsync(string productUrl, CancellationToken cancellationToken = default);
+
+    // Whether THIS instance has anything to fetch. One Shopify scraper class
+    // serves every store, and only some stores print details on the product
+    // page; without this, the backfill would download every store's pages to
+    // find nothing.
+    bool HasProductDetails => true;
 }

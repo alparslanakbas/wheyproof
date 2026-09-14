@@ -2,16 +2,36 @@ using System.Text;
 using IndirimTakip.Infrastructure.Deals;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace IndirimTakip.Infrastructure.Subscribers;
 
-public record DigestResult(int DealCount, int SubscriberCount, int PendingCount = 0);
+public record DigestResult(int DealCount, int SubscriberCount, int PendingCount = 0, string? SkippedReason = null);
 
 // NOT a personal product alert: a general summary of the biggest discounts the
 // scheduled scrapes found, sent with the same content to every confirmed
 // subscriber. Only the unsubscribe link is personal (their own token).
-public class DigestService(AppDbContext db, DealsQueryService dealsQuery, IEmailSender emailSender, IConfiguration configuration)
+public class DigestService(
+    AppDbContext db,
+    DealsQueryService dealsQuery,
+    IEmailSender emailSender,
+    IConfiguration configuration,
+    ILogger<DigestService> logger)
 {
+    /// <summary>
+    /// The sender's physical postal address from Newsletter:PostalAddress, on one
+    /// line, or null when none is configured. Nothing is ever filled in for it.
+    /// </summary>
+    public static string? PostalAddressFrom(IConfiguration configuration)
+    {
+        var raw = configuration["Newsletter:PostalAddress"];
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        var parts = raw.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return string.Join(", ", parts);
+    }
+
     private const int FeaturedDealCount = 6;
 
     // The email provider's free tier has a daily quota SHARED between the
@@ -23,6 +43,18 @@ public class DigestService(AppDbContext db, DealsQueryService dealsQuery, IEmail
 
     public async Task<DigestResult> SendDigestAsync(string unsubscribeBaseUrl, CancellationToken cancellationToken = default)
     {
+        // CAN-SPAM: every commercial email must carry the sender's valid physical
+        // postal address. Without one nothing goes out, whichever path called:
+        // the scheduled job or the manual admin endpoint. Checked before any
+        // query, so a missing address can't half-send a round.
+        var postalAddress = PostalAddressFrom(configuration);
+        if (postalAddress is null)
+        {
+            const string reason = "no postal address configured (Newsletter:PostalAddress)";
+            logger.LogWarning("Digest not sent: {Reason}.", reason);
+            return new DigestResult(0, 0, SkippedReason: reason);
+        }
+
         var intervalDays = configuration.GetValue("Digest:IntervalDays", 7);
         var dailyQuota = configuration.GetValue("Digest:DailyQuota", DefaultDailyQuota);
         var now = DateTimeOffset.UtcNow;
@@ -73,7 +105,7 @@ public class DigestService(AppDbContext db, DealsQueryService dealsQuery, IEmail
         foreach (var subscriber in subscribers)
         {
             var unsubscribeUrl = $"{unsubscribeBaseUrl}/api/subscribe/unsubscribe/{subscriber.Token}";
-            var html = BuildDigestHtml(dealsHtml, unsubscribeUrl, frontendBaseUrl);
+            var html = BuildDigestHtml(dealsHtml, unsubscribeUrl, frontendBaseUrl, postalAddress);
             try
             {
                 await emailSender.SendAsync(subscriber.Email, "WheyProof: this week's top price drops", html, cancellationToken);
@@ -152,7 +184,7 @@ public class DigestService(AppDbContext db, DealsQueryService dealsQuery, IEmail
     // A <table> layout for deal cards on purpose: across email clients (especially
     // multi-column layouts with an image beside text) tables are the most
     // reliable, not flex or grid.
-    private static string BuildDigestHtml(string dealsHtml, string unsubscribeUrl, string frontendBaseUrl)
+    internal static string BuildDigestHtml(string dealsHtml, string unsubscribeUrl, string frontendBaseUrl, string postalAddress)
     {
         var tagImageUrl = EmailTemplate.AssetUrl(frontendBaseUrl, "weekly-price-tag.png");
         var shieldIconUrl = EmailTemplate.AssetUrl(frontendBaseUrl, "trust-shield.png");
@@ -199,7 +231,9 @@ public class DigestService(AppDbContext db, DealsQueryService dealsQuery, IEmail
                       </td>
                     </tr>
                     <tr>
-                      <td align="center" style="padding-top:18px;border-top:1px solid #e5e0ff;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:16px;">
+                      <td align="center" style="padding-top:18px;border-top:1px solid #e5e0ff;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:17px;color:#60667a;">
+                        You're receiving this because you subscribed at wheyproof.com.<br>
+                        WheyProof &middot; {EmailTemplate.Encode(postalAddress)}<br>
                         <a href="{EmailTemplate.Encode(unsubscribeUrl)}" style="color:#6556e8;text-decoration:underline;">Unsubscribe</a>
                       </td>
                     </tr>

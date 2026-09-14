@@ -143,6 +143,7 @@ app.get('/sitemap.xml', async (req, res) => {
     const legalUrls =
       `<url><loc>${origin}/privacy</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>` +
       `<url><loc>${origin}/cookies</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>` +
+      `<url><loc>${origin}/terms</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>` +
       `<url><loc>${origin}/how-it-works</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>` +
       `<url><loc>${origin}/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>` +
       `<url><loc>${origin}/contact</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>` +

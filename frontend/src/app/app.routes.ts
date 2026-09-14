@@ -43,6 +43,10 @@ export const routes: Routes = [
     loadComponent: () => import('./cookie-policy-page/cookie-policy-page').then((m) => m.CookiePolicyPage),
   },
   {
+    path: 'terms',
+    loadComponent: () => import('./terms-page/terms-page').then((m) => m.TermsPage),
+  },
+  {
     path: 'guides',
     loadComponent: () => import('./article-list-page/article-list-page').then((m) => m.ArticleListPage),
   },

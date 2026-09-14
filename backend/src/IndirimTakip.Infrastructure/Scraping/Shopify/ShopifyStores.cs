@@ -12,8 +12,14 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 /// When set, only products in these categories are kept; uncategorised ones
 /// go too. For stores whose catalog is mostly outside our scope.
 /// </param>
+/// <param name="NutritionOnPage">
+/// True when the store prints the Nutrition Facts panel as TEXT on its product
+/// pages, so the detail backfill reads it there. Measured on 2026-09-14 across
+/// 10 stores: only Quest does; the rest publish the panel as an image.
+/// </param>
 public sealed record ShopifyStore(
-    string BrandName, string BaseUrl, bool IsRetailer = false, IReadOnlySet<string>? OnlyCategories = null);
+    string BrandName, string BaseUrl, bool IsRetailer = false, IReadOnlySet<string>? OnlyCategories = null,
+    bool NutritionOnPage = false);
 
 public static class ShopifyStores
 {
@@ -48,7 +54,7 @@ public static class ShopifyStores
         new("Kaged", "https://www.kaged.com"),
         new("MuscleTech", "https://www.muscletech.com"),
         new("Promix", "https://www.promixnutrition.com"),
-        new("Quest Nutrition", "https://www.questnutrition.com"),
+        new("Quest Nutrition", "https://www.questnutrition.com", NutritionOnPage: true),
         new("Clean Simple Eats", "https://cleansimpleeats.com"),
         new("Jocko Fuel", "https://www.jockofuel.com"),
         // The root storefront serves the EU catalog in EUR to our server;

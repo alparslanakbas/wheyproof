@@ -69,7 +69,12 @@ public class ProductDetailBackfillService(
         // Each store gets the ceiling of quota / stores. A store that doesn't use
         // its share (its gap is closed) releases it, because `remaining` is
         // recomputed from the attempts actually made.
-        var fetchers = scrapers.OfType<IProductDetailFetcher>().ToList();
+        var fetchers = scrapers.OfType<IProductDetailFetcher>().Where(f => f.HasProductDetails).ToList();
+
+        // Checked products come back after 30 days: a store can add or change
+        // a panel. Without a limit a US page, which never yields a description,
+        // matched "Description == null" forever and was downloaded every run.
+        var recheckBefore = DateTimeOffset.UtcNow.AddDays(-30);
         if (fetchers.Count == 0)
             return 0;
 
@@ -109,7 +114,7 @@ public class ProductDetailBackfillService(
             var missingProducts = await db.Products
                 .Where(p => p.Brand!.Name == brandScraper.BrandName
                     && p.Seller == null
-                    && (p.Description == null || p.NutritionCheckedAt == null))
+                    && (p.NutritionCheckedAt == null || p.NutritionCheckedAt < recheckBefore))
                 .OrderBy(p => p.NutritionCheckedAt == null ? 0 : 1)
                 .ThenBy(p => p.NutritionCheckedAt)
                 .ThenBy(p => p.Id)

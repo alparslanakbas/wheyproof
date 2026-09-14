@@ -30,12 +30,18 @@ internal static partial class LabelTextParser
     // a real panel prints "% Daily Value" on the line under "Calories 160", and
     // a lookahead crossing the line break rejected every such label (caught by
     // the Orgain test).
-    private static readonly Regex CaloriesRegex = new(@"calories\s*" + Num + @"(?![\d.]|[ \t]*(?:m?g|%))", Options);
-    private static readonly Regex FatRegex = new(@"total\s*fat\s*" + Num + @"\s*g\b", Options);
-    private static readonly Regex CarbsRegex = new(@"total\s*carb\w*\.?\s*" + Num + @"\s*g\b", Options);
-    private static readonly Regex FiberRegex = new(@"fiber\s*" + Num + @"\s*g\b", Options);
-    private static readonly Regex SugarAlcoholRegex = new(@"(?:sugar\s*alcohols?|erythritol|allulose)\s*" + Num + @"\s*g\b", Options);
-    private static readonly Regex ProteinRegex = new(@"protein\s*" + Num + @"\s*g\b", Options);
+    //
+    // "\.\d", not ".": page text writes "Calories: 180." with a sentence period,
+    // which is not a decimal and must not reject the number.
+    //
+    // "[:\s]*" after each label: product pages write "Total Fat: 7g", OCR'd
+    // labels "Total Fat 7g".
+    private static readonly Regex CaloriesRegex = new(@"calories[:\s]*" + Num + @"(?!\d|\.\d|[ \t]*(?:m?g|%))", Options);
+    private static readonly Regex FatRegex = new(@"total\s*fat[:\s]*" + Num + @"\s*g\b", Options);
+    private static readonly Regex CarbsRegex = new(@"total\s*carb\w*\.?[:\s]*" + Num + @"\s*g\b", Options);
+    private static readonly Regex FiberRegex = new(@"fiber[:\s]*" + Num + @"\s*g\b", Options);
+    private static readonly Regex SugarAlcoholRegex = new(@"(?:sugar\s*alcohols?|erythritol|allulose)[:\s]*" + Num + @"\s*g\b", Options);
+    private static readonly Regex ProteinRegex = new(@"protein[:\s]*" + Num + @"\s*g\b", Options);
 
     public static NutritionLabelReading Parse(string text)
     {
