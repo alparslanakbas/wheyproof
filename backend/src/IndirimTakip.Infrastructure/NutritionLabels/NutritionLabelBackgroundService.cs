@@ -22,10 +22,14 @@ public sealed class NutritionLabelBackgroundService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!options.Enabled || !options.IsConfigured)
+        bool available;
+        using (var scope = scopeFactory.CreateScope())
+            available = scope.ServiceProvider.GetRequiredService<INutritionLabelReader>().IsAvailable;
+
+        if (!options.Enabled || !available)
         {
-            logger.LogInformation("Nutrition label reading is off (enabled: {Enabled}, key configured: {Configured}).",
-                options.Enabled, options.IsConfigured);
+            logger.LogInformation("Nutrition label reading is off (enabled: {Enabled}, engine: {Engine}, available: {Available}).",
+                options.Enabled, options.Engine, available);
             return;
         }
 

@@ -101,9 +101,12 @@ services:
       # confirmations and price alerts still send; flip this to true once the
       # address is in place.
       - Digest__Enabled=false
-      # Nutrition facts read from the stores' label images with Claude's vision
-      # model. The key lives in .env only. The background job stays OFF until
-      # the pilot endpoint's results are reviewed; the pilot reads without writing.
+      # Nutrition facts read from the stores' label images. Engine "tesseract"
+      # is free OCR inside this container (calorie-checked Nutrition Facts only);
+      # "claude" is the paid vision API and needs ANTHROPIC_API_KEY. The background
+      # job stays OFF until the pilot endpoint's results are reviewed; the pilot
+      # reads without writing.
+      - NutritionLabels__Engine=${NUTRITION_LABELS_ENGINE:-tesseract}
       - NutritionLabels__ApiKey=${ANTHROPIC_API_KEY:-}
       - NutritionLabels__Enabled=${NUTRITION_LABELS_ENABLED:-false}
       - NutritionLabels__Model=${NUTRITION_LABELS_MODEL:-claude-haiku-4-5-20251001}

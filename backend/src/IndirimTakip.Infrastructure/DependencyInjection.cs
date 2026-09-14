@@ -126,6 +126,18 @@ public static class DependencyInjection
             client.BaseAddress = new Uri("https://api.anthropic.com/");
             client.Timeout = TimeSpan.FromSeconds(90);
         });
+        // The free engine downloads label images itself; same bot identity as
+        // the product image downloads.
+        services.AddHttpClient<TesseractLabelReader>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(
+                "Mozilla/5.0 (compatible; WheyProofBot/1.0; +https://www.wheyproof.com)");
+        });
+        services.AddScoped<INutritionLabelReader>(sp =>
+            labelOptions.Engine.Equals("claude", StringComparison.OrdinalIgnoreCase)
+                ? sp.GetRequiredService<NutritionLabelReader>()
+                : sp.GetRequiredService<TesseractLabelReader>());
 
         services.AddHostedService<SecurityEventRetentionService>();
 

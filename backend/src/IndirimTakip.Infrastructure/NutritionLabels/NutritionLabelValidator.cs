@@ -44,7 +44,11 @@ public sealed record NutritionLabelVerdict(bool Accepted, string Reason);
 /// </remarks>
 public static class NutritionLabelValidator
 {
-    public static NutritionLabelVerdict Validate(NutritionLabelReading reading)
+    /// <param name="requireCalorieCheck">
+    /// True for the free OCR engine: only a reading whose calories were checked
+    /// against its macros may be published.
+    /// </param>
+    public static NutritionLabelVerdict Validate(NutritionLabelReading reading, bool requireCalorieCheck = false)
     {
         if (!reading.IsNutritionLabel)
             return Reject("the image is not a legible facts panel");
@@ -79,6 +83,9 @@ public static class NutritionLabelValidator
 
         if (isNutritionPanel)
             return Reject("a Nutrition Facts panel without readable calories and macros");
+
+        if (requireCalorieCheck)
+            return Reject("supplement facts can't be calorie-checked; this engine publishes checked panels only");
 
         return new NutritionLabelVerdict(true, "no calorie check (supplement facts)");
     }

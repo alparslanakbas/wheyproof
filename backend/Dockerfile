@@ -11,6 +11,14 @@ RUN dotnet publish IndirimTakip.Api/IndirimTakip.Api.csproj -c Release -o /app/p
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
+
+# Tesseract OCR reads nutrition label images for free on this server (see
+# TesseractLabelReader). Installed before the app is copied so this layer stays
+# cached across deploys. English language data only: US labels.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/publish .
 
 # Render (ve benzeri platformlar) PORT ortam değişkenini kendisi atıyor —

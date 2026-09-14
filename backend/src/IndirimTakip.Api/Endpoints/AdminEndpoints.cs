@@ -479,11 +479,11 @@ internal static class AdminEndpoints
         // dozen images, and the request stays within Cloudflare's ~100 s limit
         // only for small batches, hence the cap.
         app.MapPost("/api/dev/nutrition-labels/pilot", async (
-            NutritionLabelService labels, NutritionLabelOptions options, AppDbContext db,
+            NutritionLabelService labels, INutritionLabelReader reader, NutritionLabelOptions options, AppDbContext db,
             string? source, int? limit, string? model, CancellationToken ct) =>
         {
-            if (!options.IsConfigured)
-                return Results.BadRequest(new { message = "No API key configured for nutrition label reading." });
+            if (!reader.IsAvailable)
+                return Results.BadRequest(new { message = $"The '{reader.Engine}' label reader isn't available (binary missing or no API key)." });
 
             var queue = await labels.QueueAsync(Math.Clamp(limit ?? 5, 1, 10), source, ct);
             var outcomes = new List<NutritionLabelOutcome>();
@@ -512,7 +512,8 @@ internal static class AdminEndpoints
 
             return Results.Ok(new
             {
-                model = model ?? options.Model,
+                engine = reader.Engine,
+                model = reader.Engine == "claude" ? model ?? options.Model : null,
                 read = outcomes.Count,
                 accepted = outcomes.Count(o => o.Accepted),
                 retryLater,

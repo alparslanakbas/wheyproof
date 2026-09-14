@@ -10,14 +10,23 @@ public sealed class NutritionLabelOptions
 {
     /// <summary>
     /// Whether the BACKGROUND JOB writes readings. Off by default: the pilot
-    /// endpoint reads without writing, so accuracy and cost are measured first.
+    /// endpoint reads without writing, so accuracy is checked on the server first.
     /// </summary>
     public bool Enabled { get; set; }
+
+    /// <summary>
+    /// "tesseract" (default): free OCR on the server, calorie-checked Nutrition
+    /// Facts only. "claude": the paid vision API, which also covers Supplement
+    /// Facts panels. The free engine was chosen while the site has no income.
+    /// </summary>
+    public string Engine { get; set; } = "tesseract";
+    public string TesseractPath { get; set; } = "tesseract";
+
     public string? ApiKey { get; set; }
     public string Model { get; set; } = "claude-haiku-4-5-20251001";
     /// <summary>Distinct label images per run.</summary>
-    public int MaxPerRun { get; set; } = 20;
-    public int IntervalMinutes { get; set; } = 60;
+    public int MaxPerRun { get; set; } = 25;
+    public int IntervalMinutes { get; set; } = 30;
     public int ImageWidth { get; set; } = 1200;
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(ApiKey);
@@ -34,8 +43,13 @@ public sealed record NutritionLabelReadResult(
 
 /// <summary>Reads one label image with Claude's vision model.</summary>
 public sealed class NutritionLabelReader(HttpClient httpClient, NutritionLabelOptions options, ILogger<NutritionLabelReader> logger)
+    : INutritionLabelReader
 {
     public const string HttpClientName = "anthropic";
+
+    public string Engine => "claude";
+    public bool IsAvailable => options.IsConfigured;
+    public bool RequiresCalorieCheck => false;
 
     // The model copies, it doesn't compute: every number must be printed on the
     // panel. A value it would have to estimate stays null, which is the same

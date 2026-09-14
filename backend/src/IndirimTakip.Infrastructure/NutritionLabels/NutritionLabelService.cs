@@ -26,7 +26,7 @@ public sealed record NutritionLabelOutcome(
 /// the 5 lb row; writing it there would be wrong. Serving size and the
 /// per-serving amounts are the same for every size.
 /// </remarks>
-public sealed class NutritionLabelService(AppDbContext db, NutritionLabelReader reader)
+public sealed class NutritionLabelService(AppDbContext db, INutritionLabelReader reader)
 {
     /// <summary>
     /// Label images that haven't been read at their current URL, most clicked
@@ -72,7 +72,7 @@ public sealed class NutritionLabelService(AppDbContext db, NutritionLabelReader 
 
         var verdict = result.Reading is null
             ? new NutritionLabelVerdict(false, result.Error ?? "no reading")
-            : NutritionLabelValidator.Validate(result.Reading);
+            : NutritionLabelValidator.Validate(result.Reading, reader.RequiresCalorieCheck);
 
         if (write)
             await WriteAsync(item.Url, result.Reading, verdict, cancellationToken);
