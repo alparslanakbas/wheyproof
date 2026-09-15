@@ -172,6 +172,16 @@ export function buildProductFacts(deal: Deal, discountEventCount?: number): Prod
  * measurements, NOT the store's copy (see above). It differs per product
  * because the numbers do.
  */
+/**
+ * schema.org Offer "availability", only when the store reported stock.
+ * Unknown stock (null) adds nothing: claiming InStock without data would be
+ * the kind of guess this site doesn't publish.
+ */
+export function offerAvailability(inStock: boolean | null): { availability?: string } {
+  if (inStock === null) return {};
+  return { availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock' };
+}
+
 export function buildProductJsonLdDescription(deal: Deal): string {
   const parts: string[] = [];
 

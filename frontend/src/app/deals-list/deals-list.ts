@@ -6,7 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
 
 import { filterSelectValue, readFilterSelection } from '../core/filter-select';
-import { buildProductJsonLdDescription } from '../core/product-facts';
+import { buildProductJsonLdDescription, offerAvailability } from '../core/product-facts';
 import { ArticleSummary } from '../core/article.model';
 import { ArticlesService } from '../core/articles.service';
 import { canonicalOrigin } from '../core/canonical-link';
@@ -343,9 +343,10 @@ export class DealsList implements OnInit {
         noIndex: deal.isStale === true,
       });
 
-      // schema.org Product/Offer. No "availability": not every store reports
-      // stock reliably, and claiming "InStock" without data is worse than
-      // leaving the field out.
+      // schema.org Product/Offer. "availability" only when the store reported
+      // stock (inStock is three-state): claiming "InStock" without data is
+      // worse than leaving the field out, but a known value is what Search
+      // Console asked for (2026-09-15, non-critical).
       const jsonLd = {
         '@context': 'https://schema.org',
         '@type': 'Product',
@@ -360,6 +361,7 @@ export class DealsList implements OnInit {
           url: `${canonicalOrigin(this.document)}${canonicalProductPath}`,
           priceCurrency: MARKET.currency,
           price: deal.currentPrice.toFixed(2),
+          ...offerAvailability(deal.inStock),
         },
         // The store's own customer rating, ONLY when it exists, and shown on
         // the page too: Google requires marked-up ratings to be visible.

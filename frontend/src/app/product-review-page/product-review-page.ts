@@ -7,7 +7,7 @@ import { catchError } from 'rxjs/operators';
 
 import { dedupeSameDaySamePrice, hoverAlign, nearestPointIndex, tooltipDateLabel } from '../core/chart-hover';
 import { buildPageTitle, buildReviewDescription, formatPriceText } from '../core/meta-description';
-import { buildProductFacts, buildProductJsonLdDescription } from '../core/product-facts';
+import { buildProductFacts, buildProductJsonLdDescription, offerAvailability } from '../core/product-facts';
 import { buildBreadcrumbJsonLd } from '../core/breadcrumb';
 import { canonicalOrigin } from '../core/canonical-link';
 import { CATEGORY_LABELS } from '../core/category-labels';
@@ -371,6 +371,7 @@ export class ProductReviewPage implements OnInit {
         url: `${origin}/product/${deal.productId}/${slug}`,
         priceCurrency: MARKET.currency,
         price: deal.currentPrice.toFixed(2),
+        ...offerAvailability(deal.inStock),
       },
       ...(deal.ratingValue !== null && deal.ratingCount !== null
         ? {
