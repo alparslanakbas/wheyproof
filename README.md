@@ -1,104 +1,121 @@
-# ProteinAvcısı
+# WheyProof
 
-🔗 **Canlı site:** [proteinavcisi.com.tr](https://proteinavcisi.com.tr)
+🔗 **Live site:** [wheyproof.com](https://www.wheyproof.com)
 
-## Amaç
+## What it does
 
-Türkiye'deki spor takviyesi / protein tozu markaları sitelerinde sürekli "indirim"
-etiketleri gösteriyor — ama bu "eski fiyat" genellikle markanın kendi beyanı,
-bağımsız doğrulanmış bir şey değil. ProteinAvcısı, günde birkaç kez otomatik
-topladığı gerçek fiyat geçmişine bakıp bir indirimin gerçekten indirim mi yoksa
-sadece etiket mi olduğunu gösteriyor.
+Supplement stores show "sale" badges all the time, but the crossed-out
+"was" price is the store's own claim, not something anyone checked.
+WheyProof records the real price of US protein and sports-nutrition products
+several times a day and uses that history to show whether a discount is an
+actual price drop or just a label.
 
-Kısacası: markanın söylediğine değil, biriktirdiği veriye güveniyor.
+In short: it trusts the price history it collected, not what the store says.
 
-## Özellikler
+## Features
 
-- **Çoklu marka desteği** — HIQ, SSN, Hardline, ProteinOcean, Torq Nutrition,
-  West Nutrition, Yeşilmarka, BigJoy, Commander Nutrition; her marka kendi scraper
-  implementasyonuna sahip (`IBrandScraper`), ortak bir arayüz üzerinden.
-- **Gerçek fiyat geçmişi** — her tarama bir `PriceHistory` kaydı bırakıyor, indirim
-  tespiti bu geçmişe dayanıyor.
-- **Mağaza kampanyaları** — markanın kendi beyan ettiği indirim, "doğrulanmamış" olarak
-  ayrı gösteriliyor.
-- **Kupon kodları** — elle doğrulanmış, güncel kampanya kodları.
-- **Stok durumu** — stokta olmayan ürünler listeden çıkarılmıyor, "Tükendi"
-  rozetiyle gösteriliyor: stok geçici olduğu için ürünü taramadan düşürmek
-  fiyat geçmişinde boşluk bırakıyordu. Bu bilgi yalnızca sağlayan kaynaklarda
-  gösteriliyor; vermeyen markalarda alan boş bırakılıyor (tahmin üretilmiyor).
-- **Ürün ve marka karşılaştırma** — iki ürünü (`/karsilastir-urun/:pair`) ya da
-  iki markayı (`/karsilastir/:pair`) yan yana koyan sayfalar.
-- **Hesaplayıcılar** — protein ihtiyacı, kalori, VKİ, su ihtiyacı ve takviye
-  doz/maliyet hesaplayıcıları (`/hesaplama/*`).
-- **Rehber ve sözlük** — bilgi amaçlı yazılar (`/rehber`) ve terim sözlüğü
-  (`/sozluk`); ayrıca marka × kategori kesişim sayfaları
-  (`/marka/:marka/:kategori`).
-- **Sunucu taraflı arama/filtre/sayfalama/sıralama** — marka, kategori, fiyat aralığı,
-  serbest metin arama; fiyata veya isme göre sıralama.
-- **Ürün detay + fiyat grafiği** — zaman aralığı seçilebilir (7 gün / 15 gün / 1 ay /
-  6 ay / 1 yıl), hover tooltip'li elle çizilmiş SVG grafik.
-- **Favoriler + fiyat alarmı** — hesap gerektirmeden, sadece e-posta ile ürün takibi ve
-  fiyat düşünce bildirim.
-- **E-posta bülteni** — haftalık öne çıkan indirimler özeti (double opt-in).
-- **Paylaşım** — site veya tekil ürün linkini WhatsApp/X/Facebook üzerinden veya
-  doğrudan linki kopyalayarak paylaşma (mobilde native paylaşım penceresi).
-- **SSR (Angular Universal) + SEO** — her ürün kendi URL'ine sahip (`/urun/:id/:slug`),
-  dinamik title/meta/Open Graph, schema.org `Product`/`Offer` structured data,
-  dinamik `sitemap.xml` ve `robots.txt`.
-- **PWA desteği** — ana ekrana eklenebilir, yüklenebilir uygulama.
-- **Açık/koyu/sistem tema desteği.**
+- **Price history from the stores themselves** — every scrape leaves a
+  `PriceHistory` row; discounts, 30-day lows and the reference price are
+  computed from that history.
+- **Store claims kept separate** — the store's own "was" price is shown as the
+  store's claim, not as a verified discount.
+- **Nutrition and value metrics** — serving size, protein per serving, cost per
+  serving and cost per 30 g of protein, only when the store publishes the data.
+  Nothing is estimated: a value that can't be calculated stays empty.
+- **Nutrition labels read from product images** — when a store only publishes
+  its Nutrition Facts as an image, the label is read with Tesseract OCR and
+  accepted only if the calories add up from the macros.
+- **Stock status** — out-of-stock products stay listed with an "Out of stock"
+  badge so their price history has no gaps; shown only for stores that report
+  stock.
+- **Product and brand comparison** — side-by-side pages for two products
+  (`/compare-products/:pair`) or two brands (`/compare/:pair`).
+- **Calculators** — protein needs, daily calories (TDEE), BMI, water intake and
+  supplement dosage/cost for creatine, beta-alanine, citrulline, betaine and
+  EAAs (`/calculators/*`).
+- **Guides and glossary** — articles (`/guides`) and a terms glossary
+  (`/glossary`); plus brand × category pages (`/brand/:brand/:category`).
+- **Server-side search, filters, sorting and pagination** — brand, category,
+  seller, price range and free-text search.
+- **Product pages and reviews** — price chart with selectable ranges
+  (`/product/:id/:slug`) and data-based review pages (`/review/:id/:slug`).
+- **Watchlist and price alerts** — no account needed; follow products with an
+  email address and get notified when the price drops.
+- **Newsletter** — weekly deals digest with double opt-in.
+- **Affiliate links by store** — "Go to store" links carry tracking only for
+  stores with a partner program; the rule is chosen by the store's host and
+  configured on the server, never in the repo.
+- **SSR + SEO** — Angular SSR with hydration, per-page title/meta/Open Graph,
+  schema.org `Product`/`Offer`/`FAQPage` data, dynamic `sitemap.xml` and
+  `robots.txt`, IndexNow pings.
+- **PWA** — installable, with a service worker.
+- **Light / dark / system theme.**
 
-## Kullanılan Teknolojiler ve Servisler
+## Sources
+
+24 stores, all scraped from their public Shopify storefronts:
+BulkSupplements, Naked Nutrition, Transparent Labs, Momentous, RAW Nutrition,
+Gorilla Mind, Nutricost, Kaged, MuscleTech, Promix, Quest Nutrition,
+Clean Simple Eats, Jocko Fuel, Optimum Nutrition, Orgain, Ascent, Ghost,
+Bodybuilding.com (retailer), MusclePharm, Animal, Bare Performance Nutrition,
+Bounce Nutrition, Ultimate Paleo Protein and CON-CRET.
+
+Stores are listed in
+`backend/src/IndirimTakip.Infrastructure/Scraping/Shopify/ShopifyStores.cs`;
+a new Shopify store is one line there.
+
+## Tech stack
 
 **Backend**
 - .NET 10, ASP.NET Core minimal API
-- PostgreSQL + EF Core
-- HtmlAgilityPack (HTML parse) + doğrudan `HttpClient` tabanlı scraper'lar (bazı
-  markalarda JSON/GraphQL API'leri) — hiçbiri tarayıcı otomasyonu gerektirmiyor
-- [Brevo](https://brevo.com) — transactional e-posta (bülten, fiyat düşüş bildirimi,
-  favori listesi kurtarma linki)
+- PostgreSQL 18 + EF Core (Npgsql)
+- `HttpClient`-based scraping with HtmlAgilityPack; no browser automation
+- Tesseract OCR for nutrition label images
+- SixLabors.ImageSharp — product images are resized and served from our own
+  server instead of hotlinking store CDNs
+- [Brevo](https://brevo.com) — transactional email (confirmations, price
+  alerts, digest)
 
 **Frontend**
 - Angular 22 (standalone components, Signals)
-- Angular SSR (Universal) + hydration
+- Angular SSR + hydration, Express 5
 - Tailwind CSS v4
 - PWA (manifest + service worker)
 
-**Altyapı**
-- [Oracle Cloud Infrastructure](https://www.oracle.com/cloud/) — VPS (Ampere ARM,
-  Docker + Docker Compose ile backend/frontend/[Caddy](https://caddyserver.com)
-  reverse proxy, otomatik Let's Encrypt SSL)
-- **PostgreSQL 18** — aynı sunucuda, Docker Compose ile (yalnızca compose ağına
-  açık, dışarıdan erişilemez). Başlangıçta yönetilen bir serverless veritabanı
-  kullanılıyordu; iş yükü "sürekli uyanık ama küçük veri" olduğu için
-  compute-saat bazlı fiyatlandırma uygun düşmedi. Günlük otomatik yedek alınıyor
-  ve her yedek `pg_restore` ile doğrulanıyor.
-- [Cloudflare](https://cloudflare.com) — DNS, CDN, edge güvenlik kuralları
-- [UptimeRobot](https://uptimerobot.com) — periyodik uptime izleme
+**Infrastructure**
+- [Oracle Cloud](https://www.oracle.com/cloud/) VM (Ampere ARM), Docker Compose
+- [Caddy](https://caddyserver.com) reverse proxy with automatic HTTPS
+- PostgreSQL in the same Compose project, reachable only from the Compose
+  network
+- [Cloudflare](https://cloudflare.com) — DNS, CDN, edge security; the admin
+  panel is behind Cloudflare Access
+- GitHub Actions — every push to the main branch deploys and then checks the
+  services are really up
 
-**SEO / Görünürlük**
-- Google Search Console, Bing Webmaster Tools, Yandex Webmaster
-- Dinamik `sitemap.xml`, schema.org structured data (`Product`/`Offer`/`FAQPage`)
+**Tests**
+- Backend: xUnit
+- Frontend: Vitest
 
-**Kalite / Test**
-- Backend: xUnit (saf mantık — kategori/fiyat ayrıştırma)
-- Frontend: Vitest (Angular'ın kendi unit test runner'ı)
-- [TestSprite](https://www.testsprite.com) — AI destekli otomatik API/uçtan uca test
-  üretimi ve çalıştırma (MCP üzerinden, geliştirme ortamına karşı)
-
-## Proje Yapısı
+## Project structure
 
 ```
 backend/
   src/
-    IndirimTakip.Api/            ASP.NET Core Web API (endpoint'ler)
-    IndirimTakip.Core/           Entity'ler, IBrandScraper arayüzü
-    IndirimTakip.Infrastructure/ EF Core, scraper implementasyonları, servisler
+    IndirimTakip.Api/                  ASP.NET Core API (endpoints)
+    IndirimTakip.Core/                 Entities, scraper interfaces
+    IndirimTakip.Infrastructure/       EF Core, scrapers, background jobs, services
+    IndirimTakip.Infrastructure.Tests/ xUnit tests
 frontend/
   src/
     app/
-      core/                      Servisler, modeller
-      deals-list/                Ana liste + filtre + sayfalama
-      product-modal/             Ürün detay modalı + fiyat grafiği
-      share-button/              Paylaşım butonu (WhatsApp/X/Facebook/link kopyala)
+      core/                            Services, models, calculators, content
+      deals-list/                      Home page list, filters, pagination
+      product-modal/                   Product detail + price chart
+      product-review-page/             Data-based review pages
+caddy/                                 Site config picked up by the shared Caddy
+docker-compose.yml                     Database, backend and frontend services
 ```
+
+The C# namespaces still start with `IndirimTakip`: the code base was forked
+from a Turkish sister project and the names were kept to avoid a large,
+purely cosmetic rename.
