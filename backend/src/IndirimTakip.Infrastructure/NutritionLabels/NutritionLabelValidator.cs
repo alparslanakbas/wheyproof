@@ -15,6 +15,14 @@ public sealed record NutritionLabelReading
     public decimal? FatGrams { get; init; }
     /// <summary>Every printed row, label and amount exactly as on the panel.</summary>
     public List<NutritionLabelRow> Rows { get; init; } = [];
+    /// <summary>
+    /// Supplement Facts rows that two OCR passes read identically, each with a known
+    /// ingredient name and the panel complete (<see cref="SupplementFactsText"/>).
+    /// Stands in for the calorie check such panels can't have. Never read from
+    /// JSON: a model's answer must not be able to claim it.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool RowsCrossChecked { get; init; }
 }
 
 public sealed record NutritionLabelRow(string Label, string Amount);
@@ -83,6 +91,9 @@ public static class NutritionLabelValidator
 
         if (isNutritionPanel)
             return Reject("a Nutrition Facts panel without readable calories and macros");
+
+        if (reading.RowsCrossChecked)
+            return new NutritionLabelVerdict(true, "supplement facts rows agreed across OCR passes");
 
         if (requireCalorieCheck)
             return Reject("supplement facts can't be calorie-checked; this engine publishes checked panels only");

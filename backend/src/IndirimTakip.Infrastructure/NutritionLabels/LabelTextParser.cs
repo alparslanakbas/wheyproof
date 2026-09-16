@@ -86,7 +86,7 @@ internal static partial class LabelTextParser
         return rows;
     }
 
-    private static string Normalize(string text)
+    internal static string Normalize(string text)
     {
         var collapsed = HorizontalSpaceRegex().Replace(text, " ");
         collapsed = ZeroBeforeUnitRegex().Replace(collapsed, "0");

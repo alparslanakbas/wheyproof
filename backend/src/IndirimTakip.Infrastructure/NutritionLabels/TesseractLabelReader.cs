@@ -87,6 +87,7 @@ public sealed class TesseractLabelReader(HttpClient httpClient, NutritionLabelOp
             }
 
             NutritionLabelReading? best = null;
+            var passes = new Dictionary<int, string>();
             foreach (var mode in PageSegmentationModes)
             {
                 var text = await RunTesseractAsync(pngPath, mode, cancellationToken);
@@ -97,8 +98,20 @@ public sealed class TesseractLabelReader(HttpClient httpClient, NutritionLabelOp
                 if (NutritionLabelValidator.Validate(reading, requireCalorieCheck: true).Accepted)
                     return Finished(reading, null);
 
+                passes[mode] = text;
                 if (best is null || (!best.IsNutritionLabel && reading.IsNutritionLabel))
                     best = reading;
+            }
+
+            // No calorie-checked panel: a Supplement Facts panel that both full-layout
+            // passes (psm 3 and 6) read completely and identically is the other way to
+            // publish (SupplementFactsText.Agree says why psm 11 isn't one of them).
+            // A refusal returns no reading, so its reason is what gets recorded
+            // ("supplement facts: unknown row name 'lron'").
+            if (passes.Values.Any(t => LabelTextParser.Parse(t).PanelType == "Supplement Facts"))
+            {
+                var (supplement, reason) = SupplementFactsText.Agree([passes[3], passes[6]]);
+                return Finished(supplement, supplement is null ? reason : null);
             }
 
             // The service runs the validator again and records its reason.

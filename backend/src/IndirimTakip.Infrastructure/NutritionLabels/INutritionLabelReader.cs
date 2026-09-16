@@ -13,6 +13,8 @@ public interface INutritionLabelReader
     /// When true only calorie-checked Nutrition Facts panels may be published.
     /// The free OCR engine loses the amount column on Supplement Facts panels,
     /// and those print no calories to check against (measured 2026-09-14).
+    /// Exception: Supplement Facts rows the engine cross-checked itself
+    /// (<see cref="NutritionLabelReading.RowsCrossChecked"/>).
     /// </summary>
     bool RequiresCalorieCheck { get; }
 
