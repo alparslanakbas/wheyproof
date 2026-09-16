@@ -153,7 +153,22 @@ public class ProductDetailBackfillService(
                     // The page was checked successfully: stamped whether or not a
                     // table was found, so it isn't retried forever.
                     product.NutritionCheckedAt = DateTimeOffset.UtcNow;
+                    product.PageNotFoundAt = null;
                     totalUpdated++;
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    // Not stamped, so it comes back next run for the second check.
+                    if (RecordPageNotFound(product, DateTimeOffset.UtcNow))
+                    {
+                        logger.LogWarning(
+                            "{Brand} - product page still 404 since {Since}; hidden: {Url}.",
+                            brandScraper.BrandName, product.PageNotFoundAt, product.Url);
+                    }
+                    else
+                    {
+                        logger.LogWarning("{Brand} - product page 404, will check again: {Url}.", brandScraper.BrandName, product.Url);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -178,6 +193,36 @@ public class ProductDetailBackfillService(
         await MarkCompletedAsync(cancellationToken);
 
         return totalUpdated;
+    }
+
+    // A second 404 has to come at least this long after the first. Runs are a
+    // day apart in production, so in practice this is "404 on two different
+    // days"; the gap keeps a manual re-run minutes later from hiding anything.
+    internal static readonly TimeSpan PageNotFoundConfirmAfter = TimeSpan.FromHours(12);
+
+    /// <summary>
+    /// Records a 404 on the product page; returns true when this hides the product.
+    /// </summary>
+    /// <remarks>
+    /// First 404: remember when. A 404 again after <see cref="PageNotFoundConfirmAfter"/>:
+    /// hide it. Measured 2026-09-16: Naked Nutrition kept 15 rows in products.json
+    /// whose US pages 404 (EU/UK editions), and 4 of them carry no tag the scraper
+    /// could filter on. A hidden product is left alone afterwards (the global
+    /// filter keeps it out of this query too); the admin panel can show it again.
+    /// </remarks>
+    internal static bool RecordPageNotFound(Product product, DateTimeOffset now)
+    {
+        if (product.PageNotFoundAt is null)
+        {
+            product.PageNotFoundAt = now;
+            return false;
+        }
+
+        if (now - product.PageNotFoundAt.Value < PageNotFoundConfirmAfter)
+            return false;
+
+        product.IsActive = false;
+        return true;
     }
 
     private async Task MarkCompletedAsync(CancellationToken cancellationToken)

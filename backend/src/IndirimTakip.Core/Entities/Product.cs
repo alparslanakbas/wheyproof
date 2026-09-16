@@ -90,6 +90,14 @@ public class Product
     // forever.
     public DateTimeOffset? NutritionCheckedAt { get; set; }
 
+    // When the store's product page FIRST answered 404 in the current streak.
+    // Cleared as soon as the page loads again. A second 404 at least 12 hours
+    // later hides the product (IsActive = false): the store still lists it but
+    // its page is gone, so "Go to store" would land on a 404. Two checks, not
+    // one, so a brief store-side hiccup doesn't hide a real product. Written by
+    // ProductDetailBackfillService, which already visits these pages.
+    public DateTimeOffset? PageNotFoundAt { get; set; }
+
     // The store's Nutrition/Supplement Facts panel IMAGE, picked by file name
     // during the scrape (see NutritionLabelImagePicker). US brands publish the
     // label as a picture, not as text: in a 2026-09-14 survey no store had a

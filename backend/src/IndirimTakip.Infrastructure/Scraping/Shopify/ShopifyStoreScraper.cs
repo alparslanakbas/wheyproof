@@ -277,6 +277,9 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         if (product.Tags.Any(t => t.Equals("base_product", StringComparison.OrdinalIgnoreCase)))
             return true;
 
+        if (IsOtherMarketOnly(product.Tags))
+            return true;
+
         // Structural apparel/merch signals, independent of the title's wording.
         // Measured across all 18 stores on 2026-09-12: a "Color" option matched
         // 174 products and letter sizes (S/M/L/XL) matched apparel and knee
@@ -344,6 +347,35 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
             .Select(m => m.Groups["kind"].Value);
 
         return ProductAttributeParser.InferCategory(string.Join(" ", declared), brandName);
+    }
+
+    /// <summary>
+    /// A product tagged for other Shopify markets and not for the US one.
+    /// </summary>
+    /// <remarks>
+    /// Naked Nutrition lists EU/UK editions (450 g, 2280 g, 600 g...) in the
+    /// same products.json as its US catalog, tagged <c>market-eu</c> and
+    /// <c>market-uk</c>. Their pages don't exist on the US storefront: measured
+    /// 2026-09-16, the product page and its .json both 404 with the storefront
+    /// already reporting country US and USD, while a US product answered 200.
+    /// We were publishing those rows, so "Go to store" landed shoppers on a 404.
+    /// A product that also carries <c>market-us</c> stays: the rule only drops
+    /// what is explicitly for somewhere else.
+    ///
+    /// Not every dead Naked row carries the tag: four "- 480g"/"- 240g"
+    /// pre-workouts don't, and nothing in their product data tells them apart
+    /// from the US listings. Those are caught when their page 404s twice (see
+    /// ProductDetailBackfillService.RecordPageNotFound).
+    /// </remarks>
+    internal static bool IsOtherMarketOnly(IEnumerable<string> tags)
+    {
+        var markets = tags
+            .Select(t => t.Trim())
+            .Where(t => t.StartsWith("market-", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return markets.Count > 0
+            && !markets.Any(t => t.Equals("market-us", StringComparison.OrdinalIgnoreCase));
     }
 
     // "Category:Pre Workout", "Category: Fat Burners".
