@@ -18,9 +18,13 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 /// (Quest, measured 2026-09-14) or as a JSON object in the page (Naked
 /// Nutrition, measured 2026-09-15). The other stores publish it as an image.
 /// </param>
+/// <param name="OnlyHandles">
+/// When set, only these product handles are kept. For stores where we want a
+/// few named products and a category rule would still let the rest through.
+/// </param>
 public sealed record ShopifyStore(
     string BrandName, string BaseUrl, bool IsRetailer = false, IReadOnlySet<string>? OnlyCategories = null,
-    bool NutritionOnPage = false);
+    bool NutritionOnPage = false, IReadOnlySet<string>? OnlyHandles = null);
 
 public static class ShopifyStores
 {
@@ -77,5 +81,12 @@ public static class ShopifyStores
         new("Bounce Nutrition", "https://bouncenutrition.com"),
         new("Ultimate Paleo Protein", "https://ultimatepaleoprotein.com"),
         new("CON-CRET", "https://con-cret.com"),
+        // Added 2026-09-17: a 12-product store, taken for two products only.
+        // The rest is off-scope (diet drops, "female enhancement", a skin
+        // serum, detox blends) or a checkout add-on ("Protect", 100 price
+        // tiers). A category rule would still let the fat burner and detox
+        // products in, so the two handles are listed by name.
+        new("33 Nutrition", "https://33nutrition.com",
+            OnlyHandles: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "complete-multivitamin", "bcaa-recovery" }),
     ];
 }

@@ -192,6 +192,9 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
 
     internal static IEnumerable<ScrapedProduct> ToScrapedProducts(ShopifyProduct product, ShopifyStore store, string? seller)
     {
+        if (store.OnlyHandles is { } handles && !handles.Contains(product.Handle))
+            yield break;
+
         if (IsExcluded(product, store))
             yield break;
 
