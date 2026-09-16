@@ -1,12 +1,13 @@
 import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners, isDevMode } from '@angular/core';
 import { PreloadAllModules, RouteReuseStrategy, provideRouter, withPreloading } from '@angular/router';
-import { provideHttpClient, withFetch } from '@angular/common/http';
+import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { provideClientHydration, withIncrementalHydration } from '@angular/platform-browser';
 
 import { routes } from './app.routes';
 import { MARKET } from './core/market';
 import { DealsRouteReuseStrategy } from './core/deals-route-reuse.strategy';
 import { provideServiceWorker } from '@angular/service-worker';
+import { internalApiInterceptor } from './core/internal-api';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -15,7 +16,9 @@ export const appConfig: ApplicationConfig = {
     // PreloadAllModules they're all fetched in the background once the home
     // page is idle: no extra network wait on click, just a smaller first load.
     provideRouter(routes, withPreloading(PreloadAllModules)),
-    provideHttpClient(withFetch()),
+    // The interceptor is a no-op in the browser; the internal address is only
+    // provided in the server config (see core/internal-api.ts).
+    provideHttpClient(withFetch(), withInterceptors([internalApiInterceptor])),
     // Incremental hydration: blocks marked @defer (hydrate on ...) still
     // render on the server (search engines see them in the HTML) but aren't
     // hydrated in the browser until their trigger fires. Hydrating

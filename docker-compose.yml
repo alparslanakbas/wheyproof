@@ -139,6 +139,9 @@ services:
       - PORT=4000
       # Angular SSR rejects requests for hosts not listed here.
       - NG_ALLOWED_HOSTS=wheyproof.com,www.wheyproof.com
+      # SSR calls the API over the Docker network instead of through
+      # Cloudflare (frontend/src/app/core/internal-api.ts).
+      - API_INTERNAL_URL=http://wheyproof-backend:8080
     expose:
       - "4000"
     networks:
