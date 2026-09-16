@@ -67,3 +67,54 @@
   background: color-mix(in srgb, var(--noc-accent) 18%, transparent);
   font-size: 10px;
 }
+/* Other label rows: name, amount, unit, remove. On a phone the name takes
+   its own line so it stays readable. */
+.data-other-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px 118px 34px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+@media (max-width: 480px) {
+  .data-other-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 34px;
+  }
+  .data-other-row input[type='text'] {
+    grid-column: 1 / -1;
+  }
+}
+.data-other-row input,
+.data-other-row select {
+  min-width: 0;
+  min-height: 34px;
+  padding-inline: 9px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 7px;
+  background: var(--noc-bg);
+  color: var(--noc-text);
+  font-size: 13px;
+}
+.data-row-remove {
+  min-height: 34px;
+  border: 1px solid var(--noc-divider);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--noc-neutral-500);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.data-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.data-row-actions button {
+  min-height: 34px;
+  padding-inline: 12px;
+  border-radius: 7px;
+  color: var(--noc-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}

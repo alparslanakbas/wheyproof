@@ -9,6 +9,14 @@ import { PageMetaService } from '../core/page-meta.service';
 import { normalizeSearchText } from '../core/search-normalize';
 import { SITE_NAME } from '../core/site-identity';
 import {
+  NUTRITION_UNITS,
+  NutritionRowForm,
+  ROW_NAME_SUGGESTIONS,
+  ROW_TEMPLATES,
+  storedOtherRows,
+  templateRowsToAdd,
+} from './nutrition-rows';
+import {
   AdminBrand,
   AdminFailure,
   AdminProduct,
@@ -29,6 +37,8 @@ interface ProductDataForm extends Record<NutritionField, string> {
   product: AdminProduct;
   /** '' = automatic. */
   category: string;
+  /** Label rows beyond the macros (Supplement Facts). */
+  otherRows: NutritionRowForm[];
 }
 type SubscriberFilter = 'all' | SubscriberStatus;
 type VisibilityView = 'brands' | 'products';
@@ -119,6 +129,8 @@ export class AdminPage implements OnInit {
     { key: 'fat', label: 'Total fat (g)' },
     { key: 'fiber', label: 'Dietary fiber (g)' },
   ];
+  readonly nutritionUnits = NUTRITION_UNITS;
+  readonly rowNameSuggestions = ROW_NAME_SUGGESTIONS;
   /** The product whose category and nutrition are being edited; null when closed. */
   readonly editingData = signal<ProductDataForm | null>(null);
   readonly dataSaving = signal(false);
@@ -633,7 +645,12 @@ export class AdminPage implements OnInit {
     const table = this.parseNutrition(product.nutritionJson);
     // "160", "2.5g" -> the number as text for the input.
     const value = (label: string) => table[label]?.match(/\d+(?:\.\d+)?/)?.[0] ?? '';
-    this.dataMessage.set(null);
+    const other = storedOtherRows(table);
+    // An automatic reading can hold rows this editor can't express ("10%").
+    // Saving replaces the whole table, so say which ones would go.
+    this.dataMessage.set(
+      other.skipped.length > 0 ? `Saving from here drops rows this editor can't edit: ${other.skipped.join(', ')}.` : null,
+    );
     this.editingData.set({
       product,
       category: product.categoryIsManual ? (product.category ?? '') : '',
@@ -643,6 +660,43 @@ export class AdminPage implements OnInit {
       carbs: value('Total Carbohydrate'),
       fat: value('Total Fat'),
       fiber: value('Dietary Fiber'),
+      otherRows: other.rows,
+    });
+  }
+
+  /** The label of the category whose template rows can still be added, or null. */
+  templateCategoryLabel(form: ProductDataForm): string | null {
+    const category = form.category || form.product.category;
+    if (!category || !ROW_TEMPLATES[category]) return null;
+    return templateRowsToAdd(category, form.otherRows).length > 0 ? this.categoryLabel(category) : null;
+  }
+
+  addTemplateRows(): void {
+    const form = this.editingData();
+    if (!form) return;
+    const rows = templateRowsToAdd(form.category || form.product.category, form.otherRows);
+    this.editingData.set({ ...form, otherRows: [...form.otherRows, ...rows] });
+  }
+
+  addOtherRow(): void {
+    const form = this.editingData();
+    if (!form) return;
+    this.editingData.set({ ...form, otherRows: [...form.otherRows, { label: '', amount: '', unit: 'mg' }] });
+  }
+
+  removeOtherRow(index: number): void {
+    const form = this.editingData();
+    if (!form) return;
+    this.editingData.set({ ...form, otherRows: form.otherRows.filter((_, i) => i !== index) });
+  }
+
+  updateOtherRow(index: number, field: keyof NutritionRowForm, value: unknown): void {
+    const form = this.editingData();
+    if (!form) return;
+    const text = value == null ? '' : String(value);
+    this.editingData.set({
+      ...form,
+      otherRows: form.otherRows.map((row, i) => (i === index ? { ...row, [field]: text } : row)),
     });
   }
 
@@ -678,12 +732,20 @@ export class AdminPage implements OnInit {
       fatGrams: number(form.fat),
       fiberGrams: number(form.fiber),
     };
-    if (Object.values(body).some((v) => v !== null && Number.isNaN(v))) {
+    // A template row left without an amount wasn't on the label: skipped, not
+    // sent as an error. A named row with an amount goes to the backend's check.
+    const otherRows = form.otherRows
+      .filter((r) => r.amount.trim() !== '')
+      .map((r) => ({ label: r.label, amount: number(r.amount), unit: r.unit }));
+    if (
+      Object.values(body).some((v) => v !== null && Number.isNaN(v)) ||
+      otherRows.some((r) => r.amount !== null && Number.isNaN(r.amount))
+    ) {
       this.dataMessage.set('Enter numbers only.');
       return;
     }
 
-    this.runDataEdit(this.api.setProductNutrition(form.product.id, body), 'Nutrition saved');
+    this.runDataEdit(this.api.setProductNutrition(form.product.id, { ...body, otherRows }), 'Nutrition saved');
   }
 
   clearNutrition(): void {

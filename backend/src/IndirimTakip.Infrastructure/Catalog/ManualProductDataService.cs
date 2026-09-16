@@ -6,13 +6,21 @@ using Microsoft.EntityFrameworkCore;
 namespace IndirimTakip.Infrastructure.Catalog;
 
 /// <summary>Nutrition per serving as typed into the admin panel from a brand's label.</summary>
+/// <param name="OtherRows">
+/// Rows beyond the macros, as printed on a Supplement Facts panel ("Creatine
+/// Monohydrate 5 g", "Vitamin D3 25 mcg", "Caffeine 200 mg").
+/// </param>
 public sealed record ManualNutritionRequest(
     decimal? ServingSizeGrams,
     decimal? Calories,
     decimal? ProteinGrams,
     decimal? CarbohydrateGrams,
     decimal? FatGrams,
-    decimal? FiberGrams);
+    decimal? FiberGrams,
+    IReadOnlyList<ManualNutritionRow>? OtherRows = null);
+
+/// <summary>One label row: name, amount per serving and its unit.</summary>
+public sealed record ManualNutritionRow(string? Label, decimal? Amount, string? Unit);
 
 public sealed record ManualEditResult(bool Found, bool Accepted, string? Reason = null, int RowsUpdated = 0)
 {
@@ -35,7 +43,9 @@ public sealed record ManualEditResult(bool Found, bool Accepted, string? Reason 
 ///
 /// <b>Typed values pass the same calorie check as automatic readings.</b> A typo
 /// such as 250 g protein instead of 25 breaks the 4/4/9 sum and is refused
-/// with the reason, instead of going live.
+/// with the reason, instead of going live. Supplement Facts rows have no sum to
+/// check, so each one is checked on its own (unit list, above zero, a gram
+/// amount no larger than the serving); see <see cref="Check"/>.
 /// </remarks>
 public sealed class ManualProductDataService(AppDbContext db)
 {
@@ -112,13 +122,38 @@ public sealed class ManualProductDataService(AppDbContext db)
         return new ManualEditResult(true, true, RowsUpdated: updated);
     }
 
+    // Units a label row may use. A closed list, so "5 gr" or "200 mgs" is refused
+    // with the list instead of going live in a spelling the site shows nowhere else.
+    private static readonly string[] RowUnits = ["g", "mg", "mcg", "IU", "billion CFU"];
+
+    // The macro rows have their own fields and pass the calorie check there; typed
+    // again as free rows they would skip that check.
+    private static readonly HashSet<string> MacroLabels = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Serving Size", "Calories", "Total Fat", "Total Carbohydrate", "Dietary Fiber", "Protein",
+    };
+
+    private const int MaxOtherRows = 40;
+    private const int MaxLabelLength = 60;
+
+    // Largest amount any unit plausibly prints per serving (100,000 mcg biotin
+    // exists; nothing on a sports label goes above it). Catches extra zeros.
+    private const decimal MaxRowAmount = 100_000m;
+
     /// <summary>The reading typed values would publish, and whether they may.</summary>
+    /// <remarks>
+    /// <b>Two kinds of panel.</b> Nutrition Facts (protein powder, bars): calories,
+    /// protein, carbohydrate and fat together, and the 4/4/9 calorie check. Supplement
+    /// Facts (creatine, amino acids, pre-workout, vitamins): named rows with no calories
+    /// to check against, so each row is checked on its own instead. Measured on
+    /// 2026-09-17: creatine, amino acids, pre-workout and fat burners had 0 products
+    /// with nutrition and vitamins 4 of 684, because this form only took macros.
+    /// </remarks>
     public static (NutritionLabelReading Reading, NutritionLabelVerdict Verdict) Check(ManualNutritionRequest request)
     {
         var reading = new NutritionLabelReading
         {
             IsNutritionLabel = true,
-            PanelType = "Nutrition Facts",
             ServingSizeGrams = request.ServingSizeGrams,
             Calories = request.Calories,
             ProteinGrams = request.ProteinGrams,
@@ -126,17 +161,93 @@ public sealed class ManualProductDataService(AppDbContext db)
             FatGrams = request.FatGrams,
             FiberGrams = request.FiberGrams,
         };
-        reading = reading with { Rows = LabelTextParser.CheckedRows(reading) };
 
         decimal?[] values = [request.ServingSizeGrams, request.Calories, request.ProteinGrams, request.CarbohydrateGrams, request.FatGrams, request.FiberGrams];
         if (values.Any(v => v < 0))
-            return (reading, new NutritionLabelVerdict(false, "values can't be negative"));
+            return Refuse(reading, "values can't be negative");
 
-        if (request.Calories is null || request.ProteinGrams is null || request.CarbohydrateGrams is null || request.FatGrams is null)
-            return (reading, new NutritionLabelVerdict(false, "calories, protein, carbohydrate and fat are all required"));
+        var (otherRows, rowError) = CheckOtherRows(request.OtherRows ?? [], request.ServingSizeGrams);
+        if (rowError is not null)
+            return Refuse(reading, rowError);
 
-        return (reading, NutritionLabelValidator.Validate(reading, requireCalorieCheck: true));
+        decimal?[] macros = [request.Calories, request.ProteinGrams, request.CarbohydrateGrams, request.FatGrams];
+        var hasMacros = macros.Any(v => v is not null);
+
+        if (hasMacros)
+        {
+            if (macros.Any(v => v is null))
+                return Refuse(reading, "calories, protein, carbohydrate and fat go together: enter all four, or none for a supplement facts panel");
+
+            var macroReading = reading with { PanelType = "Nutrition Facts", Rows = LabelTextParser.CheckedRows(reading) };
+            var macroVerdict = NutritionLabelValidator.Validate(macroReading, requireCalorieCheck: true);
+            if (!macroVerdict.Accepted)
+                return (macroReading, macroVerdict);
+
+            return (macroReading with { Rows = [.. macroReading.Rows, .. otherRows] }, macroVerdict);
+        }
+
+        if (otherRows.Count == 0)
+            return Refuse(reading, "enter calories, protein, carbohydrate and fat, or at least one other row from the label");
+
+        var supplementReading = reading with
+        {
+            PanelType = "Supplement Facts",
+            Rows = [.. LabelTextParser.CheckedRows(reading), .. otherRows],
+        };
+        return (supplementReading, NutritionLabelValidator.Validate(supplementReading));
     }
+
+    private static (List<NutritionLabelRow> Rows, string? Error) CheckOtherRows(
+        IReadOnlyList<ManualNutritionRow> rows, decimal? servingSizeGrams)
+    {
+        if (rows.Count > MaxOtherRows)
+            return ([], $"at most {MaxOtherRows} other rows");
+
+        var result = new List<NutritionLabelRow>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in rows)
+        {
+            var label = string.Join(' ', (row.Label ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+            if (label.Length == 0)
+                return ([], "a row has no name");
+            if (label.Length > MaxLabelLength)
+                return ([], $"'{label[..20]}…' is longer than {MaxLabelLength} characters");
+            if (MacroLabels.Contains(label))
+                return ([], $"'{label}' has its own field above; enter it there");
+            if (!seen.Add(label))
+                return ([], $"'{label}' is listed twice");
+
+            if (row.Amount is not { } amount)
+                return ([], $"'{label}' has no amount");
+            if (amount <= 0)
+                return ([], $"'{label}' must be above zero");
+            if (amount > MaxRowAmount)
+                return ([], $"'{label}' {amount} looks like a typo");
+
+            var unit = RowUnits.FirstOrDefault(u => string.Equals(u, row.Unit?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (unit is null)
+                return ([], $"'{label}': unit must be one of {string.Join(", ", RowUnits)}");
+
+            // 50 g of creatine in a 5 g scoop is a slipped decimal, not a label.
+            if (unit == "g" && servingSizeGrams is > 0 && amount > servingSizeGrams * 1.05m + 1)
+                return ([], $"'{label}' ({amount} g) is more than the serving size ({servingSizeGrams} g)");
+
+            result.Add(new NutritionLabelRow(label, FormatAmount(amount, unit)));
+        }
+
+        return (result, null);
+    }
+
+    // Same spelling as the macro rows ("25g"); word units keep a space ("1000 IU").
+    private static string FormatAmount(decimal amount, string unit)
+    {
+        var number = amount.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+        return unit is "g" or "mg" or "mcg" ? number + unit : $"{number} {unit}";
+    }
+
+    private static (NutritionLabelReading, NutritionLabelVerdict) Refuse(NutritionLabelReading reading, string reason) =>
+        (reading, new NutritionLabelVerdict(false, reason));
 
     private async Task<(int BrandId, string? Seller, string Url)?> FindAsync(int id, CancellationToken cancellationToken)
     {

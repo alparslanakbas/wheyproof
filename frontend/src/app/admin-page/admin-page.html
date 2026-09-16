@@ -1019,9 +1019,60 @@
             }
           </div>
           <p class="data-note">
-            Calories, protein, carbohydrate and fat are required, and calories must match the macros (4/4/9 kcal per
-            gram), the same check automatic readings pass.
+            Nutrition Facts panel: enter calories, protein, carbohydrate and fat together; calories must match the macros
+            (4/4/9 kcal per gram). Supplement Facts panel (creatine, amino acids, vitamins): leave them empty and use the
+            rows below.
           </p>
+
+          <h3>Other rows <small>name, amount per serving and unit, as printed</small></h3>
+          @for (row of form.otherRows; track $index; let i = $index) {
+            <div class="data-other-row">
+              <input
+                type="text"
+                aria-label="Row name"
+                placeholder="e.g. Caffeine"
+                list="nutrition-row-names"
+                maxlength="60"
+                [ngModel]="row.label"
+                (ngModelChange)="updateOtherRow(i, 'label', $event)"
+                [ngModelOptions]="{ standalone: true }"
+              />
+              <input
+                type="number"
+                aria-label="Amount"
+                placeholder="Amount"
+                min="0"
+                step="any"
+                inputmode="decimal"
+                [ngModel]="row.amount"
+                (ngModelChange)="updateOtherRow(i, 'amount', $event)"
+                [ngModelOptions]="{ standalone: true }"
+              />
+              <select
+                aria-label="Unit"
+                [ngModel]="row.unit"
+                (ngModelChange)="updateOtherRow(i, 'unit', $event)"
+                [ngModelOptions]="{ standalone: true }"
+              >
+                @for (u of nutritionUnits; track u) {
+                  <option [value]="u">{{ u }}</option>
+                }
+              </select>
+              <button type="button" class="data-row-remove" aria-label="Remove row" (click)="removeOtherRow(i)">×</button>
+            </div>
+          }
+          <datalist id="nutrition-row-names">
+            @for (name of rowNameSuggestions; track name) {
+              <option [value]="name"></option>
+            }
+          </datalist>
+          <div class="data-row-actions">
+            <button type="button" class="cancel" (click)="addOtherRow()">+ Add row</button>
+            @if (templateCategoryLabel(form); as label) {
+              <button type="button" class="cancel" (click)="addTemplateRows()">+ Add {{ label }} rows</button>
+            }
+          </div>
+          <p class="data-note">Rows left without an amount aren't saved.</p>
 
           @if (dataMessage()) {
             <p class="info" role="status">{{ dataMessage() }}</p>

@@ -109,7 +109,73 @@ describe('AdminPage visibility safety', () => {
       carbohydrateGrams: 11,
       fatGrams: 2.5,
       fiberGrams: null,
+      otherRows: [],
     });
+  });
+
+  // A creatine label: no macros, one named row. The stored table's other rows
+  // come back into the editor; a shape it can't edit is named, not dropped silently.
+  it('reads stored supplement rows back, names rows it cannot edit, and sends typed rows', () => {
+    page.openDataEditor({
+      ...product,
+      category: 'creatine',
+      servingSizeGrams: 5,
+      nutritionJson: '{"Serving Size":"5g","Creatine Monohydrate":"5g","Vitamin D3":"25mcg","Iron":"10%"}',
+    });
+
+    const form = page.editingData()!;
+    expect(form.otherRows).toEqual([
+      { label: 'Creatine Monohydrate', amount: '5', unit: 'g' },
+      { label: 'Vitamin D3', amount: '25', unit: 'mcg' },
+    ]);
+    expect(page.dataMessage()).toContain('Iron');
+
+    page.removeOtherRow(1);
+    page.addOtherRow();
+    page.updateOtherRow(1, 'label', 'Caffeine');
+    page.updateOtherRow(1, 'amount', 200);
+    page.saveNutrition();
+
+    expect(api.setProductNutrition).toHaveBeenCalledWith(21, {
+      servingSizeGrams: 5,
+      calories: null,
+      proteinGrams: null,
+      carbohydrateGrams: null,
+      fatGrams: null,
+      fiberGrams: null,
+      otherRows: [
+        { label: 'Creatine Monohydrate', amount: 5, unit: 'g' },
+        { label: 'Caffeine', amount: 200, unit: 'mg' },
+      ],
+    });
+  });
+
+  it('adds the category template once and skips its rows left without an amount', () => {
+    page.openDataEditor({ ...product, category: 'pre-workout', nutritionJson: null });
+    expect(page.templateCategoryLabel(page.editingData()!)).toBe('Pre-Workout');
+
+    page.addTemplateRows();
+    const labels = page.editingData()!.otherRows.map((r) => r.label);
+    expect(labels).toEqual(['Caffeine', 'L-Citrulline', 'Beta-Alanine', 'Betaine Anhydrous']);
+    // Everything is in: the button goes away instead of adding duplicates.
+    expect(page.templateCategoryLabel(page.editingData()!)).toBeNull();
+
+    page.updateOtherRow(0, 'amount', '300');
+    page.saveNutrition();
+
+    expect(api.setProductNutrition).toHaveBeenCalledWith(
+      21,
+      expect.objectContaining({ otherRows: [{ label: 'Caffeine', amount: 300, unit: 'mg' }] }),
+    );
+  });
+
+  it('uses the category being set in the editor for the template', () => {
+    page.openDataEditor({ ...product, category: null, nutritionJson: null });
+    expect(page.templateCategoryLabel(page.editingData()!)).toBeNull();
+
+    page.updateDataField('category', 'amino-acids');
+
+    expect(page.templateCategoryLabel(page.editingData()!)).toBe('Amino Acids');
   });
 
   it('shows the backend reason when typed nutrition is refused', () => {

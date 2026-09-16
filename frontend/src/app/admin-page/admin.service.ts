@@ -239,6 +239,8 @@ export interface ManualNutrition {
   carbohydrateGrams: number | null;
   fatGrams: number | null;
   fiberGrams: number | null;
+  /** Rows beyond the macros, as printed on the label ("Caffeine", 200, "mg"). */
+  otherRows: { label: string; amount: number | null; unit: string }[];
 }
 
 export interface ManualEditResponse {
