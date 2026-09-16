@@ -1,0 +1,28 @@
+# Shared resource ceiling for the WheyProof containers (db, backend, frontend).
+#
+# WHY A SLICE AND NOT PER-CONTAINER LIMITS (16 Sept):
+# Two sites share this VM (2 cores, 12 GB). Per-container `cpus` limits still
+# add up to more than two cores, so an attack on one site (SSR + backend +
+# Postgres together) could eat the whole machine and take the OTHER site down
+# too. The slice caps the site's TOTAL; inside it the containers share spare
+# capacity freely.
+#
+# 150% = 1.5 cores: at least half a core always stays free for Caddy (the one
+# entry point for both sites, outside any slice) and the system. Normal load
+# for the whole site is a few percent (measured), so day-to-day work is
+# unaffected.
+# MemoryMax: a leak or spike OOM-kills only this site's containers, not the VM
+# (normal usage ~0.6 GB).
+#
+# Install (on the VM, once; again whenever this file changes):
+#   sudo cp scripts/wheyproof.slice /etc/systemd/system/
+#   sudo systemctl daemon-reload
+# `cgroup_parent: wheyproof.slice` in docker-compose.yml attaches to it. If
+# the file isn't installed, systemd creates the slice itself without limits:
+# containers still start, there is just no ceiling.
+#
+# Measured: with the same mechanism, a container burning 3 CPUs in a test
+# slice capped at 50% stayed at 49.8% (cpu.stat nr_throttled 91).
+[Slice]
+CPUQuota=150%
+MemoryMax=4G

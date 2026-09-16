@@ -22,6 +22,8 @@ services:
     # available there and initdb silently falls back to another locale.
     image: postgres:18
     restart: unless-stopped
+    # Site total capped at 1.5 cores / 4 GB (scripts/wheyproof.slice).
+    cgroup_parent: wheyproof.slice
     environment:
       - POSTGRES_DB=wheyproof
       - POSTGRES_USER=wheyproof
@@ -52,6 +54,8 @@ services:
   wheyproof-backend:
     build: ./backend
     restart: unless-stopped
+    # Site total capped at 1.5 cores / 4 GB (scripts/wheyproof.slice).
+    cgroup_parent: wheyproof.slice
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - PORT=8080
@@ -135,6 +139,8 @@ services:
   wheyproof-frontend:
     build: ./frontend
     restart: unless-stopped
+    # Site total capped at 1.5 cores / 4 GB (scripts/wheyproof.slice).
+    cgroup_parent: wheyproof.slice
     environment:
       - PORT=4000
       # Angular SSR rejects requests for hosts not listed here.
