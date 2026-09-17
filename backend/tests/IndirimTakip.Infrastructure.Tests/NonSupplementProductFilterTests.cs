@@ -27,6 +27,38 @@ public class NonSupplementProductFilterTests
     }
 
     [Theory]
+    // REGRESSION (2026-09-18, found while surveying DMoose): a pull-up bar was
+    // categorised as "protein-snacks" because its name contains "bar", so the
+    // category rule alone would have published gym equipment as a supplement.
+    [InlineData("Doorway Pull Up Bar")]
+    [InlineData("Classic Doorway Pull Up Bar")]
+    [InlineData("Doorway Pull Up Bar - Pull up bar + Ab Roller")]
+    [InlineData("Dual-Wheel Ab Roller")]
+    [InlineData("Heavy Jump Rope - 9.2ft")]
+    [InlineData("DMoose Arm Twister")]
+    [InlineData("Forearm Wrist Roller")]
+    [InlineData("Adjustable Dumbbells 50 lb")]
+    [InlineData("Olympic Barbell 7ft")]
+    [InlineData("Gym Duffle Bag")]
+    [InlineData("Gym Bag Pack")]
+    [InlineData("Insulated Bottle (34 oz)")]
+    public void Drops_gym_equipment(string productName)
+    {
+        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(productName));
+    }
+
+    [Theory]
+    // The equipment words must not touch the products that share them: a protein
+    // BAR is food, and a supplement can carry "band" or "plate" in a flavor name.
+    [InlineData("Quest Chocolate Chip Cookie Dough Protein Bar")]
+    [InlineData("Ghost Energy Bar 12-Pack")]
+    [InlineData("Clean Simple Eats Protein Bar Variety Box")]
+    public void Keeps_products_that_share_an_equipment_word(string productName)
+    {
+        Assert.False(NonSupplementProductFilter.IsAccessoryOrApparel(productName));
+    }
+
+    [Theory]
     // REGRESSION: "rice" (pirinç) must NOT be added to the filter: Cream of Rice is a
     // real sports food sold in the same catalog. A general word would silently drop
     // these products from the site.

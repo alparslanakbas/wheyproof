@@ -86,6 +86,14 @@ public static class ShopifyStores
         // serum, detox blends) or a checkout add-on ("Protect", 100 price
         // tiers). A category rule would still let the fat burner and detox
         // products in, so the two handles are listed by name.
+        // Added 2026-09-18, on Awin (application pending). A 137-product store that
+        // is mostly apparel and gym equipment: measured through the live filters,
+        // the sport categories keep the supplement rows (whey isolate, creatine,
+        // EAA, pre-workout, fat burner) and drop the rest. Vitamins are excluded for
+        // the BulkSupplements reason: its wellness range (sea moss, fadogia,
+        // berberine) is herbal extracts no other store sells, so there is nothing to
+        // compare them against.
+        new("DMoose", "https://www.dmoose.com", OnlyCategories: SportCategories),
         new("33 Nutrition", "https://33nutrition.com",
             OnlyHandles: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "complete-multivitamin", "bcaa-recovery" }),
     ];

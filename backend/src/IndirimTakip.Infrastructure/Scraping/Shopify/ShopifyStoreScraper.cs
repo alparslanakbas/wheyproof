@@ -105,6 +105,19 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
     // Nutrition stack, 50 for a Promix bundle (measured 2026-09-13).
     internal static bool IsFlavorOption(string optionName) => FlavorOptionRegex().IsMatch(optionName);
 
+    // An option that picks how often the product ships, not which package it is.
+    // DMoose files it as "Subscription type" with "One-time" and "Sub"; counted
+    // as a size it doubled every row (measured 2026-09-18: one pre-workout
+    // became four rows). The recurring variants are dropped rather than grouped:
+    // a subscribe-and-save price is not a price a shopper can pay once, and
+    // showing it would undercut the comparison with a price nobody can check out.
+    internal static bool IsSubscriptionOption(string optionName) =>
+        SubscriptionOptionRegex().IsMatch(optionName);
+
+    /// <summary>True for the variant value that ships once ("One-time", "Single purchase").</summary>
+    internal static bool IsOneTimeValue(string? optionValue) =>
+        string.IsNullOrWhiteSpace(optionValue) || OneTimeValueRegex().IsMatch(optionValue);
+
     public string BrandName => store.BrandName;
     public string BaseUrl => store.BaseUrl;
 
@@ -209,14 +222,26 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         if (store.OnlyCategories is { } allowed && (category is null || !allowed.Contains(category)))
             yield break;
 
+        var subscriptionPositions = product.Options
+            .Where(o => IsSubscriptionOption(o.Name))
+            .Select(o => o.Position)
+            .ToList();
+
         var sizePositions = product.Options
-            .Where(o => !IsFlavorOption(o.Name))
+            .Where(o => !IsFlavorOption(o.Name) && !IsSubscriptionOption(o.Name))
             .Select(o => o.Position)
             .OrderBy(p => p)
             .ToList();
 
-        var groups = product.Variants
-            .Where(v => v.Price >= MinimumPrice)
+        var priced = product.Variants.Where(v => v.Price >= MinimumPrice).ToList();
+        // Recurring plans are dropped, but only when the product is also sold
+        // once: a store that offers nothing else would otherwise lose the row
+        // entirely, and an unbuyable row is worse than a subscription price.
+        var oneTime = priced.Where(v => subscriptionPositions.All(p => IsOneTimeValue(OptionValue(v, p)))).ToList();
+        if (oneTime.Count > 0)
+            priced = oneTime;
+
+        var groups = priced
             .GroupBy(v => SizeKey(v, sizePositions))
             .ToList();
 
@@ -396,6 +421,9 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
     private static bool IsLetterSize(string? value) =>
         value is not null && LetterSizeRegex().IsMatch(value.Trim());
 
+    private static string? OptionValue(ShopifyVariant variant, int position) =>
+        position switch { 1 => variant.Option1, 2 => variant.Option2, 3 => variant.Option3, _ => null };
+
     private static string SizeKey(ShopifyVariant variant, List<int> positions)
     {
         var values = positions
@@ -417,6 +445,15 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
 
     [GeneratedRegex(@"\b(flavors?|flavours?|tastes?)\b", RegexOptions.IgnoreCase)]
     private static partial Regex FlavorOptionRegex();
+
+    [GeneratedRegex(@"\b(subscription|subscribe|autoship|auto-?ship|delivery|purchase type|frequency)\b",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex SubscriptionOptionRegex();
+
+    // "One-time", "One time purchase", "Single". Anything else under a
+    // subscription option is a recurring plan.
+    [GeneratedRegex(@"\b(one\s*-?\s*time|single|once)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex OneTimeValueRegex();
 
     [GeneratedRegex(@"Shopify\.currency\s*=\s*\{\s*""active""\s*:\s*""(?<code>[A-Za-z]{3})""")]
     private static partial Regex StorefrontCurrencyRegex();

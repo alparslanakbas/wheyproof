@@ -311,4 +311,40 @@ public class ShopifyStoreScraperTests
     {
         Assert.Equal(expected, ShopifyStoreScraper.ParseStorefrontCurrency(html));
     }
+
+    // DMoose files "Subscription type" (One-time / Sub) as a third option. Counted
+    // as a size it doubled every row: one pre-workout became four products
+    // (measured 2026-09-18 on the live catalog). The recurring variants are
+    // dropped, not merged: a subscribe-and-save price is not a price a shopper
+    // can pay once.
+    [Fact]
+    public void Subscription_variants_do_not_become_sizes()
+    {
+        var p = Product("Power Blast Pre-Workout", "Sports Nutrition", ["Energy", "Subscription type"],
+            (1, "High Stim", "One-time", 25.00m, true),
+            (2, "High Stim", "Sub", 21.25m, true),
+            (3, "Non Stim", "One-time", 25.00m, true),
+            (4, "Non Stim", "Sub", 21.25m, true));
+
+        var items = ShopifyStoreScraper.ToScrapedProducts(p, Brand, null).ToList();
+
+        Assert.Equal(2, items.Count);
+        Assert.All(items, i => Assert.Equal(25.00m, i.Price));
+        Assert.Contains(items, i => i.Name.EndsWith("High Stim"));
+        Assert.Contains(items, i => i.Name.EndsWith("Non Stim"));
+    }
+
+    // A store that only sells on subscription keeps its row: an unbuyable price is
+    // bad, but losing the product from the comparison is worse.
+    [Fact]
+    public void Subscription_only_product_is_still_published()
+    {
+        var p = Product("Daily Greens", "Sports Nutrition", ["Subscription type"],
+            (1, "Monthly", null, 39.00m, true));
+
+        var item = Assert.Single(ShopifyStoreScraper.ToScrapedProducts(p, Brand, null));
+
+        Assert.Equal(39.00m, item.Price);
+        Assert.Equal("Daily Greens", item.Name);
+    }
 }
