@@ -836,6 +836,16 @@
                     (ngModelChange)="onDataFilterChange('uncategorised', $event)"
                   />Uncategorised</label
                 >
+                <label
+                  class="checkbox"
+                  title="No label image to read, or its reading was rejected; the product page isn't read either. Only a person can fill these."
+                  ><input
+                    type="checkbox"
+                    name="needsManual"
+                    [ngModel]="needsManualOnly()"
+                    (ngModelChange)="onDataFilterChange('needsManual', $event)"
+                  />Needs manual entry</label
+                >
                 <button type="submit">Search</button>
               </form>
 
@@ -1261,6 +1271,11 @@
               <h3 id="nutrition-title">
                 Nutrition facts <small>per serving, from the brand's label</small>
               </h3>
+              @if (form.product.nutritionLabelStatus?.startsWith('rejected') && !form.product.nutritionIsManual) {
+                <p class="data-note">
+                  Automatic label reading: {{ form.product.nutritionLabelStatus }}
+                </p>
+              }
               <div class="data-grid">
                 @for (f of nutritionFields; track f.key) {
                   <label

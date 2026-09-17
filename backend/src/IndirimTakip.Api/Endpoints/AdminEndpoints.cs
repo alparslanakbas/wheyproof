@@ -32,6 +32,13 @@ internal static class AdminEndpoints
         return Results.Ok(new { rowsUpdated = result.RowsUpdated });
     }
 
+    // Brands whose product pages the detail backfill reads nutrition from.
+    private static readonly string[] PageNutritionBrands =
+        IndirimTakip.Infrastructure.Scraping.Shopify.ShopifyStores.All
+            .Where(s => s.NutritionOnPage && !s.IsRetailer)
+            .Select(s => s.BrandName)
+            .ToArray();
+
     public static void MapAdminEndpoints(this WebApplication app, string? adminApiKey)
     {
         // Triggers a scrape by hand. The work runs IN THE BACKGROUND and the
@@ -334,7 +341,7 @@ internal static class AdminEndpoints
         // was cut. Id is the last sort key so a page never repeats or skips a row.
         app.MapGet("/api/dev/products", async (
             AppDbContext db, string? search, bool? hiddenOnly, bool? missingNutrition, bool? uncategorised,
-            int? page, int? pageSize, CancellationToken ct) =>
+            bool? needsManual, int? page, int? pageSize, CancellationToken ct) =>
         {
             var query = db.Products.IgnoreQueryFilters().AsNoTracking();
 
@@ -344,6 +351,22 @@ internal static class AdminEndpoints
                 query = query.Where(p => p.NutritionJson == null);
             if (uncategorised == true)
                 query = query.Where(p => p.Category == null);
+
+            // NO AUTOMATIC SOURCE LEFT: the rows only a person can fill. Typing a
+            // panel the label reader fills a few hours later is wasted work, so
+            // every route that can still fill a row keeps it out of this list:
+            // - a label image not yet read at its current URL (the reader's queue);
+            // - a product page whose store prints the panel as readable text or JSON
+            //   (ShopifyStore.NutritionOnPage) and that the detail backfill hasn't
+            //   checked yet. It only visits the brand's own store (Seller == null).
+            // The regular crawl has already run for every row, so a row it didn't
+            // fill it won't fill later.
+            if (needsManual == true)
+            {
+                query = query.Where(p => p.NutritionJson == null
+                    && (p.NutritionLabelImageUrl == null || p.NutritionLabelReadUrl == p.NutritionLabelImageUrl)
+                    && !(p.Seller == null && p.NutritionCheckedAt == null && PageNutritionBrands.Contains(p.Brand!.Name)));
+            }
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -357,7 +380,7 @@ internal static class AdminEndpoints
                     || EF.Functions.ILike(p.Name, "%" + lower + "%")
                     || EF.Functions.ILike(p.Brand!.Name, "%" + raw + "%"));
             }
-            else if (hiddenOnly != true && missingNutrition != true && uncategorised != true)
+            else if (hiddenOnly != true && missingNutrition != true && uncategorised != true && needsManual != true)
             {
                 // Without a search the list would be uselessly large.
                 return Results.Ok(new { items = Array.Empty<object>(), total = 0, page = 1, pageSize = 0 });
@@ -386,6 +409,9 @@ internal static class AdminEndpoints
                     p.NutritionJson,
                     p.NutritionIsManual,
                     p.ServingSizeGrams,
+                    // Why the label reader didn't fill it ("rejected: supplement facts:
+                    // unknown row name 'Vitamin Be'"): shown in the editor.
+                    p.NutritionLabelStatus,
                 })
                 .ToListAsync(ct);
 

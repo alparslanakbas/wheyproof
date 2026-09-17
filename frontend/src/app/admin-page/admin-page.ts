@@ -126,6 +126,8 @@ export class AdminPage implements OnInit {
   readonly hiddenOnly = signal(false);
   readonly missingNutritionOnly = signal(false);
   readonly uncategorisedOnly = signal(false);
+  /** Rows no automatic source can still fill: the ones worth typing by hand. */
+  readonly needsManualOnly = signal(false);
   /** Server-side paging: the filters match thousands of rows. */
   readonly productPage = signal(1);
   readonly productTotal = signal(0);
@@ -650,7 +652,8 @@ export class AdminPage implements OnInit {
   /** A new search or filter starts at page 1; a refresh after an edit passes the current page. */
   searchProducts(page = 1): void {
     const query = this.productSearch().trim();
-    const anyFilter = this.hiddenOnly() || this.missingNutritionOnly() || this.uncategorisedOnly();
+    const anyFilter =
+      this.hiddenOnly() || this.missingNutritionOnly() || this.uncategorisedOnly() || this.needsManualOnly();
     if (!query && !anyFilter) {
       this.products.set([]);
       this.productTotal.set(0);
@@ -668,6 +671,7 @@ export class AdminPage implements OnInit {
         this.hiddenOnly(),
         this.missingNutritionOnly(),
         this.uncategorisedOnly(),
+        this.needsManualOnly(),
         page,
       )
       .subscribe({
@@ -702,8 +706,13 @@ export class AdminPage implements OnInit {
     this.searchProducts();
   }
 
-  onDataFilterChange(filter: 'missingNutrition' | 'uncategorised', value: boolean): void {
-    (filter === 'missingNutrition' ? this.missingNutritionOnly : this.uncategorisedOnly).set(value);
+  onDataFilterChange(filter: 'missingNutrition' | 'uncategorised' | 'needsManual', value: boolean): void {
+    const signals = {
+      missingNutrition: this.missingNutritionOnly,
+      uncategorised: this.uncategorisedOnly,
+      needsManual: this.needsManualOnly,
+    };
+    signals[filter].set(value);
     this.searchProducts();
   }
 

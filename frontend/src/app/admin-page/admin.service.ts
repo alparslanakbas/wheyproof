@@ -71,6 +71,7 @@ export class AdminService {
     hiddenOnly: boolean,
     missingNutrition = false,
     uncategorised = false,
+    needsManual = false,
     page = 1,
   ): Observable<AdminProductPage> {
     const params = new URLSearchParams();
@@ -78,6 +79,7 @@ export class AdminService {
     if (hiddenOnly) params.set('hiddenOnly', 'true');
     if (missingNutrition) params.set('missingNutrition', 'true');
     if (uncategorised) params.set('uncategorised', 'true');
+    if (needsManual) params.set('needsManual', 'true');
     if (page > 1) params.set('page', String(page));
     const query = params.toString();
     return this.http.get<AdminProductPage>(`${this.base}/products${query ? `?${query}` : ''}`);
@@ -237,6 +239,8 @@ export interface AdminProduct {
   /** Normalized table, e.g. {"Calories":"160","Protein":"25g"}; null when missing. */
   nutritionJson: string | null;
   nutritionIsManual: boolean;
+  /** The label reader's last verdict ("rejected: supplement facts: …"); null when never read. */
+  nutritionLabelStatus: string | null;
   servingSizeGrams: number | null;
 }
 
