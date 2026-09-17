@@ -278,10 +278,14 @@ public class ScrapeIngestionService(
                 var meaningfulChange =
                     previousPrice != scraped.Price
                     || product.Name != scraped.Name
-                    || product.Category != category
+                    // Hand-entered fields stay out of the comparison: a product whose
+                    // category was corrected by hand differs from the inferred one on
+                    // EVERY scrape and would be marked changed every six hours,
+                    // bringing back exactly the lastmod problem described above.
+                    || (!product.CategoryIsManual && product.Category != category)
                     || product.Size != size
                     || (scraped.Description is not null && product.Description != scraped.Description)
-                    || (scraped.NutritionJson is not null && product.NutritionJson != scraped.NutritionJson)
+                    || (!product.NutritionIsManual && scraped.NutritionJson is not null && product.NutritionJson != scraped.NutritionJson)
                     // A stock change is a real content change too: an "Out of stock"
                     // badge appears or disappears on the page. Unlike the old
                     // behavior of marking the whole catalog changed every scrape, it
@@ -333,9 +337,13 @@ public class ScrapeIngestionService(
                 // description, so both sources are null on every crawl; assigning
                 // that would erase the serving size read from the label image every
                 // six hours, without an error anywhere.
-                product.ServingSizeGrams = scraped.ServingSizeGrams
-                    ?? ProductAttributeParser.ExtractServingSizeGrams(product.Description)
-                    ?? product.ServingSizeGrams;
+                // A hand-entered panel's serving size was entered with it.
+                if (!product.NutritionIsManual)
+                {
+                    product.ServingSizeGrams = scraped.ServingSizeGrams
+                        ?? ProductAttributeParser.ExtractServingSizeGrams(product.Description)
+                        ?? product.ServingSizeGrams;
+                }
 
                 // Kept when the store stops naming a label image, like the fields
                 // above; a new image URL queues the product for a new read.
