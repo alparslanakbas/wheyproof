@@ -62,6 +62,7 @@
 .ph.ph-drop:before { content: "\e210"; }
 .ph.ph-drop-half-bottom:before { content: "\eb40"; }
 .ph.ph-envelope-simple:before { content: "\e218"; }
+.ph.ph-eye:before { content: "\e220"; }
 .ph.ph-eye-slash:before { content: "\e224"; }
 .ph.ph-file-text:before { content: "\e23a"; }
 .ph.ph-fire:before { content: "\e242"; }
@@ -97,6 +98,7 @@
 .ph.ph-ticket:before { content: "\e490"; }
 .ph.ph-trash:before { content: "\e4a6"; }
 .ph.ph-trend-down:before { content: "\e4ac"; }
+.ph.ph-users:before { content: "\e4d6"; }
 .ph.ph-warning-circle:before { content: "\e4e2"; }
 .ph.ph-waves:before { content: "\e6de"; }
 .ph.ph-x:before { content: "\e4f6"; }

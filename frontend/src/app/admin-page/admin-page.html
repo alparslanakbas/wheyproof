@@ -34,33 +34,66 @@
           <p class="error" role="alert">{{ signInError() }}</p>
         }
         <p class="note">
-          The key isn't stored in the browser. The session runs on a secure cookie and ends after 12 hours.
+          The key isn't stored in the browser. The session runs on a secure cookie and ends after 12
+          hours.
         </p>
       </section>
     </main>
   } @else {
-    <header class="admin-top">
+    <header class="admin-top" [attr.inert]="editingData() ? '' : null">
       <div class="admin-brand" aria-label="WheyProof Admin">
         <span class="admin-brand-mark">WP</span>
         <strong>Admin</strong>
+        <small>WheyProof</small>
       </div>
 
       <nav class="tabs" aria-label="Admin sections">
-        <button type="button" [class.active]="tab() === 'status'" (click)="selectTab('status')">Status</button>
-        <button type="button" [class.active]="tab() === 'events'" (click)="selectTab('events')">Events</button>
-        <button type="button" [class.active]="tab() === 'coupons'" (click)="selectTab('coupons')">Coupons</button>
-        <button type="button" [class.active]="tab() === 'visibility'" (click)="selectTab('visibility')">
-          Visibility
+        <button
+          type="button"
+          [class.active]="tab() === 'status'"
+          [attr.aria-current]="tab() === 'status' ? 'page' : null"
+          (click)="selectTab('status')"
+        >
+          <i class="ph ph-squares-four" aria-hidden="true"></i>Status
         </button>
-        <button type="button" [class.active]="tab() === 'subscribers'" (click)="selectTab('subscribers')">
-          Subscribers
+        <button
+          type="button"
+          [class.active]="tab() === 'events'"
+          [attr.aria-current]="tab() === 'events' ? 'page' : null"
+          (click)="selectTab('events')"
+        >
+          <i class="ph ph-calendar-blank" aria-hidden="true"></i>Events
+        </button>
+        <button
+          type="button"
+          [class.active]="tab() === 'coupons'"
+          [attr.aria-current]="tab() === 'coupons' ? 'page' : null"
+          (click)="selectTab('coupons')"
+        >
+          <i class="ph ph-tag" aria-hidden="true"></i>Coupons
+        </button>
+        <button
+          type="button"
+          [class.active]="tab() === 'visibility'"
+          [attr.aria-current]="tab() === 'visibility' ? 'page' : null"
+          (click)="selectTab('visibility')"
+        >
+          <i class="ph ph-eye" aria-hidden="true"></i>Visibility
+        </button>
+        <button
+          type="button"
+          [class.active]="tab() === 'subscribers'"
+          [attr.aria-current]="tab() === 'subscribers' ? 'page' : null"
+          (click)="selectTab('subscribers')"
+        >
+          <i class="ph ph-users" aria-hidden="true"></i>Subscribers
         </button>
       </nav>
 
       <div class="admin-session">
         <span class="system-status" [class.warning]="error()">
           <span aria-hidden="true"></span>
-          {{ error() ? 'Needs attention' : 'System healthy' }}
+          {{ error() ? 'Needs attention' : 'Admin connected' }}
         </span>
         <button type="button" class="sign-out" (click)="signOut()">
           <i class="ph ph-sign-out" aria-hidden="true"></i>
@@ -69,7 +102,7 @@
       </div>
     </header>
 
-    <main class="admin-content">
+    <main class="admin-content" [attr.inert]="editingData() ? '' : null">
       @if (error()) {
         <p class="error global-error" role="alert">{{ error() }}</p>
       }
@@ -79,9 +112,11 @@
           <div>
             <p class="eyebrow">Overview</p>
             <h1>System status</h1>
-            <p>A current summary of the catalog, scrapes and visitor activity.</p>
+            <p>A clear view of your catalog and scheduled jobs.</p>
           </div>
-          <span class="date"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span>
+          <span class="date"
+            ><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span
+          >
         </section>
 
         @if (status(); as s) {
@@ -99,7 +134,9 @@
               <span class="sub">{{ s.products.withNutrition }} products</span>
             </article>
             <article class="card">
-              <span class="card-icon"><i class="ph ph-arrow-square-out" aria-hidden="true"></i></span>
+              <span class="card-icon"
+                ><i class="ph ph-arrow-square-out" aria-hidden="true"></i
+              ></span>
               <span class="label">Store clicks</span>
               <strong>{{ s.clickTotal }}</strong>
               <span class="sub">total</span>
@@ -112,77 +149,84 @@
             </article>
           </section>
 
-          <section class="status-grid">
-            <article class="panel nutrition-panel">
+          <div class="status-overview">
+            <section class="status-grid">
+              <article class="panel nutrition-panel">
+                <div class="panel-head">
+                  <div>
+                    <p class="eyebrow">Scheduled job</p>
+                    <h2>Nutrition backfill</h2>
+                  </div>
+                  <span class="status-badge"><span></span>Scheduled</span>
+                </div>
+                <dl class="time-list">
+                  <div>
+                    <dt>Last run</dt>
+                    <dd>{{ date(s.nutrition.lastRun) }} · {{ hoursAgo(s.nutrition.lastRun) }}</dd>
+                  </div>
+                  <div>
+                    <dt>Estimated next run</dt>
+                    <dd>{{ date(s.nutrition.nextRun) }}</dd>
+                  </div>
+                </dl>
+                <p class="note">
+                  The job runs every few days; numbers not changing in between is normal.
+                </p>
+              </article>
+
+              <article class="panel event-summary">
+                <div class="panel-head">
+                  <div>
+                    <p class="eyebrow">Security</p>
+                    <h2>Events in the last 24 hours</h2>
+                  </div>
+                  <button type="button" class="link-button" (click)="selectTab('events')">
+                    See all
+                  </button>
+                </div>
+                @if (s.lastDayEvents.length === 0) {
+                  <p class="empty-state">Nothing worth noting.</p>
+                } @else {
+                  <ul class="summary">
+                    @for (e of s.lastDayEvents; track e.kind) {
+                      <li>
+                        <span>{{ kindLabel(e.kind) }}</span
+                        ><b>{{ e.count }}</b>
+                      </li>
+                    }
+                  </ul>
+                }
+              </article>
+            </section>
+
+            <section class="panel sources-panel">
               <div class="panel-head">
                 <div>
-                  <p class="eyebrow">Scheduled job</p>
-                  <h2>Nutrition backfill</h2>
+                  <p class="eyebrow">Scrape health</p>
+                  <h2>Source freshness</h2>
                 </div>
-                <span class="status-badge"><span></span>Scheduled</span>
+                <p class="note">Alerts come from the health endpoint; this list is a quick look.</p>
               </div>
-              <dl class="time-list">
-                <div>
-                  <dt>Last run</dt>
-                  <dd>{{ date(s.nutrition.lastRun) }} · {{ hoursAgo(s.nutrition.lastRun) }}</dd>
-                </div>
-                <div>
-                  <dt>Estimated next run</dt>
-                  <dd>{{ date(s.nutrition.nextRun) }}</dd>
-                </div>
-              </dl>
-              <p class="note">The job runs every few days; numbers not changing in between is normal.</p>
-            </article>
-
-            <article class="panel event-summary">
-              <div class="panel-head">
-                <div>
-                  <p class="eyebrow">Security</p>
-                  <h2>Events in the last 24 hours</h2>
-                </div>
-                <button type="button" class="link-button" (click)="selectTab('events')">See all</button>
-              </div>
-              @if (s.lastDayEvents.length === 0) {
-                <p class="empty-state">Nothing worth noting.</p>
-              } @else {
-                <ul class="summary">
-                  @for (e of s.lastDayEvents; track e.kind) {
-                    <li>
-                      <span>{{ kindLabel(e.kind) }}</span><b>{{ e.count }}</b>
-                    </li>
-                  }
-                </ul>
-              }
-            </article>
-          </section>
-
-          <section class="panel sources-panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Scrape health</p>
-                <h2>Stalest sources</h2>
-              </div>
-              <p class="note">Alerts come from the health endpoint; this list is a quick look.</p>
-            </div>
-            <div class="table-shell">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Source</th>
-                    <th>Last scraped</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (src of s.sources; track src.source) {
+              <div class="table-shell">
+                <table>
+                  <thead>
                     <tr>
-                      <td>{{ src.source }}</td>
-                      <td>{{ hoursAgo(src.lastScraped) }}</td>
+                      <th>Source</th>
+                      <th>Last scraped</th>
                     </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          </section>
+                  </thead>
+                  <tbody>
+                    @for (src of s.sources; track src.source) {
+                      <tr>
+                        <td>{{ src.source }}</td>
+                        <td>{{ hoursAgo(src.lastScraped) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
         }
       }
 
@@ -191,11 +235,30 @@
           <div>
             <p class="eyebrow">Security</p>
             <h1>Events</h1>
-            <p>Why your own admin actions failed, plus unauthorized requests, rate limits and server errors.</p>
+            <p>Understand failed actions and review security activity.</p>
           </div>
-          <span class="date"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span>
+          <span class="date"
+            ><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span
+          >
         </section>
 
+        <div class="filters event-range" aria-label="Event date range">
+          <div>
+            @for (d of [1, 7, 30, 90]; track d) {
+              <button
+                type="button"
+                [class.active]="eventDays() === d"
+                [attr.aria-pressed]="eventDays() === d"
+                (click)="selectEventDays(d)"
+              >
+                {{ d }} {{ d === 1 ? 'day' : 'days' }}
+              </button>
+            }
+          </div>
+          <p class="note">
+            Date range applies to both lists. Type filters apply only to security events.
+          </p>
+        </div>
         <!-- When a panel action failed, only a short notice stayed on screen;
              the real reason sat in the container's stdout and needed SSH. This
              block brings it into the panel. Same tab as security events but a
@@ -205,11 +268,9 @@
           <div class="panel-head">
             <div>
               <p class="eyebrow">Admin</p>
-              <h2>Failed operations</h2>
+              <h2>Failed admin operations</h2>
             </div>
-            <p class="note">
-              Last {{ eventDays() }} days. The range comes from the filter below; the kind filter doesn't affect this list.
-            </p>
+            <p class="note">Last {{ eventDays() }} days.</p>
           </div>
 
           @if (adminFailures().length === 0) {
@@ -220,7 +281,6 @@
                 <thead>
                   <tr>
                     <th>Time</th>
-                    <th>Operation</th>
                     <th>Code</th>
                     <th>Reason</th>
                   </tr>
@@ -229,9 +289,14 @@
                   @for (f of adminFailures(); track f.id) {
                     <tr>
                       <td>{{ date(f.occurredAt) }}</td>
-                      <td class="mono">{{ f.method }} {{ f.path }}</td>
                       <td>{{ f.statusCode }}</td>
-                      <td>{{ f.reason || '—' }}</td>
+                      <td class="failure-reason">
+                        <span>{{ f.reason | adminFailureReason }}</span>
+                        <details>
+                          <summary>Technical details</summary>
+                          <code>{{ f.method }} {{ f.path }}</code>
+                        </details>
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -243,16 +308,19 @@
         <section class="panel">
           <div class="filters" aria-label="Event filters">
             <div>
-              @for (d of [1, 7, 30, 90]; track d) {
-                <button type="button" [class.active]="eventDays() === d" (click)="selectEventDays(d)">
-                  {{ d }} {{ d === 1 ? 'day' : 'days' }}
-                </button>
-              }
-            </div>
-            <div>
-              <button type="button" [class.active]="eventKind() === null" (click)="selectEventKind(null)">All</button>
+              <button
+                type="button"
+                [class.active]="eventKind() === null"
+                (click)="selectEventKind(null)"
+              >
+                All
+              </button>
               @for (k of ['unauthorized', 'rate-limited', 'probe', 'server-error']; track k) {
-                <button type="button" [class.active]="eventKind() === k" (click)="selectEventKind(k)">
+                <button
+                  type="button"
+                  [class.active]="eventKind() === k"
+                  (click)="selectEventKind(k)"
+                >
                   {{ kindLabel(k) }}
                 </button>
               }
@@ -261,7 +329,8 @@
 
           @if (filteredIp(); as ip) {
             <p class="info">
-              Showing 90 days of history for <b>{{ ip }}</b>.
+              Showing 90 days of history for <b>{{ ip }}</b
+              >.
               <button type="button" class="link-button" (click)="loadEvents()">Clear filter</button>
             </p>
           }
@@ -288,7 +357,9 @@
                         <td>{{ date(a.firstSeen) }}</td>
                         <td>{{ date(a.lastSeen) }}</td>
                         <td>
-                          <button type="button" class="link-button" (click)="filterByIp(a.ip)">History</button>
+                          <button type="button" class="link-button" (click)="filterByIp(a.ip)">
+                            History
+                          </button>
                         </td>
                       </tr>
                     }
@@ -341,195 +412,219 @@
             <h1>Coupons</h1>
             <p>Add brand and seller coupons and manage their validity and status.</p>
           </div>
-          <span class="date"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span>
+          <span class="date"
+            ><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span
+          >
         </section>
 
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">New record</p>
-              <h2>Add a coupon</h2>
+        <div class="coupon-workspace" [class.has-coupons]="coupons().length > 0">
+          <section class="panel coupon-create">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">New record</p>
+                <h2>Add a coupon</h2>
+              </div>
             </div>
-          </div>
-          <form class="coupon-form" (ngSubmit)="createCoupon()">
-            <label
-              >Target
-              <select
-                name="targetType"
-                [ngModel]="newCoupon().targetType"
-                (ngModelChange)="newCoupon.set({ ...newCoupon(), targetType: $event })"
-              >
-                <option value="brand">Brand</option>
-                <option value="seller">Seller</option>
-              </select>
-            </label>
-            <label
-              >{{ newCoupon().targetType === 'brand' ? 'Brand name' : 'Seller domain' }}
-              @if (newCoupon().targetType === 'brand') {
-                <small>Pick from the list</small>
-              }
-              <input
-                name="target"
-                [ngModel]="newCoupon().target"
-                (ngModelChange)="newCoupon.set({ ...newCoupon(), target: $event })"
-                [attr.list]="newCoupon().targetType === 'brand' ? 'brand-suggestions' : null"
-                [attr.placeholder]="newCoupon().targetType === 'brand' ? 'e.g. Optimum Nutrition' : 'e.g. store.example.com'"
-                autocomplete="off"
-              />
-              <!-- The catalog's REAL spellings. A near-miss spelling used to
+            <form class="coupon-form" (ngSubmit)="createCoupon()">
+              <label
+                >Target
+                <select
+                  name="targetType"
+                  [ngModel]="newCoupon().targetType"
+                  (ngModelChange)="newCoupon.set({ ...newCoupon(), targetType: $event })"
+                >
+                  <option value="brand">Brand</option>
+                  <option value="seller">Seller</option>
+                </select>
+              </label>
+              <label
+                >{{ newCoupon().targetType === 'brand' ? 'Brand name' : 'Seller domain' }}
+                @if (newCoupon().targetType === 'brand') {
+                  <small>Pick from the list</small>
+                }
+                <input
+                  name="target"
+                  [ngModel]="newCoupon().target"
+                  (ngModelChange)="newCoupon.set({ ...newCoupon(), target: $event })"
+                  [attr.list]="newCoupon().targetType === 'brand' ? 'brand-suggestions' : null"
+                  [attr.placeholder]="
+                    newCoupon().targetType === 'brand'
+                      ? 'e.g. Optimum Nutrition'
+                      : 'e.g. store.example.com'
+                  "
+                  autocomplete="off"
+                />
+                <!-- The catalog's REAL spellings. A near-miss spelling used to
                    produce a 404; the suggestions give the right one in a click.
                    The backend also forgives case and spacing differences, so
                    this list isn't the only defense; it just prevents the
                    mistake up front. -->
-              <datalist id="brand-suggestions">
-                @for (b of brands(); track b.id) {
-                  <option [value]="b.name"></option>
-                }
-              </datalist>
-            </label>
-            <label
-              >Code <small>Leave empty if there's no code</small>
-              <input
-                name="code"
-                [ngModel]="newCoupon().code"
-                (ngModelChange)="newCoupon.set({ ...newCoupon(), code: $event })"
-              />
-            </label>
-            <label
-              >Description
-              <input
-                name="description"
-                [ngModel]="newCoupon().description"
-                (ngModelChange)="newCoupon.set({ ...newCoupon(), description: $event })"
-              />
-            </label>
-            <label
-              >Valid until <small>Empty = no end date</small>
-              <input
-                type="date"
-                name="validUntil"
-                [ngModel]="newCoupon().validUntil"
-                (ngModelChange)="newCoupon.set({ ...newCoupon(), validUntil: $event })"
-              />
-            </label>
-            <button type="submit">Add coupon</button>
-          </form>
-          @if (couponMessage()) {
-            <p class="info" role="status">{{ couponMessage() }}</p>
-          }
-        </section>
+                <datalist id="brand-suggestions">
+                  @for (b of brands(); track b.id) {
+                    <option [value]="b.name"></option>
+                  }
+                </datalist>
+              </label>
+              <label
+                >Code (optional) <small>Leave empty if there's no code</small>
+                <input
+                  name="code"
+                  [ngModel]="newCoupon().code"
+                  (ngModelChange)="newCoupon.set({ ...newCoupon(), code: $event })"
+                />
+              </label>
+              <label
+                >Description
+                <textarea
+                  name="description"
+                  [ngModel]="newCoupon().description"
+                  (ngModelChange)="newCoupon.set({ ...newCoupon(), description: $event })"
+                  rows="3"
+                  placeholder="Describe the offer and any conditions"
+                ></textarea>
+              </label>
+              <label
+                >Valid until (optional) <small>Leave empty for no end date</small>
+                <input
+                  type="date"
+                  name="validUntil"
+                  [ngModel]="newCoupon().validUntil"
+                  (ngModelChange)="newCoupon.set({ ...newCoupon(), validUntil: $event })"
+                />
+              </label>
+              <button type="submit">Add coupon</button>
+            </form>
+            @if (couponMessage()) {
+              <p class="info" role="status">{{ couponMessage() }}</p>
+            }
+          </section>
 
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Existing records</p>
-              <h2>
-                Coupons <span class="heading-count">{{ coupons().length }}</span>
-              </h2>
+          <section class="panel coupon-records">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Existing records</p>
+                <h2>
+                  Coupons <span class="heading-count">{{ coupons().length }}</span>
+                </h2>
+              </div>
             </div>
-          </div>
-          <div class="table-shell">
-            <table>
-              <thead>
-                <tr>
-                  <th>Status</th>
-                  <th>Target</th>
-                  <th>Code</th>
-                  <th>Description</th>
-                  <th>Ends</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (c of coupons(); track c.id) {
-                  @if (editingCoupon()?.id === c.id) {
-                    <!-- Inline edit. The target (brand/seller) CAN'T be
+            @if (coupons().length === 0) {
+              <div class="coupon-empty">
+                <i class="ph ph-ticket" aria-hidden="true"></i>
+                <h3>No coupons yet</h3>
+                <p>Coupons you add will appear here.</p>
+              </div>
+            } @else {
+              <div class="table-shell">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th>Target</th>
+                      <th>Code</th>
+                      <th>Description</th>
+                      <th>Ends</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (c of coupons(); track c.id) {
+                      @if (editingCoupon()?.id === c.id) {
+                        <!-- Inline edit. The target (brand/seller) CAN'T be
                          changed, on purpose: the backend doesn't update it,
                          and showing it as editable would be a field that
                          never saves. -->
-                    <tr class="editing">
-                      <td>
-                        <span class="row-status" [class.is-hidden]="!c.isActive"
-                          ><span></span>{{ c.isActive ? 'Active' : 'Inactive' }}</span
-                        >
-                      </td>
-                      <td>{{ c.brandName || c.seller }}</td>
-                      <td>
-                        <input
-                          class="row-input mono"
-                          [ngModel]="editingCoupon()!.code"
-                          (ngModelChange)="updateCouponField('code', $event)"
-                          [ngModelOptions]="{ standalone: true }"
-                          placeholder="no code"
-                          aria-label="Coupon code"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          class="row-input"
-                          [ngModel]="editingCoupon()!.description"
-                          (ngModelChange)="updateCouponField('description', $event)"
-                          [ngModelOptions]="{ standalone: true }"
-                          aria-label="Description"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="date"
-                          class="row-input"
-                          [ngModel]="editingCoupon()!.validUntil"
-                          (ngModelChange)="updateCouponField('validUntil', $event)"
-                          [ngModelOptions]="{ standalone: true }"
-                          aria-label="End date"
-                        />
-                      </td>
-                      <td>
-                        <div class="row-actions">
-                          <button
-                            type="button"
-                            class="row-action primary"
-                            [disabled]="couponSaving()"
-                            (click)="saveCouponEdit()"
-                          >
-                            {{ couponSaving() ? 'Saving…' : 'Save' }}
-                          </button>
-                          <button
-                            type="button"
-                            class="row-action"
-                            [disabled]="couponSaving()"
-                            (click)="cancelCouponEdit()"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  } @else {
-                    <tr [class.inactive]="!c.isActive">
-                      <td>
-                        <span class="row-status" [class.is-hidden]="!c.isActive"
-                          ><span></span>{{ c.isActive ? 'Active' : 'Inactive' }}</span
-                        >
-                      </td>
-                      <td>{{ c.brandName || c.seller }}</td>
-                      <td class="mono">{{ c.code || 'no code' }}</td>
-                      <td>{{ c.description }}</td>
-                      <td>{{ c.validUntil ? date(c.validUntil) : 'no end date' }}</td>
-                      <td>
-                        <div class="row-actions">
-                          <button type="button" class="row-action" (click)="startCouponEdit(c)">Edit</button>
-                          <button type="button" class="row-action" (click)="toggleCouponActive(c)">
-                            {{ c.isActive ? 'Deactivate' : 'Activate' }}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  }
-                }
-              </tbody>
-            </table>
-          </div>
-        </section>
+                        <tr class="editing">
+                          <td>
+                            <span class="row-status" [class.is-hidden]="!c.isActive"
+                              ><span></span>{{ c.isActive ? 'Active' : 'Inactive' }}</span
+                            >
+                          </td>
+                          <td>{{ c.brandName || c.seller }}</td>
+                          <td>
+                            <input
+                              class="row-input mono"
+                              [ngModel]="editingCoupon()!.code"
+                              (ngModelChange)="updateCouponField('code', $event)"
+                              [ngModelOptions]="{ standalone: true }"
+                              placeholder="no code"
+                              aria-label="Coupon code"
+                            />
+                          </td>
+                          <td>
+                            <input
+                              class="row-input"
+                              [ngModel]="editingCoupon()!.description"
+                              (ngModelChange)="updateCouponField('description', $event)"
+                              [ngModelOptions]="{ standalone: true }"
+                              aria-label="Description"
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="date"
+                              class="row-input"
+                              [ngModel]="editingCoupon()!.validUntil"
+                              (ngModelChange)="updateCouponField('validUntil', $event)"
+                              [ngModelOptions]="{ standalone: true }"
+                              aria-label="End date"
+                            />
+                          </td>
+                          <td>
+                            <div class="row-actions">
+                              <button
+                                type="button"
+                                class="row-action primary"
+                                [disabled]="couponSaving()"
+                                (click)="saveCouponEdit()"
+                              >
+                                {{ couponSaving() ? 'Saving…' : 'Save' }}
+                              </button>
+                              <button
+                                type="button"
+                                class="row-action"
+                                [disabled]="couponSaving()"
+                                (click)="cancelCouponEdit()"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      } @else {
+                        <tr [class.inactive]="!c.isActive">
+                          <td>
+                            <span class="row-status" [class.is-hidden]="!c.isActive"
+                              ><span></span>{{ c.isActive ? 'Active' : 'Inactive' }}</span
+                            >
+                          </td>
+                          <td>{{ c.brandName || c.seller }}</td>
+                          <td class="mono">{{ c.code || 'no code' }}</td>
+                          <td>{{ c.description }}</td>
+                          <td>{{ c.validUntil ? date(c.validUntil) : 'no end date' }}</td>
+                          <td>
+                            <div class="row-actions">
+                              <button type="button" class="row-action" (click)="startCouponEdit(c)">
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                class="row-action"
+                                (click)="toggleCouponActive(c)"
+                              >
+                                {{ c.isActive ? 'Deactivate' : 'Activate' }}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      }
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </section>
+        </div>
       }
 
       @if (tab() === 'visibility') {
@@ -539,14 +634,16 @@
             <h1>Visibility</h1>
             <p>Control whether brands and products are published on the site.</p>
           </div>
-          <span class="date"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span>
+          <span class="date"
+            ><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span
+          >
         </section>
 
         @if (visibilityMessage()) {
           <p class="info visibility-message" role="status">{{ visibilityMessage() }}</p>
         }
 
-        <div class="visibility-layout">
+        <div class="visibility-layout" [class.products-view]="visibilityView() === 'products'">
           <section class="visibility-panel" aria-label="Visibility records">
             <div class="visibility-tabs" role="tablist" aria-label="Visibility type">
               <button
@@ -582,11 +679,25 @@
                   />
                 </label>
                 <div class="status-filters" aria-label="Brand status">
-                  <button type="button" [class.active]="brandFilter() === 'all'" (click)="selectBrandFilter('all')">All</button>
-                  <button type="button" [class.active]="brandFilter() === 'visible'" (click)="selectBrandFilter('visible')">
+                  <button
+                    type="button"
+                    [class.active]="brandFilter() === 'all'"
+                    (click)="selectBrandFilter('all')"
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    [class.active]="brandFilter() === 'visible'"
+                    (click)="selectBrandFilter('visible')"
+                  >
                     Visible
                   </button>
-                  <button type="button" [class.active]="brandFilter() === 'hidden'" (click)="selectBrandFilter('hidden')">
+                  <button
+                    type="button"
+                    [class.active]="brandFilter() === 'hidden'"
+                    (click)="selectBrandFilter('hidden')"
+                  >
                     Hidden
                   </button>
                 </div>
@@ -613,7 +724,8 @@
                       @for (b of pagedBrands(); track b.id) {
                         <tr [class.inactive]="!b.isActive">
                           <td class="brand-cell">
-                            <span><i class="ph ph-storefront" aria-hidden="true"></i></span><strong>{{ b.name }}</strong>
+                            <span><i class="ph ph-storefront" aria-hidden="true"></i></span
+                            ><strong>{{ b.name }}</strong>
                           </td>
                           <td>{{ b.productCount }}</td>
                           <td>{{ b.hiddenProducts }}</td>
@@ -636,7 +748,9 @@
                         </tr>
                       } @empty {
                         <tr>
-                          <td colspan="5"><p class="empty-state">No brand matches the search.</p></td>
+                          <td colspan="5">
+                            <p class="empty-state">No brand matches the search.</p>
+                          </td>
                         </tr>
                       }
                     </tbody>
@@ -645,7 +759,10 @@
 
                 @if (filteredBrands().length > 0) {
                   <div class="pagination">
-                    <span>{{ brandRangeStart() }}–{{ brandRangeEnd() }} of {{ filteredBrands().length }} brands</span>
+                    <span
+                      >{{ brandRangeStart() }}–{{ brandRangeEnd() }} of
+                      {{ filteredBrands().length }} brands</span
+                    >
                     <div>
                       <button
                         type="button"
@@ -678,7 +795,8 @@
                 }
 
                 <p class="impact-note">
-                  <i class="ph ph-info" aria-hidden="true"></i>Hiding a brand removes all of its products from the site.
+                  <i class="ph ph-info" aria-hidden="true"></i>Hiding a brand removes all of its
+                  products from the site.
                 </p>
               }
             } @else {
@@ -731,8 +849,9 @@
                   <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
                   <h2>Search to see products</h2>
                   <p>
-                    Because of the catalog's size, products are only listed by search or with a filter. "Missing
-                    nutrition" and "Uncategorised" list what still needs data entered by hand.
+                    Because of the catalog's size, products are only listed by search or with a
+                    filter. "Missing nutrition" and "Uncategorised" list what still needs data
+                    entered by hand.
                   </p>
                 </div>
               } @else if (products().length === 0) {
@@ -742,14 +861,48 @@
                   <p>Change the search or the hidden-only filter.</p>
                 </div>
               } @else {
-                <div class="table-shell visibility-table">
+                <div class="pagination product-pagination-top" aria-label="Product pagination">
+                  <span
+                    >{{ productRangeStart() }}–{{ productRangeEnd() }} of
+                    {{ productTotal() }} rows</span
+                  >
+                  @if (productPageCount() > 1) {
+                    <div>
+                      <button
+                        type="button"
+                        [disabled]="productPage() === 1 || productsLoading()"
+                        (click)="goToProductPage(productPage() - 1)"
+                        aria-label="Previous page"
+                      >
+                        <i class="ph ph-caret-left" aria-hidden="true"></i>
+                      </button>
+                      @for (p of visibleProductPages(); track p) {
+                        <button
+                          type="button"
+                          [class.active]="p === productPage()"
+                          [attr.aria-current]="p === productPage() ? 'page' : null"
+                          [disabled]="productsLoading()"
+                          (click)="goToProductPage(p)"
+                        >
+                          {{ p }}
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        [disabled]="productPage() === productPageCount() || productsLoading()"
+                        (click)="goToProductPage(productPage() + 1)"
+                        aria-label="Next page"
+                      >
+                        <i class="ph ph-caret-right" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
+                <div class="table-shell visibility-table product-table">
                   <table>
                     <thead>
                       <tr>
                         <th>Product</th>
-                        <th>Brand</th>
-                        <th>Price</th>
-                        <th>Seller</th>
                         <th>Category</th>
                         <th>Nutrition</th>
                         <th>Status</th>
@@ -761,35 +914,47 @@
                         <tr [class.inactive]="!p.isActive">
                           <td class="product-name">
                             <strong>{{ p.name }}</strong>
+                            <span class="product-meta"
+                              >{{ p.brand }} · {{ p.seller || "Brand's own store" }} ·
+                              {{ price(p.latestPrice) }}</span
+                            >
                           </td>
-                          <td>{{ p.brand }}</td>
-                          <td>{{ price(p.latestPrice) }}</td>
-                          <td>{{ p.seller || "Brand's own store" }}</td>
-                          <td>
+                          <td data-label="Category">
                             {{ categoryLabel(p.category) }}
                             @if (p.categoryIsManual) {
                               <span class="manual-tag">manual</span>
                             }
                           </td>
-                          <td>
+                          <td data-label="Nutrition">
                             <span class="row-status" [class.is-hidden]="!p.nutritionJson"
-                              ><span></span>{{ p.nutritionJson ? (p.nutritionIsManual ? 'Manual' : 'Yes') : 'Missing' }}</span
+                              ><span></span
+                              >{{
+                                p.nutritionJson
+                                  ? p.nutritionIsManual
+                                    ? 'Manual'
+                                    : 'Yes'
+                                  : 'Missing'
+                              }}</span
                             >
                           </td>
-                          <td>
+                          <td data-label="Status">
                             <span class="row-status" [class.is-hidden]="!p.isActive"
                               ><span></span>{{ p.isActive ? 'Live' : 'Hidden' }}</span
                             >
                           </td>
-                          <td>
+                          <td class="product-actions">
                             <div class="row-actions">
-                              <button type="button" class="row-action" (click)="openDataEditor(p)">Edit data</button>
+                              <button type="button" class="row-action" (click)="openDataEditor(p)">
+                                Edit data
+                              </button>
                               <button
                                 type="button"
                                 class="row-toggle"
                                 [class.publish]="!p.isActive"
                                 [disabled]="changeInProgress()"
-                                (click)="requestVisibilityChange('product', p.id, p.name, p.isActive)"
+                                (click)="
+                                  requestVisibilityChange('product', p.id, p.name, p.isActive)
+                                "
                               >
                                 {{ p.isActive ? 'Hide' : 'Publish' }}
                               </button>
@@ -801,7 +966,10 @@
                   </table>
                 </div>
                 <div class="pagination">
-                  <span>{{ productRangeStart() }}–{{ productRangeEnd() }} of {{ productTotal() }} rows</span>
+                  <span
+                    >{{ productRangeStart() }}–{{ productRangeEnd() }} of
+                    {{ productTotal() }} rows</span
+                  >
                   @if (productPageCount() > 1) {
                     <div>
                       <button
@@ -835,35 +1003,44 @@
                   }
                 </div>
                 <p class="impact-note">
-                  <i class="ph ph-info" aria-hidden="true"></i>Each size is its own row. Hiding requires confirmation.
+                  <i class="ph ph-info" aria-hidden="true"></i>Each size is its own row. Hiding
+                  requires confirmation.
                 </p>
               }
             }
           </section>
 
-          <aside class="quick-view" aria-label="Visibility summary">
-            <h2>At a glance</h2>
-            <dl>
-              <div>
-                <dt>
-                  <span class="quick-icon live"><i class="ph ph-check-circle" aria-hidden="true"></i></span>Live
-                </dt>
-                <dd>{{ activeBrandCount() }}<small>brands</small></dd>
-              </div>
-              <div>
-                <dt>
-                  <span class="quick-icon is-hidden"><i class="ph ph-eye-slash" aria-hidden="true"></i></span>Hidden
-                </dt>
-                <dd>{{ hiddenBrandCount() }}<small>brands</small></dd>
-              </div>
-              <div>
-                <dt>
-                  <span class="quick-icon"><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i></span>Last updated
-                </dt>
-                <dd class="small-value">{{ hoursAgo(visibilityUpdatedAt()) }}</dd>
-              </div>
-            </dl>
-          </aside>
+          @if (visibilityView() === 'brands') {
+            <aside class="quick-view" aria-label="Visibility summary">
+              <h2>At a glance</h2>
+              <dl>
+                <div>
+                  <dt>
+                    <span class="quick-icon live"
+                      ><i class="ph ph-check-circle" aria-hidden="true"></i></span
+                    >Live
+                  </dt>
+                  <dd>{{ activeBrandCount() }}<small>brands</small></dd>
+                </div>
+                <div>
+                  <dt>
+                    <span class="quick-icon is-hidden"
+                      ><i class="ph ph-eye-slash" aria-hidden="true"></i></span
+                    >Hidden
+                  </dt>
+                  <dd>{{ hiddenBrandCount() }}<small>brands</small></dd>
+                </div>
+                <div>
+                  <dt>
+                    <span class="quick-icon"
+                      ><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i></span
+                    >Last updated
+                  </dt>
+                  <dd class="small-value">{{ hoursAgo(visibilityUpdatedAt()) }}</dd>
+                </div>
+              </dl>
+            </aside>
+          }
         </div>
       }
 
@@ -873,16 +1050,20 @@
             <p class="eyebrow">Newsletter</p>
             <h1>Subscribers</h1>
             <p>Everyone who signed up for the newsletter or a price alert, newest first.</p>
+          </div>
+          <div class="page-head-actions">
             <!-- Same origin (/admin/api), so the preview stays behind Cloudflare Access. -->
             <a class="link-button" href="/admin/api/digest/preview" target="_blank" rel="noopener">
               Preview this week's digest ↗
             </a>
+            <span class="date"
+              ><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span
+            >
           </div>
-          <span class="date"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ todayLabel() }}</span>
         </section>
 
         @if (subscriberData(); as data) {
-          <section class="cards" aria-label="Subscriber figures">
+          <section class="cards subscriber-cards" aria-label="Subscriber figures">
             <article class="card">
               <span class="card-icon"><i class="ph ph-check-circle" aria-hidden="true"></i></span>
               <span class="label">Active</span>
@@ -890,7 +1071,9 @@
               <span class="sub">receive email</span>
             </article>
             <article class="card">
-              <span class="card-icon"><i class="ph ph-envelope-simple" aria-hidden="true"></i></span>
+              <span class="card-icon"
+                ><i class="ph ph-envelope-simple" aria-hidden="true"></i
+              ></span>
               <span class="label">Awaiting confirmation</span>
               <strong>{{ data.summary.pending }}</strong>
               <span class="sub">no email until confirmed</span>
@@ -918,7 +1101,11 @@
             </label>
             <div class="status-filters" aria-label="Subscriber status">
               @for (f of ['all', 'active', 'pending', 'unsubscribed']; track f) {
-                <button type="button" [class.active]="subscriberFilter() === f" (click)="selectSubscriberFilter($any(f))">
+                <button
+                  type="button"
+                  [class.active]="subscriberFilter() === f"
+                  (click)="selectSubscriberFilter($any(f))"
+                >
                   {{ f === 'all' ? 'All' : subscriberStatusLabel($any(f)) }}
                 </button>
               }
@@ -932,14 +1119,13 @@
           @if (subscribersLoading() && !subscriberData()) {
             <p class="empty-state">Loading subscribers…</p>
           } @else {
-            <div class="table-shell">
+            <div class="table-shell subscriber-table">
               <table>
                 <thead>
                   <tr>
                     <th>Email</th>
                     <th>Status</th>
-                    <th>Signed up</th>
-                    <th>Confirmed</th>
+                    <th>Signup / Confirmation</th>
                     <th>Last digest</th>
                     <th>Alerts</th>
                     <th></th>
@@ -948,17 +1134,27 @@
                 <tbody>
                   @for (s of filteredSubscribers(); track s.id) {
                     <tr [class.inactive]="s.status !== 'active'">
-                      <td class="mono">{{ s.email }}</td>
-                      <td>
+                      <td class="subscriber-email">{{ s.email }}</td>
+                      <td data-label="Status">
                         <span class="row-status" [class.is-hidden]="s.status !== 'active'"
                           ><span></span>{{ subscriberStatusLabel(s.status) }}</span
                         >
                       </td>
-                      <td>{{ date(s.subscribedAt) }}</td>
-                      <td>{{ s.status === 'unsubscribed' ? 'left ' + date(s.unsubscribedAt) : date(s.confirmedAt) }}</td>
-                      <td>{{ date(s.lastDigestSentAt) }}</td>
-                      <td>{{ s.watchCount }}</td>
-                      <td>
+                      <td data-label="Signup / Confirmation">
+                        {{ date(s.subscribedAt)
+                        }}<small class="cell-detail">{{
+                          s.status === 'unsubscribed'
+                            ? 'Left ' + date(s.unsubscribedAt)
+                            : s.confirmedAt
+                              ? 'Confirmed ' + date(s.confirmedAt)
+                              : 'Awaiting confirmation'
+                        }}</small>
+                      </td>
+                      <td data-label="Last digest">
+                        {{ s.lastDigestSentAt ? date(s.lastDigestSentAt) : 'Not sent' }}
+                      </td>
+                      <td data-label="Alerts">{{ s.watchCount }}</td>
+                      <td class="subscriber-actions">
                         <div class="row-actions">
                           @if (s.status === 'active') {
                             <button
@@ -984,15 +1180,16 @@
                     </tr>
                   } @empty {
                     <tr>
-                      <td colspan="7"><p class="empty-state">No subscriber matches.</p></td>
+                      <td colspan="6"><p class="empty-state">No subscriber matches.</p></td>
                     </tr>
                   }
                 </tbody>
               </table>
             </div>
             <p class="impact-note">
-              <i class="ph ph-info" aria-hidden="true"></i>A subscription only turns on when the person confirms it from
-              their inbox, so there's no activate switch here. "Send confirmation" mails them the button again.
+              <i class="ph ph-info" aria-hidden="true"></i>A subscription only turns on when the
+              person confirms it from their inbox, so there's no activate switch here. "Send
+              confirmation" mails them the button again.
             </p>
           }
         </section>
@@ -1000,127 +1197,191 @@
     </main>
 
     @if (editingData(); as form) {
-      <div class="confirm-backdrop" (click)="closeDataEditor()">
+      <div class="confirm-backdrop data-backdrop" (click)="closeDataEditor()">
         <section
           class="confirm-dialog data-dialog"
+          adminEditorFocus
           role="dialog"
           aria-modal="true"
           aria-labelledby="data-title"
           (click)="$event.stopPropagation()"
+          (keydown.escape)="closeDataEditor(); $event.stopPropagation()"
         >
-          <p class="eyebrow">Catalog data · {{ form.product.brand }}</p>
-          <h2 id="data-title">{{ form.product.name }}</h2>
-          <p class="data-note">
-            Saved to every size on this product page. Values entered here are never overwritten by the scrapers or the
-            label reader.
-          </p>
-
-          <h3>Category</h3>
-          <div class="data-row">
-            <select
-              aria-label="Category"
-              [ngModel]="form.category"
-              (ngModelChange)="updateDataField('category', $event)"
-              [ngModelOptions]="{ standalone: true }"
+          <header class="data-header">
+            <button
+              type="button"
+              class="data-close"
+              aria-label="Close product editor"
+              [disabled]="dataSaving()"
+              (click)="closeDataEditor()"
             >
-              <option value="">
-                Automatic{{ form.product.categoryIsManual ? '' : ' (now: ' + categoryLabel(form.product.category) + ')' }}
-              </option>
-              @for (c of categoryOptions; track c.slug) {
-                <option [value]="c.slug">{{ c.label }}</option>
-              }
-            </select>
-            <button type="button" class="row-action primary" [disabled]="dataSaving()" (click)="saveCategory()">
-              Save category
+              <i class="ph ph-x" aria-hidden="true"></i>
             </button>
-          </div>
+            <p class="eyebrow">Catalog data · {{ form.product.brand }}</p>
+            <h2 id="data-title">{{ form.product.name }}</h2>
+            <p class="data-note">
+              Saved to every size on this product page. Values entered here are never overwritten by
+              the scrapers or the label reader.
+            </p>
+          </header>
 
-          <h3>Nutrition facts <small>per serving, from the brand's label</small></h3>
-          <div class="data-grid">
-            @for (f of nutritionFields; track f.key) {
-              <label
-                >{{ f.label }}
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  inputmode="decimal"
-                  [ngModel]="form[f.key]"
-                  (ngModelChange)="updateDataField(f.key, $event)"
+          <div class="data-body">
+            <section class="data-section" aria-labelledby="category-title">
+              <h3 id="category-title">Category</h3>
+              <div class="data-row">
+                <select
+                  aria-label="Category"
+                  [ngModel]="form.category"
+                  (ngModelChange)="updateDataField('category', $event)"
                   [ngModelOptions]="{ standalone: true }"
-                />
-              </label>
-            }
-          </div>
-          <p class="data-note">
-            Nutrition Facts panel: enter calories, protein, carbohydrate and fat together; calories must match the macros
-            (4/4/9 kcal per gram). Supplement Facts panel (creatine, amino acids, vitamins): leave them empty and use the
-            rows below.
-          </p>
+                >
+                  <option value="">
+                    Automatic{{
+                      form.product.categoryIsManual
+                        ? ''
+                        : ' (now: ' + categoryLabel(form.product.category) + ')'
+                    }}
+                  </option>
+                  @for (c of categoryOptions; track c.slug) {
+                    <option [value]="c.slug">{{ c.label }}</option>
+                  }
+                </select>
+                <button
+                  type="button"
+                  class="row-action primary"
+                  [disabled]="dataSaving()"
+                  (click)="saveCategory()"
+                >
+                  Save category
+                </button>
+              </div>
+            </section>
 
-          <h3>Other rows <small>name, amount per serving and unit, as printed</small></h3>
-          @for (row of form.otherRows; track $index; let i = $index) {
-            <div class="data-other-row">
-              <input
-                type="text"
-                aria-label="Row name"
-                placeholder="e.g. Caffeine"
-                list="nutrition-row-names"
-                maxlength="60"
-                [ngModel]="row.label"
-                (ngModelChange)="updateOtherRow(i, 'label', $event)"
-                [ngModelOptions]="{ standalone: true }"
-              />
-              <input
-                type="number"
-                aria-label="Amount"
-                placeholder="Amount"
-                min="0"
-                step="any"
-                inputmode="decimal"
-                [ngModel]="row.amount"
-                (ngModelChange)="updateOtherRow(i, 'amount', $event)"
-                [ngModelOptions]="{ standalone: true }"
-              />
-              <select
-                aria-label="Unit"
-                [ngModel]="row.unit"
-                (ngModelChange)="updateOtherRow(i, 'unit', $event)"
-                [ngModelOptions]="{ standalone: true }"
-              >
-                @for (u of nutritionUnits; track u) {
-                  <option [value]="u">{{ u }}</option>
+            <section class="data-section" aria-labelledby="nutrition-title">
+              <h3 id="nutrition-title">
+                Nutrition facts <small>per serving, from the brand's label</small>
+              </h3>
+              <div class="data-grid">
+                @for (f of nutritionFields; track f.key) {
+                  <label
+                    >{{ f.label }}
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      inputmode="decimal"
+                      [ngModel]="form[f.key]"
+                      (ngModelChange)="updateDataField(f.key, $event)"
+                      [ngModelOptions]="{ standalone: true }"
+                    />
+                  </label>
                 }
-              </select>
-              <button type="button" class="data-row-remove" aria-label="Remove row" (click)="removeOtherRow(i)">×</button>
+              </div>
+              <p class="data-note">
+                Nutrition Facts panel: enter calories, protein, carbohydrate and fat together;
+                calories must match the macros (4/4/9 kcal per gram). Supplement Facts panel
+                (creatine, amino acids, vitamins): leave them empty and use the rows below.
+              </p>
+            </section>
+
+            <section class="data-section" aria-labelledby="other-rows-title">
+              <h3 id="other-rows-title">
+                Other rows <small>Supplement Facts · per serving, as printed</small>
+              </h3>
+              @for (row of form.otherRows; track $index; let i = $index) {
+                <div class="data-other-row">
+                  <input
+                    type="text"
+                    aria-label="Row name"
+                    placeholder="e.g. Caffeine"
+                    list="nutrition-row-names"
+                    maxlength="60"
+                    [ngModel]="row.label"
+                    (ngModelChange)="updateOtherRow(i, 'label', $event)"
+                    [ngModelOptions]="{ standalone: true }"
+                  />
+                  <input
+                    type="number"
+                    aria-label="Amount"
+                    placeholder="Amount"
+                    min="0"
+                    step="any"
+                    inputmode="decimal"
+                    [ngModel]="row.amount"
+                    (ngModelChange)="updateOtherRow(i, 'amount', $event)"
+                    [ngModelOptions]="{ standalone: true }"
+                  />
+                  <select
+                    aria-label="Unit"
+                    [ngModel]="row.unit"
+                    (ngModelChange)="updateOtherRow(i, 'unit', $event)"
+                    [ngModelOptions]="{ standalone: true }"
+                  >
+                    @for (u of nutritionUnits; track u) {
+                      <option [value]="u">{{ u }}</option>
+                    }
+                  </select>
+                  <button
+                    type="button"
+                    class="data-row-remove"
+                    aria-label="Remove row"
+                    (click)="removeOtherRow(i)"
+                  >
+                    ×
+                  </button>
+                </div>
+              }
+              <datalist id="nutrition-row-names">
+                @for (name of rowNameSuggestions; track name) {
+                  <option [value]="name"></option>
+                }
+              </datalist>
+              <div class="data-row-actions">
+                <button type="button" class="cancel" (click)="addOtherRow()">+ Add row</button>
+                @if (templateCategoryLabel(form); as label) {
+                  <button type="button" class="cancel" (click)="addTemplateRows()">
+                    + Add {{ label }} rows
+                  </button>
+                }
+              </div>
+              <p class="data-note">Rows left without an amount aren't saved.</p>
+            </section>
+          </div>
+
+          <footer class="data-footer">
+            @if (dataMessage()) {
+              <p class="info" role="status">{{ dataMessage() }}</p>
+            }
+
+            <div class="confirm-actions">
+              @if (form.product.nutritionJson) {
+                <button
+                  type="button"
+                  class="cancel"
+                  [disabled]="dataSaving()"
+                  (click)="clearNutrition()"
+                >
+                  Clear nutrition
+                </button>
+              }
+              <button
+                type="button"
+                class="cancel"
+                [disabled]="dataSaving()"
+                (click)="closeDataEditor()"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                class="row-action primary"
+                [disabled]="dataSaving()"
+                (click)="saveNutrition()"
+              >
+                {{ dataSaving() ? 'Saving…' : 'Save nutrition' }}
+              </button>
             </div>
-          }
-          <datalist id="nutrition-row-names">
-            @for (name of rowNameSuggestions; track name) {
-              <option [value]="name"></option>
-            }
-          </datalist>
-          <div class="data-row-actions">
-            <button type="button" class="cancel" (click)="addOtherRow()">+ Add row</button>
-            @if (templateCategoryLabel(form); as label) {
-              <button type="button" class="cancel" (click)="addTemplateRows()">+ Add {{ label }} rows</button>
-            }
-          </div>
-          <p class="data-note">Rows left without an amount aren't saved.</p>
-
-          @if (dataMessage()) {
-            <p class="info" role="status">{{ dataMessage() }}</p>
-          }
-
-          <div class="confirm-actions">
-            @if (form.product.nutritionJson) {
-              <button type="button" class="cancel" [disabled]="dataSaving()" (click)="clearNutrition()">Clear nutrition</button>
-            }
-            <button type="button" class="cancel" [disabled]="dataSaving()" (click)="closeDataEditor()">Close</button>
-            <button type="button" class="row-action primary" [disabled]="dataSaving()" (click)="saveNutrition()">
-              {{ dataSaving() ? 'Saving…' : 'Save nutrition' }}
-            </button>
-          </div>
+          </footer>
         </section>
       </div>
     }
@@ -1138,14 +1399,25 @@
           <p class="eyebrow">Subscriber</p>
           <h2 id="deactivate-title">Deactivate {{ sub.email }}?</h2>
           <p>
-            They stop getting the digest{{ sub.watchCount > 0 ? ' and their ' + sub.watchCount + ' price alerts' : '' }}.
-            Coming back needs a new confirmation from their own inbox.
+            They stop getting the digest{{
+              sub.watchCount > 0 ? ' and their ' + sub.watchCount + ' price alerts' : ''
+            }}. Coming back needs a new confirmation from their own inbox.
           </p>
           <div class="confirm-actions">
-            <button type="button" class="cancel" [disabled]="subscriberBusyId() !== null" (click)="cancelDeactivation()">
+            <button
+              type="button"
+              class="cancel"
+              [disabled]="subscriberBusyId() !== null"
+              (click)="cancelDeactivation()"
+            >
               Cancel
             </button>
-            <button type="button" class="confirm-hide" [disabled]="subscriberBusyId() !== null" (click)="confirmDeactivation()">
+            <button
+              type="button"
+              class="confirm-hide"
+              [disabled]="subscriberBusyId() !== null"
+              (click)="confirmDeactivation()"
+            >
               {{ subscriberBusyId() !== null ? 'Saving…' : 'Deactivate' }}
             </button>
           </div>
@@ -1170,8 +1442,20 @@
             will be removed from visitor pages. You can publish it again later.
           </p>
           <div class="confirm-actions">
-            <button type="button" class="cancel" [disabled]="changeInProgress()" (click)="cancelChange()">Cancel</button>
-            <button type="button" class="confirm-hide" [disabled]="changeInProgress()" (click)="confirmChange()">
+            <button
+              type="button"
+              class="cancel"
+              [disabled]="changeInProgress()"
+              (click)="cancelChange()"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="confirm-hide"
+              [disabled]="changeInProgress()"
+              (click)="confirmChange()"
+            >
               {{ changeInProgress() ? 'Saving…' : 'Confirm and hide' }}
             </button>
           </div>

@@ -1,6 +1,8 @@
 import { isPlatformBrowser } from '@angular/common';
 import { Component, OnInit, PLATFORM_ID, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { AdminEditorFocus } from './admin-editor-focus';
+import { AdminFailureReason } from './admin-failure-reason';
 import { Observable } from 'rxjs';
 
 import { CATEGORY_LABELS } from '../core/category-labels';
@@ -61,9 +63,14 @@ const BRAND_PAGE_SIZE = 5;
  */
 @Component({
   selector: 'app-admin-page',
-  imports: [FormsModule],
+  imports: [FormsModule, AdminEditorFocus, AdminFailureReason],
   templateUrl: './admin-page.html',
-  styleUrls: ['./admin-page.css', './admin-page-support.css', './admin-page-data.css'],
+  styleUrls: [
+    './admin-page.css',
+    './admin-page-support.css',
+    './admin-page-workspace.css',
+    './admin-page-data.css',
+  ],
 })
 export class AdminPage implements OnInit {
   private readonly api = inject(AdminService);
@@ -131,12 +138,17 @@ export class AdminPage implements OnInit {
     const start = Math.min(Math.max(1, this.productPage() - 2), Math.max(1, total - 4));
     return Array.from({ length: Math.min(5, total) }, (_, index) => start + index);
   });
-  readonly productRangeStart = computed(() => (this.productPage() - 1) * this.productPageSize() + 1);
+  readonly productRangeStart = computed(
+    () => (this.productPage() - 1) * this.productPageSize() + 1,
+  );
   readonly productRangeEnd = computed(() =>
     Math.min(this.productRangeStart() + this.products().length - 1, this.productTotal()),
   );
 
-  readonly categoryOptions = Object.entries(CATEGORY_LABELS).map(([slug, label]) => ({ slug, label }));
+  readonly categoryOptions = Object.entries(CATEGORY_LABELS).map(([slug, label]) => ({
+    slug,
+    label,
+  }));
   readonly nutritionFields: { key: NutritionField; label: string }[] = [
     { key: 'servingSizeGrams', label: 'Serving size (g)' },
     { key: 'calories', label: 'Calories' },
@@ -179,7 +191,8 @@ export class AdminPage implements OnInit {
     const filter = this.brandFilter();
     return this.brands().filter((brand) => {
       const matchesSearch = !query || normalizeSearchText(brand.name).includes(query);
-      const matchesFilter = filter === 'all' || (filter === 'visible' ? brand.isActive : !brand.isActive);
+      const matchesFilter =
+        filter === 'all' || (filter === 'visible' ? brand.isActive : !brand.isActive);
       return matchesSearch && matchesFilter;
     });
   });
@@ -205,8 +218,12 @@ export class AdminPage implements OnInit {
     Math.min(this.brandPage() * BRAND_PAGE_SIZE, this.filteredBrands().length),
   );
 
-  readonly activeBrandCount = computed(() => this.brands().filter((brand) => brand.isActive).length);
-  readonly hiddenBrandCount = computed(() => this.brands().filter((brand) => !brand.isActive).length);
+  readonly activeBrandCount = computed(
+    () => this.brands().filter((brand) => brand.isActive).length,
+  );
+  readonly hiddenBrandCount = computed(
+    () => this.brands().filter((brand) => !brand.isActive).length,
+  );
   readonly visibilityProductTotal = computed(
     () =>
       this.status()?.products.total ??
@@ -257,7 +274,9 @@ export class AdminPage implements OnInit {
       error: (e) => {
         this.signingIn.set(false);
         this.signInError.set(
-          e?.status === 429 ? 'Too many attempts. Try again in 15 minutes.' : "The key wasn't accepted.",
+          e?.status === 429
+            ? 'Too many attempts. Try again in 15 minutes.'
+            : "The key wasn't accepted.",
         );
       },
     });
@@ -365,8 +384,11 @@ export class AdminPage implements OnInit {
         // The backend explains the cooldown and provider failures in its own
         // words; a generic "failed" would hide which one happened.
         const body = (e as { error?: unknown } | null)?.error;
-        const message = typeof body === 'string' ? body : (body as { message?: string } | null)?.message;
-        this.subscriberMessage.set(message?.trim() || this.errorText(e, "Couldn't send the confirmation email."));
+        const message =
+          typeof body === 'string' ? body : (body as { message?: string } | null)?.message;
+        this.subscriberMessage.set(
+          message?.trim() || this.errorText(e, "Couldn't send the confirmation email."),
+        );
       },
     });
   }
@@ -537,7 +559,8 @@ export class AdminPage implements OnInit {
     if (code === 0) return "Couldn't reach the server. Check your connection.";
     if (code === 401) return 'Your session ended. Reload the page and sign in again.';
     if (code === 429) return 'Too many requests; wait a moment.';
-    if (code === 502 || code === 503 || code === 504) return 'The server is updating. Try again in a few seconds.';
+    if (code === 502 || code === 503 || code === 504)
+      return 'The server is updating. Try again in a few seconds.';
 
     return code ? `${fallback} (code ${code})` : fallback;
   }
@@ -574,7 +597,13 @@ export class AdminPage implements OnInit {
       .subscribe({
         next: () => {
           this.couponMessage.set('Coupon added.');
-          this.newCoupon.set({ targetType: 'brand', target: '', code: '', description: '', validUntil: '' });
+          this.newCoupon.set({
+            targetType: 'brand',
+            target: '',
+            code: '',
+            description: '',
+            validUntil: '',
+          });
           this.loadCoupons();
         },
         error: (e) => this.couponMessage.set(this.couponCreateError(e)),
@@ -633,27 +662,35 @@ export class AdminPage implements OnInit {
     this.productsLoading.set(true);
     this.productSearchDone.set(true);
     this.visibilityMessage.set(null);
-    this.api.products(query, this.hiddenOnly(), this.missingNutritionOnly(), this.uncategorisedOnly(), page).subscribe({
-      next: (result) => {
-        const lastPage = Math.max(1, Math.ceil(result.total / Math.max(1, result.pageSize)));
-        // Saving nutrition under "missing nutrition" takes rows out of the list;
-        // the page being viewed can end up past the last one.
-        if (result.items.length === 0 && result.total > 0 && page > lastPage) {
-          this.searchProducts(lastPage);
-          return;
-        }
-        this.products.set(result.items);
-        this.productTotal.set(result.total);
-        this.productPage.set(result.page);
-        this.productPageSize.set(result.pageSize);
-        this.productsLoading.set(false);
-        this.visibilityUpdatedAt.set(new Date());
-      },
-      error: () => {
-        this.productsLoading.set(false);
-        this.visibilityMessage.set("Couldn't search products.");
-      },
-    });
+    this.api
+      .products(
+        query,
+        this.hiddenOnly(),
+        this.missingNutritionOnly(),
+        this.uncategorisedOnly(),
+        page,
+      )
+      .subscribe({
+        next: (result) => {
+          const lastPage = Math.max(1, Math.ceil(result.total / Math.max(1, result.pageSize)));
+          // Saving nutrition under "missing nutrition" takes rows out of the list;
+          // the page being viewed can end up past the last one.
+          if (result.items.length === 0 && result.total > 0 && page > lastPage) {
+            this.searchProducts(lastPage);
+            return;
+          }
+          this.products.set(result.items);
+          this.productTotal.set(result.total);
+          this.productPage.set(result.page);
+          this.productPageSize.set(result.pageSize);
+          this.productsLoading.set(false);
+          this.visibilityUpdatedAt.set(new Date());
+        },
+        error: () => {
+          this.productsLoading.set(false);
+          this.visibilityMessage.set("Couldn't search products.");
+        },
+      });
   }
 
   goToProductPage(page: number): void {
@@ -682,7 +719,9 @@ export class AdminPage implements OnInit {
     // An automatic reading can hold rows this editor can't express ("10%").
     // Saving replaces the whole table, so say which ones would go.
     this.dataMessage.set(
-      other.skipped.length > 0 ? `Saving from here drops rows this editor can't edit: ${other.skipped.join(', ')}.` : null,
+      other.skipped.length > 0
+        ? `Saving from here drops rows this editor can't edit: ${other.skipped.join(', ')}.`
+        : null,
     );
     this.editingData.set({
       product,
@@ -701,7 +740,9 @@ export class AdminPage implements OnInit {
   templateCategoryLabel(form: ProductDataForm): string | null {
     const category = form.category || form.product.category;
     if (!category || !ROW_TEMPLATES[category]) return null;
-    return templateRowsToAdd(category, form.otherRows).length > 0 ? this.categoryLabel(category) : null;
+    return templateRowsToAdd(category, form.otherRows).length > 0
+      ? this.categoryLabel(category)
+      : null;
   }
 
   addTemplateRows(): void {
@@ -714,7 +755,10 @@ export class AdminPage implements OnInit {
   addOtherRow(): void {
     const form = this.editingData();
     if (!form) return;
-    this.editingData.set({ ...form, otherRows: [...form.otherRows, { label: '', amount: '', unit: 'mg' }] });
+    this.editingData.set({
+      ...form,
+      otherRows: [...form.otherRows, { label: '', amount: '', unit: 'mg' }],
+    });
   }
 
   removeOtherRow(index: number): void {
@@ -747,7 +791,10 @@ export class AdminPage implements OnInit {
   saveCategory(): void {
     const form = this.editingData();
     if (!form) return;
-    this.runDataEdit(this.api.setProductCategory(form.product.id, form.category || null), 'Category saved');
+    this.runDataEdit(
+      this.api.setProductCategory(form.product.id, form.category || null),
+      'Category saved',
+    );
   }
 
   saveNutrition(): void {
@@ -778,7 +825,10 @@ export class AdminPage implements OnInit {
       return;
     }
 
-    this.runDataEdit(this.api.setProductNutrition(form.product.id, { ...body, otherRows }), 'Nutrition saved');
+    this.runDataEdit(
+      this.api.setProductNutrition(form.product.id, { ...body, otherRows }),
+      'Nutrition saved',
+    );
   }
 
   clearNutrition(): void {
@@ -793,7 +843,9 @@ export class AdminPage implements OnInit {
     request.subscribe({
       next: (r) => {
         this.dataSaving.set(false);
-        this.dataMessage.set(`${done} for ${r.rowsUpdated} row${r.rowsUpdated === 1 ? '' : 's'} (every size of this page).`);
+        this.dataMessage.set(
+          `${done} for ${r.rowsUpdated} row${r.rowsUpdated === 1 ? '' : 's'} (every size of this page).`,
+        );
         this.searchProducts(this.productPage());
       },
       error: (e) => {
@@ -801,7 +853,8 @@ export class AdminPage implements OnInit {
         // A refused value comes back with its reason ("calories 400 don't match
         // the macros"); a generic "failed" would hide what to fix.
         const body = (e as { error?: unknown } | null)?.error;
-        const message = typeof body === 'string' ? body : (body as { message?: string } | null)?.message;
+        const message =
+          typeof body === 'string' ? body : (body as { message?: string } | null)?.message;
         this.dataMessage.set(message?.trim() || this.errorText(e, "Couldn't save."));
       },
     });
@@ -817,7 +870,12 @@ export class AdminPage implements OnInit {
   }
 
   // Hiding asks for confirmation; publishing again applies right away.
-  requestVisibilityChange(type: 'brand' | 'product', id: number, name: string, currentlyActive: boolean): void {
+  requestVisibilityChange(
+    type: 'brand' | 'product',
+    id: number,
+    name: string,
+    currentlyActive: boolean,
+  ): void {
     if (currentlyActive) {
       this.pendingChange.set({ type, id, name });
       return;
