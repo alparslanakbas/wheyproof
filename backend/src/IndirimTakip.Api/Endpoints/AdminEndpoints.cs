@@ -327,8 +327,14 @@ internal static class AdminEndpoints
         // The catalog has thousands of products; listing REQUIRES a search.
         // The filters list without a search: "missing nutrition" and
         // "uncategorised" are the worklists for entering data by hand.
+        //
+        // PAGED, WITH A TOTAL. It used to return the first 200 rows and stop: with
+        // "missing nutrition" on, thousands of rows matched and everything after
+        // row 200 (sorted by brand) could not be reached, with no sign the list
+        // was cut. Id is the last sort key so a page never repeats or skips a row.
         app.MapGet("/api/dev/products", async (
-            AppDbContext db, string? search, bool? hiddenOnly, bool? missingNutrition, bool? uncategorised, CancellationToken ct) =>
+            AppDbContext db, string? search, bool? hiddenOnly, bool? missingNutrition, bool? uncategorised,
+            int? page, int? pageSize, CancellationToken ct) =>
         {
             var query = db.Products.IgnoreQueryFilters().AsNoTracking();
 
@@ -354,13 +360,19 @@ internal static class AdminEndpoints
             else if (hiddenOnly != true && missingNutrition != true && uncategorised != true)
             {
                 // Without a search the list would be uselessly large.
-                return Results.Ok(Array.Empty<object>());
+                return Results.Ok(new { items = Array.Empty<object>(), total = 0, page = 1, pageSize = 0 });
             }
+
+            var size = Math.Clamp(pageSize ?? 50, 10, 100);
+            var current = Math.Max(1, page ?? 1);
+            var total = await query.CountAsync(ct);
 
             var products = await query
                 .OrderBy(p => p.Brand!.Name)
                 .ThenBy(p => p.Name)
-                .Take(200)
+                .ThenBy(p => p.Id)
+                .Skip((current - 1) * size)
+                .Take(size)
                 .Select(p => new
                 {
                     p.Id,
@@ -377,7 +389,7 @@ internal static class AdminEndpoints
                 })
                 .ToListAsync(ct);
 
-            return Results.Ok(products);
+            return Results.Ok(new { items = products, total, page = current, pageSize = size });
         }).RequireAdminKey(adminApiKey);
 
         app.MapPut("/api/dev/products/{id:int}", async (

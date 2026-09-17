@@ -119,6 +119,22 @@ export class AdminPage implements OnInit {
   readonly hiddenOnly = signal(false);
   readonly missingNutritionOnly = signal(false);
   readonly uncategorisedOnly = signal(false);
+  /** Server-side paging: the filters match thousands of rows. */
+  readonly productPage = signal(1);
+  readonly productTotal = signal(0);
+  readonly productPageSize = signal(50);
+  readonly productPageCount = computed(() =>
+    Math.max(1, Math.ceil(this.productTotal() / Math.max(1, this.productPageSize()))),
+  );
+  readonly visibleProductPages = computed(() => {
+    const total = this.productPageCount();
+    const start = Math.min(Math.max(1, this.productPage() - 2), Math.max(1, total - 4));
+    return Array.from({ length: Math.min(5, total) }, (_, index) => start + index);
+  });
+  readonly productRangeStart = computed(() => (this.productPage() - 1) * this.productPageSize() + 1);
+  readonly productRangeEnd = computed(() =>
+    Math.min(this.productRangeStart() + this.products().length - 1, this.productTotal()),
+  );
 
   readonly categoryOptions = Object.entries(CATEGORY_LABELS).map(([slug, label]) => ({ slug, label }));
   readonly nutritionFields: { key: NutritionField; label: string }[] = [
@@ -602,11 +618,14 @@ export class AdminPage implements OnInit {
     this.brandPage.set(Math.min(Math.max(1, page), this.brandPageCount()));
   }
 
-  searchProducts(): void {
+  /** A new search or filter starts at page 1; a refresh after an edit passes the current page. */
+  searchProducts(page = 1): void {
     const query = this.productSearch().trim();
     const anyFilter = this.hiddenOnly() || this.missingNutritionOnly() || this.uncategorisedOnly();
     if (!query && !anyFilter) {
       this.products.set([]);
+      this.productTotal.set(0);
+      this.productPage.set(1);
       this.productSearchDone.set(false);
       return;
     }
@@ -614,9 +633,19 @@ export class AdminPage implements OnInit {
     this.productsLoading.set(true);
     this.productSearchDone.set(true);
     this.visibilityMessage.set(null);
-    this.api.products(query, this.hiddenOnly(), this.missingNutritionOnly(), this.uncategorisedOnly()).subscribe({
-      next: (products) => {
-        this.products.set(products);
+    this.api.products(query, this.hiddenOnly(), this.missingNutritionOnly(), this.uncategorisedOnly(), page).subscribe({
+      next: (result) => {
+        const lastPage = Math.max(1, Math.ceil(result.total / Math.max(1, result.pageSize)));
+        // Saving nutrition under "missing nutrition" takes rows out of the list;
+        // the page being viewed can end up past the last one.
+        if (result.items.length === 0 && result.total > 0 && page > lastPage) {
+          this.searchProducts(lastPage);
+          return;
+        }
+        this.products.set(result.items);
+        this.productTotal.set(result.total);
+        this.productPage.set(result.page);
+        this.productPageSize.set(result.pageSize);
         this.productsLoading.set(false);
         this.visibilityUpdatedAt.set(new Date());
       },
@@ -625,6 +654,10 @@ export class AdminPage implements OnInit {
         this.visibilityMessage.set("Couldn't search products.");
       },
     });
+  }
+
+  goToProductPage(page: number): void {
+    this.searchProducts(Math.min(Math.max(1, page), this.productPageCount()));
   }
 
   onHiddenOnlyChange(value: boolean): void {
@@ -761,7 +794,7 @@ export class AdminPage implements OnInit {
       next: (r) => {
         this.dataSaving.set(false);
         this.dataMessage.set(`${done} for ${r.rowsUpdated} row${r.rowsUpdated === 1 ? '' : 's'} (every size of this page).`);
-        this.searchProducts();
+        this.searchProducts(this.productPage());
       },
       error: (e) => {
         this.dataSaving.set(false);
@@ -869,7 +902,7 @@ export class AdminPage implements OnInit {
         this.pendingChange.set(null);
         this.visibilityMessage.set(`${change.name} ${isActive ? 'is live again.' : 'hidden.'}`);
         this.loadBrands(false);
-        if (change.type === 'product') this.searchProducts();
+        if (change.type === 'product') this.searchProducts(this.productPage());
       },
       error: () => {
         this.changeInProgress.set(false);

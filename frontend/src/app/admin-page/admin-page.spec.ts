@@ -12,7 +12,7 @@ describe('AdminPage visibility safety', () => {
     setBrandActive: vi.fn(() => of({ id: 12, name: 'Sample brand', isActive: false })),
     setProductActive: vi.fn(() => of({ id: 34, name: 'Sample product', isActive: false })),
     brands: vi.fn(() => of([])),
-    products: vi.fn(() => of([])),
+    products: vi.fn((..._args: unknown[]) => of({ items: [] as unknown[], total: 0, page: 1, pageSize: 50 })),
     subscribers: vi.fn(() => of({ subscribers: [], summary: { total: 0, active: 0, pending: 0, unsubscribed: 0 } })),
     deactivateSubscriber: vi.fn(() => of({})),
     sendSubscriberConfirmation: vi.fn(() => of({ message: 'sent' })),
@@ -189,6 +189,50 @@ describe('AdminPage visibility safety', () => {
 
     expect(page.dataMessage()).toBe("calories 400 don't match the macros (expected 160-166)");
     expect(page.dataSaving()).toBe(false);
+  });
+
+  // The "missing nutrition" worklist matched thousands of rows and the list
+  // used to stop at 200 with no way to reach the rest.
+  it('pages the product list and keeps the page after an edit', () => {
+    api.products.mockImplementation((...args: unknown[]) =>
+      of({ items: [product] as unknown[], total: 1234, page: (args[4] as number) ?? 1, pageSize: 50 }),
+    );
+
+    page.onDataFilterChange('missingNutrition', true);
+    expect(api.products).toHaveBeenLastCalledWith('', false, true, false, 1);
+    expect(page.productPageCount()).toBe(25);
+
+    page.goToProductPage(3);
+    expect(api.products).toHaveBeenLastCalledWith('', false, true, false, 3);
+    expect(page.productPage()).toBe(3);
+    expect(page.productRangeStart()).toBe(101);
+
+    // Past the last page is clamped, not requested.
+    page.goToProductPage(99);
+    expect(api.products).toHaveBeenLastCalledWith('', false, true, false, 25);
+
+    page.goToProductPage(3);
+    page.openDataEditor(product);
+    page.saveCategory();
+    expect(api.products).toHaveBeenLastCalledWith('', false, true, false, 3);
+
+    // A new filter starts over at page 1.
+    page.onDataFilterChange('uncategorised', true);
+    expect(api.products).toHaveBeenLastCalledWith('', false, true, true, 1);
+  });
+
+  // Saving rows out of the filtered list can leave the viewed page past the end.
+  it('falls back to the last page when the current one emptied', () => {
+    api.products.mockImplementation((...args: unknown[]) => {
+      const requested = (args[4] as number) ?? 1;
+      return of({ items: (requested > 2 ? [] : [product]) as unknown[], total: 60, page: requested, pageSize: 50 });
+    });
+
+    page.onDataFilterChange('missingNutrition', true);
+    page.searchProducts(3);
+
+    expect(api.products).toHaveBeenLastCalledWith('', false, true, false, 2);
+    expect(page.productPage()).toBe(2);
   });
 
   it('sends null to put a product back on the automatic category', () => {

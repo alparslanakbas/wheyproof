@@ -800,8 +800,42 @@
                     </tbody>
                   </table>
                 </div>
+                <div class="pagination">
+                  <span>{{ productRangeStart() }}–{{ productRangeEnd() }} of {{ productTotal() }} rows</span>
+                  @if (productPageCount() > 1) {
+                    <div>
+                      <button
+                        type="button"
+                        [disabled]="productPage() === 1 || productsLoading()"
+                        (click)="goToProductPage(productPage() - 1)"
+                        aria-label="Previous page"
+                      >
+                        <i class="ph ph-caret-left" aria-hidden="true"></i>
+                      </button>
+                      @for (p of visibleProductPages(); track p) {
+                        <button
+                          type="button"
+                          [class.active]="p === productPage()"
+                          [attr.aria-current]="p === productPage() ? 'page' : null"
+                          [disabled]="productsLoading()"
+                          (click)="goToProductPage(p)"
+                        >
+                          {{ p }}
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        [disabled]="productPage() === productPageCount() || productsLoading()"
+                        (click)="goToProductPage(productPage() + 1)"
+                        aria-label="Next page"
+                      >
+                        <i class="ph ph-caret-right" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
                 <p class="impact-note">
-                  <i class="ph ph-info" aria-hidden="true"></i>At most 200 results are shown. Hiding requires confirmation.
+                  <i class="ph ph-info" aria-hidden="true"></i>Each size is its own row. Hiding requires confirmation.
                 </p>
               }
             }

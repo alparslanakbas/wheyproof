@@ -65,14 +65,22 @@ export class AdminService {
     return this.http.put<VisibilityUpdate>(`${this.base}/brands/${id}`, { isActive });
   }
 
-  products(search: string, hiddenOnly: boolean, missingNutrition = false, uncategorised = false): Observable<AdminProduct[]> {
+  /** One page of products; `total` counts every match, not just this page. */
+  products(
+    search: string,
+    hiddenOnly: boolean,
+    missingNutrition = false,
+    uncategorised = false,
+    page = 1,
+  ): Observable<AdminProductPage> {
     const params = new URLSearchParams();
     if (search.trim()) params.set('search', search.trim());
     if (hiddenOnly) params.set('hiddenOnly', 'true');
     if (missingNutrition) params.set('missingNutrition', 'true');
     if (uncategorised) params.set('uncategorised', 'true');
+    if (page > 1) params.set('page', String(page));
     const query = params.toString();
-    return this.http.get<AdminProduct[]>(`${this.base}/products${query ? `?${query}` : ''}`);
+    return this.http.get<AdminProductPage>(`${this.base}/products${query ? `?${query}` : ''}`);
   }
 
   setProductActive(id: number, isActive: boolean): Observable<VisibilityUpdate> {
@@ -230,6 +238,13 @@ export interface AdminProduct {
   nutritionJson: string | null;
   nutritionIsManual: boolean;
   servingSizeGrams: number | null;
+}
+
+export interface AdminProductPage {
+  items: AdminProduct[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface ManualNutrition {
