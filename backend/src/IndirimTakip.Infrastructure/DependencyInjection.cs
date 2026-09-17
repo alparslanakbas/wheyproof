@@ -56,6 +56,21 @@ public static class DependencyInjection
                 sp.GetRequiredService<ILogger<ShopifyStoreScraper>>()));
         }
 
+        // WooCommerce stores. Same idea as the Shopify list: one configurable
+        // scraper reads the public Store API, the stores live in WooStores.All.
+        services.AddHttpClient(Scraping.Woo.WooStoreScraper.HttpClientName, client =>
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        foreach (var store in Scraping.Woo.WooStores.All)
+        {
+            services.AddScoped<IBrandScraper>(sp => new Scraping.Woo.WooStoreScraper(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient(Scraping.Woo.WooStoreScraper.HttpClientName),
+                store,
+                sp.GetRequiredService<ILogger<Scraping.Woo.WooStoreScraper>>()));
+        }
+
         // Notifies search engines of page changes (IndexNow: Bing and others).
         services.AddHttpClient<IndexNowClient>(client =>
         {
