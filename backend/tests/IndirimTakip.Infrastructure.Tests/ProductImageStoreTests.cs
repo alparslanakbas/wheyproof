@@ -1,4 +1,5 @@
 using IndirimTakip.Infrastructure.Images;
+using Microsoft.Extensions.Logging.Abstractions;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Processing;
 
@@ -115,5 +116,67 @@ public class ProductImageStoreTests
         image.Save(stream, new PngEncoder());
         stream.Position = 0;
         return stream;
+    }
+
+    // Bare Performance Nutrition's 15.6 MB originals were above MaxBytes and never
+    // stored; Shopify's CDN returns the same image at 800 px as 2.0 MB.
+    [Theory]
+    [InlineData("https://cdn.shopify.com/s/files/1/1103/4864/files/CREATINE.png?v=1786117372",
+        "https://cdn.shopify.com/s/files/1/1103/4864/files/CREATINE.png?v=1786117372&width=800")]
+    [InlineData("https://cdn.shopify.com/s/files/1/x/files/a.png",
+        "https://cdn.shopify.com/s/files/1/x/files/a.png?width=800")]
+    [InlineData("https://www.kaged.com/cdn/shop/files/whey.png?v=1",
+        "https://www.kaged.com/cdn/shop/files/whey.png?v=1&width=800")]
+    public void Shopify_images_are_fetched_resized(string source, string expected) =>
+        Assert.Equal(expected, ProductImageStore.DownloadUrl(source));
+
+    [Theory]
+    // A width already chosen by the store is kept; other hosts are untouched.
+    [InlineData("https://cdn.shopify.com/s/files/1/x/files/a.png?width=1200")]
+    [InlineData("https://formnutrition.com/wp-content/uploads/protein.png")]
+    [InlineData("not a url")]
+    public void Other_images_are_fetched_as_published(string source) =>
+        Assert.Equal(source, ProductImageStore.DownloadUrl(source));
+
+    // A timeout means "this image failed", not "the app is stopping". HttpClient
+    // throws it as TaskCanceledException; the old filter let it escape and the
+    // background service left its loop (2026-09-18).
+    [Fact]
+    public async Task A_timeout_returns_null_instead_of_stopping_the_service()
+    {
+        var store = new ProductImageStore(
+            new TimeoutFactory(),
+            new ProductImageOptions { StoragePath = Path.Combine(Path.GetTempPath(), "img-" + Guid.NewGuid().ToString("N")) },
+            NullLogger<ProductImageStore>.Instance);
+
+        Assert.Null(await store.DownloadAsync("https://example.com/slow.jpg", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task A_real_cancellation_still_propagates()
+    {
+        var store = new ProductImageStore(
+            new TimeoutFactory(),
+            new ProductImageOptions { StoragePath = Path.GetTempPath() },
+            NullLogger<ProductImageStore>.Instance);
+        using var cancel = new CancellationTokenSource();
+        cancel.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => store.DownloadAsync("https://example.com/cancel.jpg", cancel.Token));
+    }
+
+    private sealed class TimeoutFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(new TimeoutHandler());
+    }
+
+    private sealed class TimeoutHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout.");
+        }
     }
 }

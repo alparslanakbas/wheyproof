@@ -56,6 +56,33 @@ public sealed class ProductImageStore(
     /// Downloads, resizes and writes the image to disk; returns the file name on
     /// success, otherwise null.
     /// </summary>
+    /// <summary>
+    /// The address actually fetched. Shopify's image CDN resizes on request, so a
+    /// Shopify image is asked for at <see cref="ShopifyDownloadWidth"/> px instead
+    /// of at its original size. Bare Performance Nutrition publishes 3000x3000
+    /// 16-bit PNGs of 15.6 MB, above <see cref="ProductImageOptions.MaxBytes"/>:
+    /// they were refused every run and the site kept showing the 15.6 MB original
+    /// to shoppers. At 800 px the same file is 2.0 MB (measured 2026-09-18). The
+    /// FILE NAME still comes from the source URL, so already stored copies keep
+    /// their names and nothing is downloaded twice.
+    /// </summary>
+    internal static string DownloadUrl(string sourceUrl)
+    {
+        if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var uri))
+            return sourceUrl;
+
+        var shopify = uri.Host.Equals("cdn.shopify.com", StringComparison.OrdinalIgnoreCase)
+            || uri.AbsolutePath.StartsWith("/cdn/shop/", StringComparison.OrdinalIgnoreCase);
+        if (!shopify || uri.Query.Contains("width=", StringComparison.OrdinalIgnoreCase))
+            return sourceUrl;
+
+        var separator = string.IsNullOrEmpty(uri.Query) ? "?" : "&";
+        return $"{sourceUrl}{separator}width={ShopifyDownloadWidth}";
+    }
+
+    /// <summary>Twice the stored width, so the resize keeps its detail.</summary>
+    internal const int ShopifyDownloadWidth = 800;
+
     public async Task<string?> DownloadAsync(string sourceUrl, CancellationToken cancellationToken)
     {
         var fileName = FileName(sourceUrl);
@@ -70,7 +97,7 @@ public sealed class ProductImageStore(
         {
             var client = httpClientFactory.CreateClient(HttpClientName);
             using var response = await client.GetAsync(
-                sourceUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                DownloadUrl(sourceUrl), HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (!response.IsSuccessStatusCode)
                 return null;
 
@@ -96,11 +123,19 @@ public sealed class ProductImageStore(
             File.Move(temporary, target, overwrite: true);
             return fileName;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             // One image failing must not take the run down: the source URL may be
             // dead or the format broken. That product stays without a local copy
             // and keeps being shown with its SOURCE URL.
+            //
+            // The filter checks the TOKEN, not the exception type (2026-09-18).
+            // An HttpClient timeout is thrown as TaskCanceledException, which IS
+            // an OperationCanceledException: the old filter let it escape, and
+            // the background service treats that type as "the app is stopping"
+            // and leaves its loop. One slow image host would have stopped image
+            // downloads, with no error logged, until the next deploy. A real
+            // shutdown still propagates, because then the token has fired.
             logger.LogDebug(ex, "Could not download product image: {Url}", sourceUrl);
             return null;
         }
