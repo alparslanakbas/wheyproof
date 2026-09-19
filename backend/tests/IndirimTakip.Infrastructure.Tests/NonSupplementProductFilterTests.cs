@@ -48,6 +48,17 @@ public class NonSupplementProductFilterTests
     }
 
     [Theory]
+    // REGRESSION (2026-09-19, UK stores): Bodybuilding Warehouse lists its
+    // shipping insurance as products just above the price floor.
+    [InlineData("ProtectMyOrder - Protects your package from loss damage and theft with immediate resolution 1.09")]
+    [InlineData("Shipping Protection")]
+    [InlineData("Package Protection")]
+    public void Drops_checkout_add_ons(string productName)
+    {
+        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(productName));
+    }
+
+    [Theory]
     // The equipment words must not touch the products that share them: a protein
     // BAR is food, and a supplement can carry "band" or "plate" in a flavor name.
     [InlineData("Quest Chocolate Chip Cookie Dough Protein Bar")]

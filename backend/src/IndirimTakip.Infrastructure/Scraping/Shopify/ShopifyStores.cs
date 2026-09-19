@@ -103,6 +103,26 @@ public static class ShopifyStores
         // berberine) is herbal extracts no other store sells, so there is nothing to
         // compare them against.
         new("DMoose", "https://www.dmoose.com", OnlyCategories: SportCategories),
+
+        // ---- UK SECTION (www.wheyproof.com/uk) ----------------------------
+        // Scraped only by the UK instance (Market:Code=UK), priced in GBP.
+        // Measured from the production server on 2026-09-19: each storefront
+        // declared GBP with currency=GBP and answered products.json. All four
+        // run Awin programmes (applications pending).
+        new("Vivo Life", "https://www.vivolife.co.uk", Market: SiteMarket.Uk),
+        new("Grenade", "https://www.grenade.com", Market: SiteMarket.Uk),
+        // Same brand as the US entry above, different storefront: /en-gb is the
+        // UK catalog in GBP. Each instance registers only its own market's row.
+        new("Optimum Nutrition", "https://www.optimumnutrition.com/en-gb", Market: SiteMarket.Uk),
+        // A multi-brand UK retailer (its own label plus Warrior, Sports Fuel,
+        // The Bulk Protein Company...). The www host redirects to the bare one,
+        // so the bare host is the base and the seller label. Limited to the sport
+        // categories for the BulkSupplements reason: of its 644 size rows, 241
+        // had no category (bundles, "Detox Bundle", cream of rice, turmeric) and
+        // 93 were vitamins, mostly its own label with nothing to compare against
+        // (measured through the real scraper, 2026-09-19).
+        new("Bodybuilding Warehouse", "https://bodybuildingwarehouse.co.uk", IsRetailer: true,
+            OnlyCategories: SportCategories, Market: SiteMarket.Uk),
     ];
 
     /// <summary>The stores an instance of the given market scrapes.</summary>
