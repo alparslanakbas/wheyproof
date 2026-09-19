@@ -51,6 +51,7 @@
 .ph.ph-caret-left:before { content: "\e138"; }
 .ph.ph-caret-right:before { content: "\e13a"; }
 .ph.ph-chart-line-up:before { content: "\e156"; }
+.ph.ph-check:before { content: "\e182"; }
 .ph.ph-check-circle:before { content: "\e184"; }
 .ph.ph-circle-notch:before { content: "\eb44"; }
 .ph.ph-clock-counter-clockwise:before { content: "\e1a0"; }
@@ -68,6 +69,7 @@
 .ph.ph-fire:before { content: "\e242"; }
 .ph.ph-funnel:before { content: "\e266"; }
 .ph.ph-gauge:before { content: "\e628"; }
+.ph.ph-globe-simple:before { content: "\e28e"; }
 .ph.ph-hand-swipe-left:before { content: "\ec94"; }
 .ph.ph-heartbeat:before { content: "\e2ac"; }
 .ph.ph-house:before { content: "\e2c2"; }
