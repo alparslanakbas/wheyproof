@@ -132,6 +132,14 @@ public static class ShopifyStores
         // declared GBP with currency=GBP and answered products.json. All four
         // run Awin programmes (applications pending).
         new("Vivo Life", "https://www.vivolife.co.uk", Market: SiteMarket.Uk),
+        // Added 2026-09-20, on Awin (application pending). A UK protein brand
+        // since 1995; 88 catalog rows become 78 after the shared filters drop
+        // its clothing, water bottles and shakers (measured through the real
+        // scraper, no leaks). Two quirks are the store's own listings and are
+        // published as they are: one bar appears under two product pages, and
+        // "Whey Protein Matcha - 10% OFF" is a second listing priced above the
+        // plain one.
+        new("MaxiNutrition", "https://www.maxinutrition.com", Market: SiteMarket.Uk),
         new("Grenade", "https://www.grenade.com", Market: SiteMarket.Uk),
         // Same brand as the US entry above, different storefront: /en-gb is the
         // UK catalog in GBP. Each instance registers only its own market's row.
