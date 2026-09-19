@@ -32,7 +32,7 @@ import { PwaInstallService } from '../core/pwa-install.service';
 import { formatRelativeTime } from '../core/relative-time';
 import { SITE_NAME } from '../core/site-identity';
 import { slugify } from '../core/slugify';
-import { productPath } from '../core/product-link';
+import { productHref, shouldHandleInApp } from '../core/product-link';
 import { buildPageTitle, buildProductDescription, formatPriceText } from '../core/meta-description';
 import { buildAreaPath, buildLinePath, toCoordinates } from '../core/spark-chart';
 import { SubscribeService } from '../core/subscribe.service';
@@ -908,11 +908,28 @@ export class DealsList implements OnInit {
     this.categoriesOpen.set(false);
   }
 
-  // Card links are RouterLinks (see core/product-link.ts): a real <a href>
-  // that crawlers follow and middle-click opens in a new tab, while a normal
-  // click still navigates inside the SPA, exactly like openDeal.
-  protected productPath(deal: Deal): string {
-    return productPath(deal);
+  // Card links are real <a href>s (see core/product-link.ts): crawlers follow
+  // them and middle-click opens a new tab, while a normal click still opens
+  // the product inside the SPA through openDeal.
+  //
+  // The href is the CLEAN canonical address; the list's state (page, search,
+  // filters) is added only on click. RouterLink with
+  // queryParamsHandling="preserve" used to copy that state into EVERY product
+  // link, so /?page=5 linked to /product/...?page=5 on every card. The
+  // canonical tag kept those copies out of the index but not out of the crawl:
+  // on the Turkish sister site 18% of Google's HTML fetches went to them while
+  // uncrawled product pages waited (fixed there the same way). productHref,
+  // not productPath: the UK section's hrefs need its /uk prefix.
+  protected productHref(deal: Deal): string {
+    return productHref(deal);
+  }
+
+  protected onProductClick(event: MouseEvent, deal: Deal): void {
+    // The card may have a click handler of its own; don't run both.
+    event.stopPropagation();
+    if (!shouldHandleInApp(event)) return;
+    event.preventDefault();
+    this.openDeal(deal);
   }
 
   protected openDeal(deal: Deal): void {

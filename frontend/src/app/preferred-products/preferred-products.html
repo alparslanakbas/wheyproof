@@ -36,8 +36,8 @@
     <div #rail class="pa-preferred-rail" tabindex="0" aria-label="Preferred products, scrolls horizontally">
       @for (product of visibleProducts(); track product.productId; let index = $index) {
         <a
-          [routerLink]="productPath(product)"
-          queryParamsHandling="preserve"
+          [href]="productHref(product)"
+          (click)="onProductClick($event, product)"
           class="pa-preferred-card"
           role="group"
           [attr.aria-label]="'Product ' + (index + 1) + ': ' + displayName(product.productName)"
