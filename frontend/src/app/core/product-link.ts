@@ -1,3 +1,4 @@
+import { sitePath } from './site-path';
 import { slugify } from './slugify';
 
 export interface ProductLinkSource {
@@ -9,6 +10,13 @@ export interface ProductLinkSource {
 // canonical tag (see deals-list.ts, server.ts).
 export function productPath(deal: ProductLinkSource): string {
   return `/product/${deal.productId}/${slugify(deal.productName)}`;
+}
+
+// The same page as an href. productPath is a ROUTER path (RouterLink and
+// router.navigate add the base href themselves); a hand-built href must carry
+// it, or on the UK section the link would open the US page (see site-path.ts).
+export function productHref(deal: ProductLinkSource): string {
+  return sitePath(productPath(deal));
 }
 
 // Product cards MUST be real <a href> links. Search engines follow only real

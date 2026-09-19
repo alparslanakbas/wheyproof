@@ -52,14 +52,14 @@
         <!-- NOTE: links carry the path, not just "#section". A fragment-only
              URL resolves against <base href>, not the page; Angular puts
              <base href="/"> in index.html, so "#retention" went to the home
-             page. With the path, the browser treats it as a same-document
-             fragment jump: no reload, it just scrolls. -->
-        <a href="/privacy#who-we-are">Who we are</a>
-        <a href="/privacy#data-we-collect">Data we collect</a>
-        <a href="/privacy#how-we-use-data">How we use data</a>
-        <a href="/privacy#retention">Retention and deletion</a>
-        <a href="/privacy#your-rights">Your rights</a>
-        <a href="/privacy#children">Children</a>
+             page. RouterLink writes the path WITH the base href ("/uk/privacy"
+             in the UK section), which a hand-written "/privacy" would not. -->
+        <a routerLink="/privacy" fragment="who-we-are">Who we are</a>
+        <a routerLink="/privacy" fragment="data-we-collect">Data we collect</a>
+        <a routerLink="/privacy" fragment="how-we-use-data">How we use data</a>
+        <a routerLink="/privacy" fragment="retention">Retention and deletion</a>
+        <a routerLink="/privacy" fragment="your-rights">Your rights</a>
+        <a routerLink="/privacy" fragment="children">Children</a>
       </nav>
 
       <div class="pa-privacy-sections">

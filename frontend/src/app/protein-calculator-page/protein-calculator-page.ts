@@ -83,9 +83,9 @@ export class ProteinCalculatorPage implements OnInit {
 
   protected readonly activityLevels = ACTIVITY_LEVELS;
 
-  // US visitors know their weight in pounds, so lb is the default; kg stays
-  // one tap away. The ranges themselves are defined per kg.
-  protected readonly weightUnit = signal<WeightUnit>('lb');
+  // The market's unit is the default (lb on the US site, kg in the UK
+  // section); the other stays one tap away. The ranges are defined per kg.
+  protected readonly weightUnit = signal<WeightUnit>(MARKET.measurement === 'metric' ? 'kg' : 'lb');
   protected readonly weight = signal<number | null>(null);
   protected readonly activityId = signal<string>('active');
   protected readonly loading = signal(true);

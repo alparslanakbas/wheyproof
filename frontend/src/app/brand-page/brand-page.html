@@ -265,7 +265,7 @@
                 <span class="text-[var(--noc-neutral-500)] normal-case tracking-normal">{{ lastCheckedText(deal) }}</span>
               </div>
 
-              <h3 class="min-h-[38px]"><a [href]="productPath(deal)" (click)="onProductClick($event, deal)" [title]="displayName(deal.productName)" class="line-clamp-2 text-[15px] font-medium leading-[1.28] hover:text-[var(--noc-accent)]">{{ displayName(deal.productName) }}</a></h3>
+              <h3 class="min-h-[38px]"><a [href]="productHref(deal)" (click)="onProductClick($event, deal)" [title]="displayName(deal.productName)" class="line-clamp-2 text-[15px] font-medium leading-[1.28] hover:text-[var(--noc-accent)]">{{ displayName(deal.productName) }}</a></h3>
 
               @if (deal.size || deal.flavor) {
                 <span class="text-xs text-[var(--noc-neutral-500)]">{{ deal.size }}{{ deal.size && deal.flavor ? ' · ' : '' }}{{ deal.flavor }}</span>
@@ -392,7 +392,7 @@
           <ul class="flex flex-col divide-y divide-[var(--noc-divider)] rounded-[10px] border border-[var(--noc-divider)]">
             @for (listing of retailerSamples(); track listing.productId) {
               <li>
-                <a [href]="productPath(listing)" (click)="onProductClick($event, listing)" class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:text-[var(--noc-accent)]">
+                <a [href]="productHref(listing)" (click)="onProductClick($event, listing)" class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:text-[var(--noc-accent)]">
                   <span class="min-w-0 flex-1 text-[14px] leading-snug">{{ displayName(listing.productName) }}</span>
                   <span class="text-[12px] text-[var(--noc-neutral-500)]">{{ listing.seller }}</span>
                   <span class="text-[15px] font-medium tabular-nums">{{ listing.currentPrice | price }}</span>

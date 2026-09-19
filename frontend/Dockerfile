@@ -5,7 +5,10 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+# "build" is the US site; "build:uk" is the UK section (baseHref /uk/, GBP),
+# the same code built with angular.json's "uk" configuration.
+ARG BUILD_SCRIPT=build
+RUN npm run ${BUILD_SCRIPT}
 
 FROM node:24.19.0-slim AS final
 WORKDIR /app

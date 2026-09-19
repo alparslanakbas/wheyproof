@@ -3,4 +3,5 @@ export const environment = {
   // Canonical URLs and share links always point here, whichever host a
   // request came in on.
   canonicalOrigin: 'https://www.wheyproof.com' as string | null,
+  basePath: '',
 };

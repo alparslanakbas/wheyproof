@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from './api.config';
 import { PriceHistory } from './price-history.model';
+import { sitePath } from './site-path';
 
 @Injectable({ providedIn: 'root' })
 export class PriceHistoryService {
@@ -27,7 +28,7 @@ export class PriceHistoryService {
    * Without an address (a response from an old cache) /go/{id} is the fallback.
    */
   goToStoreUrl(productId: number, storeUrl?: string | null): string {
-    return storeUrl ?? `/go/${productId}`;
+    return storeUrl ?? sitePath(`/go/${productId}`);
   }
 
   /**

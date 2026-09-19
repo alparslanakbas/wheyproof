@@ -36,7 +36,7 @@
           <p class="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--noc-neutral-500)]">Your list is empty</p>
           <h2 class="mt-2 text-[21px] font-semibold tracking-[-0.02em]">Save the products you want to track</h2>
           <p class="mt-2 text-[13px] leading-6 text-[var(--noc-neutral-500)]">Open a product and tap "Add to watchlist" to follow its current price here.</p>
-          <a href="/" class="pa-favorites-primary"><i class="ph ph-plus" aria-hidden="true"></i> Browse products</a>
+          <a routerLink="/" class="pa-favorites-primary"><i class="ph ph-plus" aria-hidden="true"></i> Browse products</a>
         </article>
 
         <article class="rounded-[18px] border border-[var(--noc-divider)] bg-[var(--noc-surface)] p-8 max-sm:p-6">
@@ -62,7 +62,7 @@
         <p class="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--noc-neutral-500)]">Your list on this device</p>
         <h2 class="mt-2 text-[21px] font-semibold tracking-[-0.02em]">You're not tracking any products yet</h2>
         <p class="mt-2 text-[13px] leading-6 text-[var(--noc-neutral-500)]">Save a product you like, and its current price and deal signals will start showing here.</p>
-        <a href="/" class="pa-favorites-primary mx-auto"><i class="ph ph-plus" aria-hidden="true"></i> Track a product</a>
+        <a routerLink="/" class="pa-favorites-primary mx-auto"><i class="ph ph-plus" aria-hidden="true"></i> Track a product</a>
         <button type="button" class="mt-4 text-[11px] text-[var(--noc-neutral-500)] underline" (click)="signOut()">Sign out on this device</button>
       </section>
     } @else {
@@ -81,7 +81,7 @@
             <div class="my-2 flex justify-between text-[var(--noc-neutral-500)]"><dt>At 30-day low</dt><dd class="font-semibold text-[var(--noc-text)]">{{ lowCount() }}</dd></div>
             <div class="my-2 flex justify-between text-[var(--noc-neutral-500)]"><dt>Regular price</dt><dd class="font-semibold text-[var(--noc-text)]">{{ normalCount() }}</dd></div>
           </dl>
-          <a href="/" class="pa-favorites-primary"><i class="ph ph-plus" aria-hidden="true"></i> Track a new product</a>
+          <a routerLink="/" class="pa-favorites-primary"><i class="ph ph-plus" aria-hidden="true"></i> Track a new product</a>
           <button type="button" class="pa-favorites-secondary" (click)="signOut()"><i class="ph ph-sign-out" aria-hidden="true"></i> Sign out on this device</button>
         </aside>
 
@@ -96,12 +96,12 @@
                 <span class="pa-favorites-row-signal" [class.pa-favorites-row-signal-muted]="deal.discountPercent <= 0 && !deal.isAtThirtyDayLow" aria-hidden="true">
                   <i [class]="deal.discountPercent > 0 || deal.isAtThirtyDayLow ? 'ph ph-trend-down' : 'ph ph-minus'"></i>
                 </span>
-                <a [href]="productPath(deal)" (click)="onProductClick($event, deal)" tabindex="-1" aria-hidden="true" class="pa-favorites-image-link">
+                <a [href]="productHref(deal)" (click)="onProductClick($event, deal)" tabindex="-1" aria-hidden="true" class="pa-favorites-image-link">
                   @if (deal.imageUrl) {
                     <img [src]="deal.imageUrl" [alt]="displayName(deal.productName)" loading="lazy" />
                   }
                 </a>
-                <a [href]="productPath(deal)" (click)="onProductClick($event, deal)" class="pa-favorites-product">
+                <a [href]="productHref(deal)" (click)="onProductClick($event, deal)" class="pa-favorites-product">
                   <h3>{{ displayName(deal.productName) }}</h3>
                   <p>{{ deal.brandName }} · {{ lastCheckedText(deal) }}</p>
                   @if (deal.isAtThirtyDayLow) {

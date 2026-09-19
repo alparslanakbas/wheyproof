@@ -68,6 +68,19 @@
               ],
               "serviceWorker": "ngsw-config.json"
             },
+            "uk": {
+              "baseHref": "/uk/",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.uk.ts"
+                },
+                {
+                  "replace": "src/app/core/market-config.ts",
+                  "with": "src/app/core/market-config.uk.ts"
+                }
+              ]
+            },
             "development": {
               "optimization": false,
               "extractLicenses": false,

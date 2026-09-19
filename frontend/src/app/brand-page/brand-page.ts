@@ -13,7 +13,7 @@ import { ComparisonService } from '../core/comparison.service';
 import { Coupon } from '../core/coupon.model';
 import { CouponsService } from '../core/coupons.service';
 import { Deal } from '../core/deal.model';
-import { productPath, shouldHandleInApp } from '../core/product-link';
+import { productHref, shouldHandleInApp } from '../core/product-link';
 import { DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
 import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
@@ -609,8 +609,8 @@ export class BrandPage implements OnInit {
   // Card links must be real <a href> (see core/product-link.ts). Here the
   // modal opens through ?product= without leaving the page: crawlers see the
   // canonical product address, visitors open the modal in place.
-  protected productPath(deal: Deal): string {
-    return productPath(deal);
+  protected productHref(deal: Deal): string {
+    return productHref(deal);
   }
 
   protected onProductClick(event: MouseEvent, deal: Deal): void {

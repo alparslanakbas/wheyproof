@@ -18,6 +18,7 @@ import {
   storedOtherRows,
   templateRowsToAdd,
 } from './nutrition-rows';
+import { sitePath } from '../core/site-path';
 import {
   AdminBrand,
   AdminFailure,
@@ -73,6 +74,9 @@ const BRAND_PAGE_SIZE = 5;
   ],
 })
 export class AdminPage implements OnInit {
+  // Same origin as the panel, under the edition's path (/uk/admin/api in the UK section).
+  protected readonly digestPreviewUrl = sitePath('/admin/api/digest/preview');
+
   private readonly api = inject(AdminService);
   private readonly pageMeta = inject(PageMetaService);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));

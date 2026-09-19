@@ -9,7 +9,7 @@ import { CATEGORY_FAQS, FaqItem } from '../core/category-faqs';
 import { CATEGORY_GUIDES, CategoryGuide } from '../core/category-guides';
 import { CATEGORY_INTROS, CATEGORY_LABELS } from '../core/category-labels';
 import { Deal } from '../core/deal.model';
-import { productPath, shouldHandleInApp } from '../core/product-link';
+import { productHref, shouldHandleInApp } from '../core/product-link';
 import { DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
 import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
@@ -372,8 +372,8 @@ export class CategoryPage implements OnInit {
   // modal opens through ?product= without leaving the page, so a real href
   // plus a controlled click is used instead of RouterLink: crawlers see the
   // canonical product address, visitors open the modal in place.
-  protected productPath(deal: Deal): string {
-    return productPath(deal);
+  protected productHref(deal: Deal): string {
+    return productHref(deal);
   }
 
   protected onProductClick(event: MouseEvent, deal: Deal): void {

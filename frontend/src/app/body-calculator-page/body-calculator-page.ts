@@ -35,7 +35,8 @@ export class BodyCalculatorPage implements OnInit {
   protected readonly activityOptions = ACTIVITY_OPTIONS;
   protected readonly config = signal<BodyCalculator | null>(null);
 
-  protected readonly units = signal<UnitSystem>('us');
+  // The market's system opens first (see market-config.ts).
+  protected readonly units = signal<UnitSystem>(MARKET.measurement === 'metric' ? 'metric' : 'us');
   protected readonly gender = signal<'male' | 'female'>('male');
   protected readonly age = signal<number | null>(null);
   protected readonly heightCm = signal<number | null>(null);

@@ -6,7 +6,7 @@ import { Meta } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { Deal } from '../core/deal.model';
-import { productPath, shouldHandleInApp } from '../core/product-link';
+import { productHref, shouldHandleInApp } from '../core/product-link';
 import { DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
 import { FavoritesService } from '../core/favorites.service';
@@ -214,8 +214,8 @@ export class FavoritesPage implements OnInit, OnDestroy {
 
   // Row links must be real <a href> (see core/product-link.ts). Here the
   // modal opens through ?product= without leaving the page.
-  protected productPath(deal: Deal): string {
-    return productPath(deal);
+  protected productHref(deal: Deal): string {
+    return productHref(deal);
   }
 
   protected onProductClick(event: MouseEvent, deal: Deal): void {

@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { sitePath } from '../core/site-path';
 
 /**
  * API client for the admin panel.
@@ -16,7 +17,7 @@ import { Observable } from 'rxjs';
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private readonly http = inject(HttpClient);
-  private readonly base = '/admin/api';
+  private readonly base = sitePath('/admin/api');
 
   signIn(key: string): Observable<{ ok: boolean }> {
     return this.http.post<{ ok: boolean }>(`${this.base}/session`, { key });

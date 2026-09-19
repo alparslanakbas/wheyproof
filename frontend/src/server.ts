@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { brandSlug } from './app/core/brand-slug';
 import { API_BASE_URL } from './app/core/api.config';
 import { INTERNAL_API_HEADERS, toInternalApiUrl } from './app/core/internal-api';
+import { BASE_PATH } from './app/core/site-path';
 import { slugify } from './app/core/slugify';
 import { BODY_CALCULATORS } from './app/core/body-calculators';
 import { SUPPLEMENT_DOSAGES } from './app/core/supplement-dosages';
@@ -31,6 +32,18 @@ const apiFetch = (path: string, init: RequestInit = {}) =>
 const CANONICAL_HOST = 'www.wheyproof.com';
 const CANONICAL_ORIGIN = `https://${CANONICAL_HOST}`;
 
+// THE UK SECTION IS THIS SAME SERVER, built with baseHref /uk/ (angular.json
+// "uk") and run as a second instance. Caddy passes /uk/* through WITHOUT
+// stripping the prefix, so every route this server owns sits under BASE_PATH:
+// the static files, the sitemap, /go and the page render itself. BASE_PATH is
+// '' on the US site, so its routes are exactly what they were.
+const EDITION_ORIGIN = `${CANONICAL_ORIGIN}${BASE_PATH}`;
+
+// An edition that isn't ready to be indexed yet (the UK section while its
+// catalog fills) is served with noindex on every response. Crawlers can still
+// fetch it, which is what lets the header work.
+const SITE_NOINDEX = process.env['SITE_NOINDEX'] === '1';
+
 const app = express();
 // TLS ends at the proxy in front of us and requests arrive as plain HTTP;
 // without this req.protocol is always "http" (X-Forwarded-Proto ignored).
@@ -40,7 +53,7 @@ app.set('trust proxy', true);
 // header: not just the sitemap and robots, but every page Angular SSR
 // renders. The goal is that no second copy of the site gets indexed.
 app.use((req, res, next) => {
-  if ((req.hostname || '').toLowerCase() !== CANONICAL_HOST) {
+  if (SITE_NOINDEX || (req.hostname || '').toLowerCase() !== CANONICAL_HOST) {
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   }
   next();
@@ -87,8 +100,8 @@ const MIN_PRODUCTS_FOR_COMPARISON = 40;
 
 // The sitemap grows with the catalog, so it can't be a static file: the raw
 // data comes from the backend (/api/products/sitemap) and becomes XML here.
-app.get('/sitemap.xml', async (req, res) => {
-  const origin = CANONICAL_ORIGIN;
+app.get(`${BASE_PATH}/sitemap.xml`, async (req, res) => {
+  const origin = EDITION_ORIGIN;
 
   try {
     const [productsResponse, filtersResponse, articlesResponse, pairsResponse] = await Promise.all([
@@ -236,7 +249,7 @@ app.get('/sitemap.xml', async (req, res) => {
 // the goal is keeping the click counter close to real people, not security.
 const BOT_USER_AGENT = /bot|crawler|spider|crawling|bingpreview|slurp|duckduck|yandex|baidu|facebookexternalhit|embedly|quora|pinterest|whatsapp|telegram/i;
 
-app.get('/go/:id', async (req, res) => {
+app.get(`${BASE_PATH}/go/:id`, async (req, res) => {
   // /go/{id} is not a content page but an endpoint that 302s away. A robots
   // Disallow doesn't keep an address OUT of the index, it only stops the
   // content being read: a search engine that learns the address elsewhere
@@ -257,13 +270,15 @@ app.get('/go/:id', async (req, res) => {
       headers: isBot ? { 'X-Bot-Request': '1' } : undefined,
     });
     const location = response.headers.get('location');
-    res.redirect(302, location ?? '/');
+    res.redirect(302, location ?? `${BASE_PATH}/`);
   } catch (error) {
     console.error('/go/:id redirect failed:', error);
-    res.redirect(302, '/');
+    res.redirect(302, `${BASE_PATH}/`);
   }
 });
 
+// Only the US instance answers /robots.txt: crawlers read it at the host root,
+// and Caddy sends nothing outside /uk to the UK instance.
 app.get('/robots.txt', (req, res) => {
   res.set('Content-Type', 'text/plain');
   // A request from any host other than the canonical one gets a different
@@ -289,6 +304,7 @@ app.get('/robots.txt', (req, res) => {
  * Serve static files from /browser
  */
 app.use(
+  BASE_PATH || '/',
   express.static(browserDistFolder, {
     maxAge: '1y',
     index: false,
@@ -336,7 +352,7 @@ function ssrCacheKey(req: express.Request): string | null {
   const path = req.path;
   // The watchlist depends on the key in the browser; a recovery link carries
   // a token that belongs to one person.
-  if (path.startsWith('/watchlist')) return null;
+  if (path.startsWith(`${BASE_PATH}/watchlist`)) return null;
   if (req.query['recover'] !== undefined) return null;
   return req.originalUrl;
 }
@@ -374,7 +390,7 @@ app.use((req, res, next) => {
       // permanent move; a 301 would tell Google "this product is now the
       // home page".
       const location = response.headers.get('location');
-      if (response.status === 302 && location && new URL(location, 'https://x').pathname.startsWith('/product/')) {
+      if (response.status === 302 && location && new URL(location, 'https://x').pathname.startsWith(`${BASE_PATH}/product/`)) {
         response = new Response(response.body, {
           status: 301,
           statusText: 'Moved Permanently',
