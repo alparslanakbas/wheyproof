@@ -77,6 +77,21 @@ public static class DependencyInjection
                 sp.GetRequiredService<ILogger<Scraping.Woo.WooStoreScraper>>()));
         }
 
+        // Magento stores (Bulk in the UK section): one configurable scraper reads
+        // the public storefront GraphQL, the stores live in MagentoStores.All.
+        services.AddHttpClient(Scraping.Magento.MagentoStoreScraper.HttpClientName, client =>
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        foreach (var store in Scraping.Magento.MagentoStores.ForMarket(market))
+        {
+            services.AddScoped<IBrandScraper>(sp => new Scraping.Magento.MagentoStoreScraper(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient(Scraping.Magento.MagentoStoreScraper.HttpClientName),
+                store,
+                sp.GetRequiredService<ILogger<Scraping.Magento.MagentoStoreScraper>>()));
+        }
+
         // Notifies search engines of page changes (IndexNow: Bing and others).
         services.AddHttpClient<IndexNowClient>(client =>
         {
