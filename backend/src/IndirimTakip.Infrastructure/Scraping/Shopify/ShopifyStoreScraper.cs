@@ -460,10 +460,17 @@ public sealed partial class ShopifyStoreScraper(
         var values = positions
             .Select(p => p switch { 1 => variant.Option1, 2 => variant.Option2, 3 => variant.Option3, _ => null })
             .Where(v => !string.IsNullOrWhiteSpace(v) && !v.Equals("Default Title", StringComparison.OrdinalIgnoreCase))
-            .Select(v => v!.Trim());
+            .Select(v => PerUnitPriceNoteRegex().Replace(v!, "").Trim());
 
         return string.Join(" / ", values);
     }
+
+    // A price note a store writes into an option label: Auri's "3-Pack ($34.99
+    // ea)" is its subscription price per bag, while the one-time 3-pack costs
+    // $165 (measured 2026-09-19). In a product name next to our own price it
+    // reads as a contradiction, and the price shown is already ours.
+    [GeneratedRegex(@"\s*\(\s*\$?\s*[0-9][0-9.,]*\s*(ea|each)\.?\s*\)", RegexOptions.IgnoreCase)]
+    private static partial Regex PerUnitPriceNoteRegex();
 
     private static string SellerFromBaseUrl(string baseUrl)
     {

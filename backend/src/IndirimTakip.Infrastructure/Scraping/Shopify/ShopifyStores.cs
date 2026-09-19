@@ -110,6 +110,21 @@ public static class ShopifyStores
         // scraper, no accessories. "Perform Protein UK" is its own listing next
         // to "Perform Protein" at a different price, a real product on this store.
         new("Vivo Life", "https://www.vivolife.com"),
+        // Added 2026-09-19, on Awin (application pending): functional mushroom
+        // gummies and elixirs. tryauri.com is Shopify in USD, but most of its 31
+        // catalog rows are not products a shopper can buy on their own: "FREE"
+        // subscription gifts priced at $20 (a plush toy, a tote bag, a tumbler),
+        // checkout add-ons (bonus bags, shipping protection, a VIP upgrade) and
+        // three campaign copies of Daily Gummies at other prices. The twelve real
+        // products are listed by handle, as with 33 Nutrition.
+        new("Auri Nutrition", "https://www.tryauri.com",
+            OnlyHandles: new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "mushroom-gummies-10plex", "super-mushroom-focus-gummies", "super-mushroom-chill-gummies",
+                "super-mushroom-hsn-gummies-hair-skin-nails", "kids-daily-gummies", "super-mushroom-reishi-elixir",
+                "super-mushroom-lion-s-mane-elixir", "super-mushroom-cordyceps-elixir", "super-mushroom-chaga-elixir",
+                "pre-probiotic-elixir", "performance-power-bundle", "mind-focus-bundle",
+            }),
 
         // ---- UK SECTION (www.wheyproof.com/uk) ----------------------------
         // Scraped only by the UK instance (Market:Code=UK), priced in GBP.
