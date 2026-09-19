@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { brandSlug } from './app/core/brand-slug';
 import { API_BASE_URL } from './app/core/api.config';
 import { INTERNAL_API_HEADERS, toInternalApiUrl } from './app/core/internal-api';
+import { CURRENT_EDITION, listedEditions } from './app/core/editions';
 import { BASE_PATH } from './app/core/site-path';
 import { slugify } from './app/core/slugify';
 import { BODY_CALCULATORS } from './app/core/body-calculators';
@@ -41,8 +42,12 @@ const EDITION_ORIGIN = `${CANONICAL_ORIGIN}${BASE_PATH}`;
 
 // An edition that isn't ready to be indexed yet (the UK section while its
 // catalog fills) is served with noindex on every response. Crawlers can still
-// fetch it, which is what lets the header work.
-const SITE_NOINDEX = process.env['SITE_NOINDEX'] === '1';
+// fetch it, which is what lets the header work. "Ready" is the edition's
+// `listed` flag in core/editions.ts, the same switch that shows it in the
+// country switcher, adds its hreflang links and its sitemap to robots.txt: one
+// flag opens an edition, so no part of an opening can be forgotten.
+// SITE_NOINDEX=1 still forces noindex on top of it (a staging copy, say).
+const SITE_NOINDEX = process.env['SITE_NOINDEX'] === '1' || !CURRENT_EDITION.listed;
 
 const app = express();
 // TLS ends at the proxy in front of us and requests arrive as plain HTTP;
@@ -295,8 +300,16 @@ app.get('/robots.txt', (req, res) => {
   // mailto: links into /cdn-cgi/l/email-protection, which a bot following
   // without JavaScript gets a 404 from. Here Disallow IS the right tool:
   // the goal is that bots never request the path, and it isn't our content.
+  // Every open edition's sitemap: the UK section's lives at /uk/sitemap.xml,
+  // and crawlers read robots.txt only at the host root, which is this instance.
+  const sitemaps = [
+    `${CANONICAL_ORIGIN}/sitemap.xml`,
+    ...listedEditions()
+      .filter((edition) => edition.basePath !== '')
+      .map((edition) => `${CANONICAL_ORIGIN}${edition.basePath}/sitemap.xml`),
+  ];
   res.send(
-    `User-agent: *\nAllow: /\nDisallow: /cdn-cgi/\n\nSitemap: ${CANONICAL_ORIGIN}/sitemap.xml\n`,
+    `User-agent: *\nAllow: /\nDisallow: /cdn-cgi/\n\n${sitemaps.map((url) => `Sitemap: ${url}`).join('\n')}\n`,
   );
 });
 

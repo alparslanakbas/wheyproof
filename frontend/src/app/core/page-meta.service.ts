@@ -2,7 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { Injectable, inject } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 
-import { canonicalOrigin, setCanonicalLink } from './canonical-link';
+import { canonicalOrigin, setAlternateLinks, setCanonicalLink } from './canonical-link';
 import { MARKET } from './market';
 import { clampDescription, clampTitle } from './meta-description';
 import { SITE_NAME } from './site-identity';
@@ -77,6 +77,7 @@ export class PageMetaService {
     }
 
     setCanonicalLink(this.document, options.canonicalPath);
+    setAlternateLinks(this.document, options.canonicalPath, options.noIndex ?? false);
   }
 }
 

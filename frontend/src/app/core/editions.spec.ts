@@ -1,4 +1,4 @@
-import { EDITIONS, Edition, editionHref } from './editions';
+import { EDITIONS, Edition, alternateLinksFor, editionHref } from './editions';
 
 const us = EDITIONS.find((e) => e.code === 'US') as Edition;
 const uk = EDITIONS.find((e) => e.code === 'UK') as Edition;
@@ -32,5 +32,34 @@ describe('editionHref', () => {
   it('never prefixes the US edition', () => {
     expect(us.basePath).toBe('');
     expect(editionHref(us, '/categories')).toBe('/categories');
+  });
+});
+
+describe('alternateLinksFor', () => {
+  const origin = 'https://www.wheyproof.com';
+  const both = [us, uk];
+
+  it('links a shared page to itself in every edition, with an x-default', () => {
+    expect(alternateLinksFor('/category/creatine', both, origin)).toEqual([
+      { hreflang: 'en-US', href: 'https://www.wheyproof.com/category/creatine' },
+      { hreflang: 'en-GB', href: 'https://www.wheyproof.com/uk/category/creatine' },
+      { hreflang: 'x-default', href: 'https://www.wheyproof.com/category/creatine' },
+    ]);
+  });
+
+  // A product exists in one catalog only; pointing hreflang at the other
+  // edition's home page is an error Google reports.
+  it('gives edition-specific pages no alternates', () => {
+    expect(alternateLinksFor('/product/12/naked-whey', both, origin)).toEqual([]);
+    expect(alternateLinksFor('/brand/grenade', both, origin)).toEqual([]);
+  });
+
+  it('gives paginated or filtered views no alternates', () => {
+    expect(alternateLinksFor('/category/creatine?page=2', both, origin)).toEqual([]);
+  });
+
+  // While the UK section is closed it must not be announced anywhere.
+  it('gives nothing while only one edition is listed', () => {
+    expect(alternateLinksFor('/category/creatine', [us], origin)).toEqual([]);
   });
 });

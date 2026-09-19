@@ -228,9 +228,9 @@ services:
       - PORT=4000
       - NG_ALLOWED_HOSTS=wheyproof.com,www.wheyproof.com
       - API_INTERNAL_URL=http://wheyproof-uk-backend:8080
-      # Every response noindex until the UK catalog and its legal pages are
-      # ready. Remove to open the section to search engines.
-      - SITE_NOINDEX=1
+      # No SITE_NOINDEX here: the section is noindex while its row in
+      # frontend/src/app/core/editions.ts is unlisted, and opening it is that one
+      # flag (switcher, hreflang, robots.txt sitemap and indexing together).
     expose:
       - "4000"
     networks:
