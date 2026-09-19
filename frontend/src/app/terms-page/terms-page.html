@@ -13,7 +13,7 @@
 
       <aside class="pa-privacy-update" aria-label="Terms date">
         <span>Last updated</span>
-        <strong>September 14, 2026</strong>
+        <strong>September 19, 2026</strong>
         <p><i class="ph ph-check-circle" aria-hidden="true"></i> Current terms</p>
       </aside>
     </header>
@@ -112,9 +112,14 @@
           <h2>Not Medical Advice</h2>
           <p>
             Everything on this site, including guides and calculators, is general information and not medical,
-            nutritional or fitness advice. Dietary supplements aren't intended to diagnose, treat, cure or prevent any
-            disease, and statements about them haven't been evaluated by the Food and Drug Administration. Talk to a
-            doctor or another qualified professional before starting a supplement, particularly if you are pregnant,
+            nutritional or fitness advice.
+            @if (isUk) {
+              Food supplements are not medicines and aren't intended to prevent, treat or cure any disease.
+            } @else {
+              Dietary supplements aren't intended to diagnose, treat, cure or prevent any disease, and statements about
+              them haven't been evaluated by the Food and Drug Administration.
+            }
+            Talk to a doctor or another qualified professional before starting a supplement, particularly if you are pregnant,
             nursing, under 18, taking medication or have a medical condition.
           </p>
         </section>

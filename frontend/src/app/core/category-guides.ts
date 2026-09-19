@@ -7,6 +7,7 @@
 // Supplement claims are regulated in the US (FTC/FDA): describe what research
 // suggests, never promise results.
 
+import { CURRENT_EDITION } from './editions';
 import { SITE_NAME } from './site-identity';
 
 export interface CategoryGuideSection {
@@ -85,8 +86,12 @@ export const CATEGORY_GUIDES: Partial<Record<string, CategoryGuide>> = {
       {
         heading: 'Why Third-Party Testing Matters',
         paragraphs: [
-          'In the US, the FDA does not approve dietary supplements before they are sold, and label claims can ' +
-            'differ from what is in the tub. One known practice is "amino spiking": adding cheap free amino acids ' +
+          (CURRENT_EDITION.code === 'UK'
+            ? 'In the UK, food supplements are regulated as food rather than medicines, so no regulator tests them ' +
+              'before they go on sale, and label claims can differ from what is in the tub.'
+            : 'In the US, the FDA does not approve dietary supplements before they are sold, and label claims can ' +
+              'differ from what is in the tub.') +
+            ' One known practice is "amino spiking": adding cheap free amino acids ' +
             'to inflate the protein number. Independent programs such as NSF Certified for Sport or Informed Sport ' +
             'mean a third party has tested that the product contains what the label says and no banned substances.',
           `${SITE_NAME} doesn't track these certifications as a separate field yet. When evaluating a product, ` +

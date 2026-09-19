@@ -13,7 +13,7 @@
 
       <aside class="pa-privacy-update" aria-label="Policy date">
         <span>Last updated</span>
-        <strong>September 12, 2026</strong>
+        <strong>September 19, 2026</strong>
         <p><i class="ph ph-check-circle" aria-hidden="true"></i> Current policy</p>
       </aside>
     </header>
@@ -31,18 +31,18 @@
       </article>
       <article>
         <span class="pa-privacy-summary-icon" aria-hidden="true"><i class="ph ph-chart-line-up"></i></span>
-        <h2>Click counter</h2>
-        <p>Counted per product, not tied to you.</p>
+        <h2>Visitor statistics</h2>
+        <p>Cookie-free page counts; we see totals only.</p>
       </article>
       <article>
         <span class="pa-privacy-summary-icon" aria-hidden="true"><i class="ph ph-shield-check"></i></span>
-        <h2>Security log</h2>
-        <p>Attack attempts only, kept 90 days.</p>
+        <h2>Server logs</h2>
+        <p>Kept for security, deleted after about 90 days.</p>
       </article>
       <article>
         <span class="pa-privacy-summary-icon" aria-hidden="true"><i class="ph ph-eye-slash"></i></span>
-        <h2>Ads &amp; analytics</h2>
-        <p>No advertising or visitor analytics right now.</p>
+        <h2>Advertising</h2>
+        <p>No ads and no tracking cookies.</p>
       </article>
     </section>
 
@@ -57,6 +57,10 @@
         <a routerLink="/privacy" fragment="who-we-are">Who we are</a>
         <a routerLink="/privacy" fragment="data-we-collect">Data we collect</a>
         <a routerLink="/privacy" fragment="how-we-use-data">How we use data</a>
+        <a routerLink="/privacy" fragment="who-processes-it">Who processes it</a>
+        @if (isUk) {
+          <a routerLink="/privacy" fragment="legal-basis">Legal basis</a>
+        }
         <a routerLink="/privacy" fragment="retention">Retention and deletion</a>
         <a routerLink="/privacy" fragment="your-rights">Your rights</a>
         <a routerLink="/privacy" fragment="children">Children</a>
@@ -71,6 +75,13 @@
             the data collected on this site. For questions, email us at
             <a href="mailto:support@wheyproof.com">support&#64;wheyproof.com</a>.
           </p>
+          @if (isUk) {
+            <p>
+              For the UK section of the site (wheyproof.com/uk), the controller of your personal data under the UK
+              General Data Protection Regulation (UK GDPR) is {{ founderName }}, who runs WheyProof. You can reach the
+              controller at the address above.
+            </p>
+          }
         </section>
 
         <section id="data-we-collect" class="pa-privacy-section">
@@ -98,17 +109,28 @@
               isn't tied to any person.
             </li>
             <li>
-              <strong>Security log:</strong> we record attacks and abuse attempts against the site: IP address,
-              date/time, the requested address and the response code. <strong>Normal browsing is not recorded</strong>;
-              only unauthorized access attempts, requests over the rate limit, known vulnerability scans and server
-              errors are. Records are deleted automatically after <strong>90 days</strong>, are never used for
-              marketing and are not shared with third parties, except with the appropriate authorities if we report
-              abuse.
+              <strong>Server logs:</strong> like most websites, our web server writes a line for each request it
+              receives: IP address, date and time, the page address requested, the response code, your browser's
+              user agent and the country our network provider reports for the request. We use these logs to keep the
+              site secure and to fix problems. They are deleted after about <strong>90 days</strong>, are never used
+              for marketing and are not shared with third parties, except with the appropriate authorities if we
+              report abuse.
+            </li>
+            <li>
+              <strong>Security log:</strong> separately, we keep a record of attacks and abuse attempts: IP address,
+              date/time, the requested address and the response code. Only unauthorized access attempts, requests over
+              the rate limit, known vulnerability scans and server errors go into it, not ordinary page views. Records
+              are deleted automatically after <strong>90 days</strong>, on the same terms as the server logs.
+            </li>
+            <li>
+              <strong>Visitor statistics:</strong> Cloudflare Web Analytics counts page views, the pages visited, the
+              referring site and the browser and country they come from. It uses no cookies and stores nothing on your
+              device, and we see only totals, never an individual visitor.
             </li>
           </ul>
           <p>
-            There is currently no advertising or visitor analytics on this site. If we add any, this page will be
-            updated first, and anything that uses cookies will ask for your consent before it runs. See the
+            There is no advertising on this site. If we ever add advertising or anything else that uses cookies, this
+            page will be updated first and it will ask for your consent before it runs. See the
             <a routerLink="/cookies">Cookie Policy</a> for details.
           </p>
         </section>
@@ -118,8 +140,7 @@
           <h2>How We Use Data</h2>
           <p>
             We use your email address only to send the newsletter you subscribed to and the price alerts you asked
-            for. We use an email service provider to deliver them; your address goes to that provider for this purpose
-            only. <strong>We don't sell or share your personal information</strong>, and we don't use it for
+            for. <strong>We don't sell or share your personal information</strong>, and we don't use it for
             targeted advertising.
           </p>
           <p>
@@ -128,31 +149,95 @@
           </p>
         </section>
 
-        <section id="retention" class="pa-privacy-section">
+        <section id="who-processes-it" class="pa-privacy-section">
           <span class="pa-privacy-section-number">04</span>
+          <h2>Who Processes It</h2>
+          <p>Three service providers handle data for us, each only for its own job:</p>
+          <ul>
+            <li>
+              <strong>Oracle Cloud Infrastructure</strong> hosts the site and its database, in Frankfurt, Germany.
+            </li>
+            <li>
+              <strong>Cloudflare</strong> carries all traffic to the site (delivery and protection against attacks)
+              and provides the visitor statistics. It runs a worldwide network, and Cloudflare, Inc. is based in the
+              United States.
+            </li>
+            <li>
+              <strong>Brevo</strong> (Sendinblue SAS, France) delivers the newsletter and alert emails. Your email
+              address goes to Brevo for this purpose only.
+            </li>
+          </ul>
+          @if (isUk) {
+            <p>
+              Transfers to the EU rely on the UK's adequacy regulations for the European Economic Area. Cloudflare is
+              certified under the UK Extension to the EU-US Data Privacy Framework for transfers to the United States,
+              and falls back on the standard contractual clauses if that certification lapses.
+            </p>
+          }
+        </section>
+
+        @if (isUk) {
+          <section id="legal-basis" class="pa-privacy-section">
+            <span class="pa-privacy-section-number">05</span>
+            <h2>Legal Basis</h2>
+            <p>Under the UK GDPR each use of your data needs a legal basis. Ours are:</p>
+            <ul>
+              <li>
+                <strong>Consent</strong> for the newsletter and price alerts. You can withdraw it at any time with the
+                "unsubscribe" link in every email, or by writing to us.
+              </li>
+              <li>
+                <strong>Contract</strong> for a watchlist recovery link: sending it is the service you asked for.
+              </li>
+              <li>
+                <strong>Legitimate interests</strong> for server logs, the security log and visitor statistics: keeping
+                the site secure and working, and knowing which pages are read. None of them is used to profile you.
+              </li>
+            </ul>
+          </section>
+        }
+
+        <section id="retention" class="pa-privacy-section">
+          <span class="pa-privacy-section-number">{{ sectionNumber(5) }}</span>
           <h2>Retention and Deletion</h2>
           <p>
             We keep subscription data until you unsubscribe or ask us to delete it. Every newsletter and alert email
             has an "unsubscribe" link that deactivates your record immediately. To have your data deleted completely,
-            just write to <a href="mailto:support@wheyproof.com">support&#64;wheyproof.com</a>.
+            just write to <a href="mailto:support@wheyproof.com">support&#64;wheyproof.com</a>. Server logs and the
+            security log are deleted after about 90 days.
           </p>
         </section>
 
         <section id="your-rights" class="pa-privacy-section">
-          <span class="pa-privacy-section-number">05</span>
+          <span class="pa-privacy-section-number">{{ sectionNumber(6) }}</span>
           <h2>Your Rights</h2>
-          <p>
-            Depending on where you live (for example, California and other US states with privacy laws), you may have
-            the right to know what personal information we hold about you, to get a copy, to have it corrected or
-            deleted, and to opt out of its sale or sharing. We don't sell or share personal information, but you can
-            make any of these requests, whatever state you live in, by emailing
-            <a href="mailto:support@wheyproof.com">support&#64;wheyproof.com</a>. We won't treat you differently for
-            making a request.
-          </p>
+          @if (isUk) {
+            <p>
+              Under the UK GDPR you have the right to access the personal data we hold about you, to have it corrected,
+              to have it erased, to restrict or object to how we use it, to receive it in a portable format, and to
+              withdraw consent at any time. To use any of these rights, email
+              <a href="mailto:support@wheyproof.com">support&#64;wheyproof.com</a>; we reply within one month.
+            </p>
+            <p>
+              If you are unhappy with how we handle your data, you can complain to the Information Commissioner's
+              Office (ICO), the UK's data protection regulator, at
+              <a href="https://ico.org.uk/make-a-complaint/" target="_blank" rel="noopener">ico.org.uk/make-a-complaint</a>
+              or on 0303 123 1113. We'd appreciate the chance to put things right first.
+            </p>
+          } @else {
+            <p>
+              Depending on where you live (for example, California and other US states with privacy laws), you may have
+              the right to know what personal information we hold about you, to get a copy, to have it corrected or
+              deleted, and to opt out of its sale or sharing. We don't sell or share personal information, but you can
+              make any of these requests, whatever state you live in, by emailing
+              <a href="mailto:support@wheyproof.com">support&#64;wheyproof.com</a>. We won't treat you differently for
+              making a request.
+            </p>
+          }
         </section>
 
         <section id="children" class="pa-privacy-section">
-          <span class="pa-privacy-section-number">06</span>
+          <span class="pa-privacy-section-number">{{ sectionNumber(7) }}</span>
           <h2>Children</h2>
           <p>
             This site is not directed to children under 13, and we don't knowingly collect personal information from
