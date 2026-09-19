@@ -211,6 +211,22 @@ public class NonSupplementProductFilterTests
     }
 
     /// <summary>
+    /// A soft flask is a drink container, but the pattern only knew "bottle", so
+    /// both stores that sell one leaked it: RAW Soft Flask was already in the US
+    /// catalog and 33Fuel offers a Chia Soft Flask (measured 2026-09-20). Both
+    /// catalogs were scanned before the word was added: those two rows are the
+    /// only ones it touches, so it drops no real supplement.
+    /// </summary>
+    [Theory]
+    [InlineData("RAW Soft Flask")]
+    [InlineData("Chia Soft Flask - Chia Flask")]
+    [InlineData("Hydration Flasks")]
+    public void A_flask_is_a_container(string name)
+    {
+        Assert.True(NonSupplementProductFilter.IsAccessoryOrApparel(name));
+    }
+
+    /// <summary>
     /// "OVERSIZE" DELIBERATELY stayed out of the pattern: it's a size adjective, not a
     /// product type. It can appear in a mass gainer's name and that product must not be
     /// dropped; real apparel is already caught by TYPE words such as "kolsuz"/"joggers".

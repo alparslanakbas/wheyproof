@@ -140,6 +140,15 @@ public static class ShopifyStores
         // "Whey Protein Matcha - 10% OFF" is a second listing priced above the
         // plain one.
         new("MaxiNutrition", "https://www.maxinutrition.com", Market: SiteMarket.Uk),
+        // Added 2026-09-20, on Awin (application pending). Endurance nutrition:
+        // chia energy gels, carb drinks and meal replacements next to protein
+        // powders, so almost half of its 27 rows carry no category of ours and
+        // that is correct, they are real products with no matching bucket.
+        // Its Chia Soft Flask leaked through the accessory filter and is what
+        // added "flask" to it; the gels-plus-flask starter pack still comes in,
+        // because the filter reads the product title and only the variant label
+        // mentions the flask.
+        new("33Fuel", "https://www.33fuel.com", Market: SiteMarket.Uk),
         new("Grenade", "https://www.grenade.com", Market: SiteMarket.Uk),
         // Same brand as the US entry above, different storefront: /en-gb is the
         // UK catalog in GBP. Each instance registers only its own market's row.
