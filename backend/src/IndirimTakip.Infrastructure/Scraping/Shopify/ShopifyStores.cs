@@ -163,6 +163,17 @@ public static class ShopifyStores
         // priced GBP 6.99 by the store despite its name; we publish the price
         // the store charges.
         new("PER4M", "https://per4mbetter.com", Market: SiteMarket.Uk),
+        // Added 2026-09-20, on Awin (application pending). Natural endurance
+        // nutrition: energy bars, chews and gels next to recovery proteins and
+        // electrolytes, 152 rows, each family sold in 3, 12 and 24 packs. Like
+        // 33Fuel it leaves a third of its rows without a category of ours,
+        // because chews and gels have no bucket here and inventing one would
+        // put them where no shopper looks for them.
+        // Its Ultimate Hydration Bundle ships two bottles with three electrolyte
+        // blends and comes in on purpose, the way supplement bundles with a
+        // gifted shaker do; it arrives as two rows at the same price that differ
+        // only in bottle colour.
+        new("Veloforte", "https://veloforte.com", Market: SiteMarket.Uk),
         new("Grenade", "https://www.grenade.com", Market: SiteMarket.Uk),
         // Same brand as the US entry above, different storefront: /en-gb is the
         // UK catalog in GBP. Each instance registers only its own market's row.
