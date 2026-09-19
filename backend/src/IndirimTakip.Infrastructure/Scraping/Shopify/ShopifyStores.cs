@@ -149,6 +149,20 @@ public static class ShopifyStores
         // because the filter reads the product title and only the variant label
         // mentions the flask.
         new("33Fuel", "https://www.33fuel.com", Market: SiteMarket.Uk),
+        // Added 2026-09-20, on Awin (application pending). By far our largest
+        // single-brand store at 438 rows, and the reason is worth knowing before
+        // anyone reads it as a bug: this store gives every FLAVOUR its own
+        // product page, so flavour collapsing never applies and each flavour is
+        // multiplied by its sizes (whey alone is 110 rows). The names are all
+        // distinct and nothing repeats, measured through the real scraper.
+        // No category limit: its 37 uncategorised rows are mostly meal
+        // replacements, real products with no bucket of ours.
+        // Its "Fizzy Bubblegum Bottles" products are a sweet flavour, not
+        // containers, and the accessory filter reads only "water bottle", so
+        // they come in correctly. One row, "Free PER4M Energy 10 Serv", is
+        // priced GBP 6.99 by the store despite its name; we publish the price
+        // the store charges.
+        new("PER4M", "https://per4mbetter.com", Market: SiteMarket.Uk),
         new("Grenade", "https://www.grenade.com", Market: SiteMarket.Uk),
         // Same brand as the US entry above, different storefront: /en-gb is the
         // UK catalog in GBP. Each instance registers only its own market's row.
