@@ -17,6 +17,16 @@ public static class WooStores
         // (Multi, Radiant, Edge, ZZZZs) stays out for the BulkSupplements reason:
         // nothing else in the catalog compares against it.
         new("Form", "https://formnutrition.com/us", OnlyCategories: ShopifyStores.SportCategories),
+
+        // The same brand's home storefront, for the UK section: the root
+        // answers GBP and "/us" answers USD, measured again from the server on
+        // 2026-09-20 before this was added. Its Awin programme is UK-only, so
+        // until now we listed the brand where we could not earn on it.
+        // The category limit is the US entry's, for the same reason, and it
+        // also drops a test row the store publishes at GBP 1 ("BMTESTPRODUCT"):
+        // 14 catalog rows become 8.
+        new("Form", "https://formnutrition.com", OnlyCategories: ShopifyStores.SportCategories,
+            Market: SiteMarket.Uk),
     ];
 
     /// <summary>The stores an instance of the given market scrapes.</summary>
