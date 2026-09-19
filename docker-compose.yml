@@ -188,8 +188,11 @@ services:
       # frontend): announcing URLs we tell crawlers not to index would be
       # contradictory. Without a key the client does nothing.
       - IndexNow__Key=${UK_INDEXNOW_KEY:-}
-      # UK store programmes (Awin) go here as Affiliate__Rules__N__Host/Link,
-      # same format as the US list above, once a programme approves us.
+      # UK store programmes (Awin), one rule per store host, same format as the
+      # US list above. Only this instance reads them, so a UK rule for a host the
+      # US site also scrapes (Optimum Nutrition's /en-us) leaves US links alone.
+      - Affiliate__Rules__0__Host=optimumnutrition.com
+      - Affiliate__Rules__0__Link=${AFFILIATE_UK_OPTIMUMNUTRITION:-}
       - PublicBaseUrl=https://uk-api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com/uk
       - ProductImages__Enabled=true
