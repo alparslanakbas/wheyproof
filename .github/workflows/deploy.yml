@@ -45,7 +45,10 @@ jobs:
             # fresh database on the first deploy, crashed on "connection refused"
             # and only came up after Docker restarted it.
             docker compose up -d --wait db
-            docker compose up -d --force-recreate --no-deps --remove-orphans wheyproof-backend wheyproof-frontend
+            # The wheyproof-uk-* pair is the UK section (www.wheyproof.com/uk), the
+            # same app run a second time; see docker-compose.yml.
+            docker compose up -d --force-recreate --no-deps --remove-orphans \
+              wheyproof-backend wheyproof-frontend wheyproof-uk-backend wheyproof-uk-frontend
 
             # THE EDGE BELONGS TO THE TURKISH STACK. Its Caddy imports
             # caddy/sites/*.caddy from this repo, so a change here needs a reload
@@ -72,8 +75,12 @@ jobs:
               if docker run --rm --network web-edge busybox:1.36 \
                    wget -q -O /dev/null -T 5 http://wheyproof-backend:8080/api/stats \
                  && docker run --rm --network web-edge busybox:1.36 \
-                   wget -q -O /dev/null -T 5 --header "Host: www.wheyproof.com" http://wheyproof-frontend:4000/; then
-                echo "Verified: backend and frontend respond."
+                   wget -q -O /dev/null -T 5 --header "Host: www.wheyproof.com" http://wheyproof-frontend:4000/ \
+                 && docker run --rm --network web-edge busybox:1.36 \
+                   wget -q -O /dev/null -T 5 http://wheyproof-uk-backend:8080/api/stats \
+                 && docker run --rm --network web-edge busybox:1.36 \
+                   wget -q -O /dev/null -T 5 --header "Host: www.wheyproof.com" http://wheyproof-uk-frontend:4000/uk/; then
+                echo "Verified: US and UK backends and frontends respond."
                 exit 0
               fi
               sleep 5
@@ -81,5 +88,5 @@ jobs:
 
             echo "ERROR: the services didn't respond within 3 minutes."
             docker compose ps
-            docker compose logs --tail 60 wheyproof-backend wheyproof-frontend
+            docker compose logs --tail 60 wheyproof-backend wheyproof-frontend wheyproof-uk-backend wheyproof-uk-frontend
             exit 1

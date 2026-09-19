@@ -156,6 +156,89 @@ services:
     depends_on:
       - wheyproof-backend
 
+  # ---------------------------------------------------------------------------
+  # UK SECTION (www.wheyproof.com/uk): the SAME backend and frontend, run a
+  # second time. Market__Code=UK picks the UK store list and GBP; the frontend
+  # is built with angular.json's "uk" configuration (baseHref /uk/). It has its
+  # own database (wheyproof_uk, in the same Postgres; EF Migrate creates it on
+  # the first start) because every query, cache key and sitemap assumes one
+  # market per database, and a market column would have meant changing
+  # DealsQueryService. Its API has its own host, uk-api.wheyproof.com (see
+  # frontend/src/environments/environment.uk.ts for why not a path).
+  # Service names start with "wheyproof-" for the same web-edge alias reason
+  # as above.
+  wheyproof-uk-backend:
+    build: ./backend
+    restart: unless-stopped
+    cgroup_parent: wheyproof.slice
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - PORT=8080
+      - Market__Code=UK
+      - OutputCache__WarmupHost=uk-api.wheyproof.com
+      # Same server and user as the US database, database wheyproof_uk.
+      - ConnectionStrings__Default=${UK_CONNECTION_STRING}
+      - AdminApiKey=${ADMIN_API_KEY}
+      - CloudflareAccess__TeamDomain=${CF_ACCESS_TEAM_DOMAIN:-}
+      - CloudflareAccess__Aud=${CF_ACCESS_AUD:-}
+      - Health__StaleHours=${HEALTH_STALE_HOURS:-26}
+      - Brevo__ApiKey=${BREVO_API_KEY}
+      - Brevo__SenderEmail=${BREVO_SENDER_EMAIL:-newsletter@wheyproof.com}
+      # NO IndexNow key while the section is noindex (SITE_NOINDEX on the
+      # frontend): announcing URLs we tell crawlers not to index would be
+      # contradictory. Without a key the client does nothing.
+      - IndexNow__Key=${UK_INDEXNOW_KEY:-}
+      # UK store programmes (Awin) go here as Affiliate__Rules__N__Host/Link,
+      # same format as the US list above, once a programme approves us.
+      - PublicBaseUrl=https://uk-api.wheyproof.com
+      - FrontendBaseUrl=https://www.wheyproof.com/uk
+      - ProductImages__Enabled=true
+      - ProductImages__StoragePath=/app/product-images
+      - ProductImages__PublicBaseUrl=https://uk-api.wheyproof.com/api/images
+      # The UK pages live on the same origin as the US ones.
+      - Cors__AllowedOrigins__0=https://wheyproof.com
+      - Cors__AllowedOrigins__1=https://www.wheyproof.com
+      - Scraping__Enabled=true
+      - Digest__Enabled=false
+      - Newsletter__PostalAddress=${NEWSLETTER_POSTAL_ADDRESS:-}
+      # The label OCR reads US "Nutrition Facts" panels; UK labels are per-100g
+      # tables in a different layout, so it stays off here until measured.
+      - NutritionLabels__Engine=tesseract
+      - NutritionLabels__Enabled=false
+      - DescriptionBackfill__Enabled=true
+    expose:
+      - "8080"
+    volumes:
+      - product_images_uk:/app/product-images
+    networks:
+      - default
+      - web-edge
+    depends_on:
+      db:
+        condition: service_healthy
+
+  wheyproof-uk-frontend:
+    build:
+      context: ./frontend
+      args:
+        BUILD_SCRIPT: build:uk
+    restart: unless-stopped
+    cgroup_parent: wheyproof.slice
+    environment:
+      - PORT=4000
+      - NG_ALLOWED_HOSTS=wheyproof.com,www.wheyproof.com
+      - API_INTERNAL_URL=http://wheyproof-uk-backend:8080
+      # Every response noindex until the UK catalog and its legal pages are
+      # ready. Remove to open the section to search engines.
+      - SITE_NOINDEX=1
+    expose:
+      - "4000"
+    networks:
+      - default
+      - web-edge
+    depends_on:
+      - wheyproof-uk-backend
+
 networks:
   # Created once on the VM and shared with the Turkish stack's Caddy.
   web-edge:
@@ -163,4 +246,5 @@ networks:
 
 volumes:
   product_images:
+  product_images_uk:
   pg_data:

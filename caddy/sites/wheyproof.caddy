@@ -78,7 +78,7 @@
 # structured data; moving to nonces is separate work.
 (wheyproof-csp) {
 	header {
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.wheyproof.com https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.wheyproof.com https://uk-api.wheyproof.com https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
 	}
 }
 
@@ -105,6 +105,21 @@ www.wheyproof.com {
 		reverse_proxy wheyproof-backend:8080
 	}
 
+	# UK SECTION (/uk): a second instance of the same app (docker-compose.yml,
+	# wheyproof-uk-*). The prefix is NOT stripped: the UK frontend is built with
+	# baseHref /uk/ and serves every route under it. Caddy sorts these blocks by
+	# path length, so /uk/admin/api/* wins over /uk/* and /admin/api/*.
+	# Its admin panel is /uk/admin; Cloudflare Access must cover that path too
+	# (the rule for www.wheyproof.com/admin* doesn't match /uk/admin).
+	handle_path /uk/admin/api/* {
+		rewrite * /api/dev{uri}
+		reverse_proxy wheyproof-uk-backend:8080
+	}
+	redir /uk /uk/ permanent
+	handle /uk/* {
+		reverse_proxy wheyproof-uk-frontend:4000
+	}
+
 	handle {
 		reverse_proxy wheyproof-frontend:4000
 	}
@@ -118,4 +133,13 @@ api.wheyproof.com {
 	# search results. The www pages that use this data are unaffected.
 	header X-Robots-Tag "noindex, nofollow"
 	reverse_proxy wheyproof-backend:8080
+}
+
+# The UK section's API. Its own host rather than api.wheyproof.com/uk: the
+# frontend's SSR data hand-off (HTTP_TRANSFER_CACHE_ORIGIN_MAP) accepts bare
+# origins only. Same rules as api.wheyproof.com.
+uk-api.wheyproof.com {
+	import wheyproof-access-log
+	header X-Robots-Tag "noindex, nofollow"
+	reverse_proxy wheyproof-uk-backend:8080
 }
