@@ -1,3 +1,4 @@
+using IndirimTakip.Core.Entities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -12,7 +13,9 @@ namespace IndirimTakip.Infrastructure.Scraping;
 // here every run refreshes the products checked longest ago, so the work never
 // "finishes". The order comes from the RatingCheckedAt stamp, so scheduling lives
 // in the DATABASE, not process memory, and deploys don't reset it (the digest ran
-// into exactly that bug, see DigestBackgroundService).
+// into exactly that bug, see DigestBackgroundService). The TIMING does too now:
+// it used to run at every start, so each deploy sent a round of product-page
+// requests to every store (see PersistedSchedule).
 public class RatingRefreshBackgroundService(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
@@ -27,22 +30,23 @@ public class RatingRefreshBackgroundService(
         }
 
         var intervalHours = configuration.GetValue("RatingRefresh:IntervalHours", 6);
-        using var timer = new PeriodicTimer(TimeSpan.FromHours(intervalHours));
-
-        do
-        {
-            using var scope = scopeFactory.CreateScope();
-            var service = scope.ServiceProvider.GetRequiredService<ProductRatingRefreshService>();
-
-            try
+        await PersistedSchedule.RunAsync(
+            scopeFactory, BackgroundJobNames.RatingRefresh, TimeSpan.FromHours(intervalHours), logger,
+            async (services, cancellationToken) =>
             {
-                await service.RefreshAsync(cancellationToken: stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error during rating refresh.");
-            }
-        }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
+                try
+                {
+                    await services.GetRequiredService<ProductRatingRefreshService>()
+                        .RefreshAsync(cancellationToken: cancellationToken);
+                }
+                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // A failed run still counts as a run: retrying at once would
+                    // hit the same stores again. Shutdown propagates instead, so
+                    // an interrupted run keeps the old stamp.
+                    logger.LogError(ex, "Error during rating refresh.");
+                }
+            },
+            stoppingToken);
     }
 }

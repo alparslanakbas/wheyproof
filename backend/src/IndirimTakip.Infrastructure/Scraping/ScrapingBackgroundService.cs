@@ -1,4 +1,5 @@
 using IndirimTakip.Core.Caching;
+using IndirimTakip.Core.Entities;
 using IndirimTakip.Infrastructure.Deals;
 using IndirimTakip.Core.Scraping;
 using Microsoft.Extensions.Configuration;
@@ -24,25 +25,23 @@ public class ScrapingBackgroundService(
             return;
         }
 
+        // The schedule lives in the database, not in this process: a deploy
+        // restarts the container, and with an in-memory timer every deploy began
+        // a full cycle of every store (see PersistedSchedule).
         var intervalHours = configuration.GetValue("Scraping:IntervalHours", 6);
-        using var timer = new PeriodicTimer(TimeSpan.FromHours(intervalHours));
-
-        do
-        {
-            await RunScrapeCycleAsync(stoppingToken);
-        }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
+        await PersistedSchedule.RunAsync(
+            scopeFactory, BackgroundJobNames.ScrapeCycle, TimeSpan.FromHours(intervalHours), logger,
+            RunScrapeCycleAsync, stoppingToken);
     }
 
-    private async Task RunScrapeCycleAsync(CancellationToken cancellationToken)
+    private async Task RunScrapeCycleAsync(IServiceProvider services, CancellationToken cancellationToken)
     {
-        using var scope = scopeFactory.CreateScope();
         // Sources marked DailyOnly are OUTSIDE this round:
         // DailyScrapingBackgroundService runs them once a day.
-        var scrapers = scope.ServiceProvider.GetServices<IBrandScraper>()
+        var scrapers = services.GetServices<IBrandScraper>()
             .Where(s => !s.DailyOnly)
             .ToList();
-        var ingestion = scope.ServiceProvider.GetRequiredService<ScrapeIngestionService>();
+        var ingestion = services.GetRequiredService<ScrapeIngestionService>();
 
         logger.LogInformation("Scrape cycle started ({Count} stores).", scrapers.Count);
 
@@ -67,10 +66,10 @@ public class ScrapingBackgroundService(
         // site: home page 6.0 s cold, 0.26 s warm).
         // The price summary goes FIRST: cache warming reads those fields, and the
         // reverse order would cache the old summary.
-        await scope.ServiceProvider.GetRequiredService<PriceSummaryRefresher>()
+        await services.GetRequiredService<PriceSummaryRefresher>()
             .RefreshAsync(cancellationToken);
 
-        await scope.ServiceProvider.GetRequiredService<IPublicCacheRefresher>()
+        await services.GetRequiredService<IPublicCacheRefresher>()
             .RefreshAsync(cancellationToken);
 
         logger.LogInformation("Scrape cycle finished.");

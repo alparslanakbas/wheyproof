@@ -38,4 +38,9 @@ public class BackgroundJobRun
 public static class BackgroundJobNames
 {
     public const string DetailBackfill = "detail-backfill";
+
+    // Scheduled through PersistedSchedule (Infrastructure): a deploy no longer
+    // starts these, only an elapsed interval does.
+    public const string ScrapeCycle = "scrape-cycle";
+    public const string RatingRefresh = "rating-refresh";
 }
