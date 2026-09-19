@@ -17,12 +17,13 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 /// almost every brand is on Shopify, so the difference is data
 /// (<see cref="ShopifyStores"/>), not code.
 ///
-/// <b>Prices must be USD.</b> Shopify localises by visitor country, and our
+/// <b>Prices must be in the store's market currency</b> (USD for the US site,
+/// GBP for the UK section). Shopify localises by visitor country, and our
 /// server is in Frankfurt: on 2026-09-11, 17 of 18 stores answered in USD but
 /// Optimum Nutrition answered in EUR, which would have shown euro amounts
-/// under a dollar sign without any error. Every request asks for USD, and each
-/// crawl first checks the storefront's own currency marker; a store that still
-/// is not USD is skipped rather than ingested.
+/// under a dollar sign without any error. Every request asks for the market
+/// currency, and each crawl first checks the storefront's own currency marker;
+/// a store that still answers in another currency is skipped rather than ingested.
 ///
 /// <b>Each size is its own product.</b> A Shopify product holds every size and
 /// flavor as variants with their own prices (Nutricost whey: 1.5 lb, 2 lb and
@@ -65,7 +66,7 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
 
     public const string HttpClientName = "shopify";
 
-    private const string UsdQuery = "currency=USD";
+    private string CurrencyQuery => $"currency={store.StoreMarket.Currency}";
     private const int PageSize = 250;
     private const int MaxPages = 20;
 
@@ -123,7 +124,7 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
 
     public async Task<IReadOnlyList<ScrapedProduct>> ScrapeAsync(CancellationToken cancellationToken = default)
     {
-        await EnsureUsdStorefrontAsync(cancellationToken);
+        await EnsureMarketCurrencyAsync(cancellationToken);
 
         var result = new List<ScrapedProduct>();
         var seller = store.IsRetailer ? SellerFromBaseUrl(store.BaseUrl) : null;
@@ -134,7 +135,7 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
             try
             {
                 response = await httpClient.GetFromJsonAsync<ShopifyProductsResponse>(
-                    $"{store.BaseUrl}/products.json?limit={PageSize}&page={page}&{UsdQuery}", JsonOptions, cancellationToken);
+                    $"{store.BaseUrl}/products.json?limit={PageSize}&page={page}&{CurrencyQuery}", JsonOptions, cancellationToken);
             }
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
             {
@@ -158,12 +159,13 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         return result;
     }
 
-    private async Task EnsureUsdStorefrontAsync(CancellationToken cancellationToken)
+    private async Task EnsureMarketCurrencyAsync(CancellationToken cancellationToken)
     {
+        var required = store.StoreMarket.Currency;
         string html;
         try
         {
-            html = await httpClient.GetStringAsync($"{store.BaseUrl}?{UsdQuery}", cancellationToken);
+            html = await httpClient.GetStringAsync($"{store.BaseUrl}?{CurrencyQuery}", cancellationToken);
         }
         catch (HttpRequestException ex)
         {
@@ -178,10 +180,10 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
             return;
         }
 
-        if (!currency.Equals("USD", StringComparison.OrdinalIgnoreCase))
+        if (!currency.Equals(required, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"{store.BrandName}: storefront currency is {currency}, not USD. Skipped so that prices in the wrong currency never reach the site.");
+                $"{store.BrandName}: storefront currency is {currency}, not {required}. Skipped so that prices in the wrong currency never reach the site.");
         }
     }
 
@@ -305,7 +307,7 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         if (product.Tags.Any(t => t.Equals("base_product", StringComparison.OrdinalIgnoreCase)))
             return true;
 
-        if (IsOtherMarketOnly(product.Tags))
+        if (IsOtherMarketOnly(product.Tags, store.StoreMarket))
             return true;
 
         // Structural apparel/merch signals, independent of the title's wording.
@@ -378,7 +380,7 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
     }
 
     /// <summary>
-    /// A product tagged for other Shopify markets and not for the US one.
+    /// A product tagged for other Shopify markets and not for this instance's one.
     /// </summary>
     /// <remarks>
     /// Naked Nutrition lists EU/UK editions (450 g, 2280 g, 600 g...) in the
@@ -388,22 +390,25 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
     /// already reporting country US and USD, while a US product answered 200.
     /// We were publishing those rows, so "Go to store" landed shoppers on a 404.
     /// A product that also carries <c>market-us</c> stays: the rule only drops
-    /// what is explicitly for somewhere else.
+    /// what is explicitly for somewhere else. The UK section reads the same
+    /// tags the other way round: its own are market-uk (Naked's spelling) and
+    /// market-gb (the ISO code a store could use as well).
     ///
     /// Not every dead Naked row carries the tag: four "- 480g"/"- 240g"
     /// pre-workouts don't, and nothing in their product data tells them apart
     /// from the US listings. Those are caught when their page 404s twice (see
     /// ProductDetailBackfillService.RecordPageNotFound).
     /// </remarks>
-    internal static bool IsOtherMarketOnly(IEnumerable<string> tags)
+    internal static bool IsOtherMarketOnly(IEnumerable<string> tags, SiteMarket? market = null)
     {
+        string[] own = (market ?? SiteMarket.Us) == SiteMarket.Uk ? ["market-uk", "market-gb"] : ["market-us"];
         var markets = tags
             .Select(t => t.Trim())
             .Where(t => t.StartsWith("market-", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         return markets.Count > 0
-            && !markets.Any(t => t.Equals("market-us", StringComparison.OrdinalIgnoreCase));
+            && !markets.Any(t => own.Contains(t, StringComparer.OrdinalIgnoreCase));
     }
 
     // "Category:Pre Workout", "Category: Fat Burners".

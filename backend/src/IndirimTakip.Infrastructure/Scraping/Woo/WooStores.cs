@@ -18,4 +18,8 @@ public static class WooStores
         // nothing else in the catalog compares against it.
         new("Form", "https://formnutrition.com/us", OnlyCategories: ShopifyStores.SportCategories),
     ];
+
+    /// <summary>The stores an instance of the given market scrapes.</summary>
+    public static IEnumerable<WooStore> ForMarket(SiteMarket market) =>
+        All.Where(s => s.StoreMarket == market);
 }

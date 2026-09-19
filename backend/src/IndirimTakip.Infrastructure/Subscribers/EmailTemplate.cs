@@ -7,7 +7,13 @@ internal static class EmailTemplate
 {
     internal const string ProductionFrontendUrl = "https://www.wheyproof.com";
 
-    private static readonly CultureInfo UsCulture = CultureInfo.GetCultureInfo("en-US");
+    /// <summary>
+    /// The price format of the running instance's market ("$39.99" on the US
+    /// site, "£39.99" in the UK section). Set once at start-up from
+    /// <see cref="SiteMarket"/>; one process serves one market, so a static is
+    /// enough and every email builder keeps its current signature.
+    /// </summary>
+    internal static CultureInfo PriceCulture { get; set; } = SiteMarket.Us.Culture;
 
     internal static string AssetUrl(string frontendBaseUrl, string fileName) =>
         $"{frontendBaseUrl.TrimEnd('/')}/email-assets/{fileName}";
@@ -15,7 +21,7 @@ internal static class EmailTemplate
     internal static string Encode(string? value) => HtmlEncoder.Default.Encode(value ?? string.Empty);
 
     /// <summary>A price as shown in email, e.g. "$39.99". One place, so every email agrees.</summary>
-    internal static string Price(decimal value) => value.ToString("C2", UsCulture);
+    internal static string Price(decimal value) => value.ToString("C2", PriceCulture);
 
     internal static string Document(string preheader, string content) => $$"""
         <!doctype html>

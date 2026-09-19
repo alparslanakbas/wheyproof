@@ -39,6 +39,12 @@ public static class DependencyInjection
         // every scrape with one set-based query.
         services.AddScoped<PriceSummaryRefresher>();
 
+        // The edition this instance serves (US site or UK section). It decides
+        // which stores are registered below and the currency they must answer in.
+        var market = SiteMarket.FromConfiguration(configuration);
+        services.AddSingleton(market);
+        Subscribers.EmailTemplate.PriceCulture = market.Culture;
+
         // Store scrapers. Nearly every brand on the US shortlist runs on Shopify
         // and exposes the same public products.json endpoint, so one
         // configurable scraper replaces a class per brand. The store list
@@ -48,7 +54,7 @@ public static class DependencyInjection
             client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
             client.Timeout = TimeSpan.FromSeconds(30);
         });
-        foreach (var store in ShopifyStores.All)
+        foreach (var store in ShopifyStores.ForMarket(market))
         {
             services.AddScoped<IBrandScraper>(sp => new ShopifyStoreScraper(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient(ShopifyStoreScraper.HttpClientName),
@@ -63,7 +69,7 @@ public static class DependencyInjection
             client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
             client.Timeout = TimeSpan.FromSeconds(30);
         });
-        foreach (var store in Scraping.Woo.WooStores.All)
+        foreach (var store in Scraping.Woo.WooStores.ForMarket(market))
         {
             services.AddScoped<IBrandScraper>(sp => new Scraping.Woo.WooStoreScraper(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient(Scraping.Woo.WooStoreScraper.HttpClientName),

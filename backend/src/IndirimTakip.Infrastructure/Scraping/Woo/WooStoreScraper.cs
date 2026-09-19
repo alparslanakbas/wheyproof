@@ -20,7 +20,12 @@ namespace IndirimTakip.Infrastructure.Scraping.Woo;
 /// When set, only products in these categories are kept; uncategorised ones go
 /// too. For stores whose catalog reaches past what we compare.
 /// </param>
-public sealed record WooStore(string BrandName, string BaseUrl, IReadOnlySet<string>? OnlyCategories = null);
+/// <param name="Market">The edition the store belongs to; null means US.</param>
+public sealed record WooStore(
+    string BrandName, string BaseUrl, IReadOnlySet<string>? OnlyCategories = null, SiteMarket? Market = null)
+{
+    public SiteMarket StoreMarket => Market ?? SiteMarket.Us;
+}
 
 /// <summary>
 /// Reads a WooCommerce store's public Store API (/wp-json/wc/store/v1/products).
@@ -39,10 +44,10 @@ public sealed class WooStoreScraper(
     private const int MaxPages = 20;
     private const decimal MinimumPrice = 1m;
 
-    // The currency the site must answer in. A store that switches us to its home
-    // market would otherwise publish, say, GBP amounts as dollars: the prices
-    // would look plausible and be wrong by the exchange rate.
-    private const string RequiredCurrency = "USD";
+    // The currency the store must answer in is its market's (USD for the US
+    // site, GBP for the UK section). A store that switches us to its home market
+    // would otherwise publish, say, GBP amounts as dollars: the prices would
+    // look plausible and be wrong by the exchange rate.
 
     private static readonly JsonSerializerOptions JsonOptions = new();
 
@@ -93,12 +98,13 @@ public sealed class WooStoreScraper(
             yield break;
 
         var prices = product.Prices;
-        if (!string.Equals(prices?.CurrencyCode, RequiredCurrency, StringComparison.OrdinalIgnoreCase))
+        var requiredCurrency = store.StoreMarket.Currency;
+        if (!string.Equals(prices?.CurrencyCode, requiredCurrency, StringComparison.OrdinalIgnoreCase))
         {
             // Loud, not silent: a wrong currency is the failure that looks right.
             throw new InvalidOperationException(
                 $"{store.BrandName}: the store answered in {prices?.CurrencyCode ?? "an unknown currency"}, " +
-                $"{RequiredCurrency} expected. Check the storefront path in WooStores.");
+                $"{requiredCurrency} expected. Check the storefront path in WooStores.");
         }
 
         var price = ToMajorUnits(prices!.Price, prices.CurrencyMinorUnit);
