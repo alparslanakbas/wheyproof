@@ -103,6 +103,13 @@ public static class ShopifyStores
         // berberine) is herbal extracts no other store sells, so there is nothing to
         // compare them against.
         new("DMoose", "https://www.dmoose.com", OnlyCategories: SportCategories),
+        // Added 2026-09-19, on Awin (application pending; its US programme
+        // converts at 10.4% against 3.4% for the UK one). vivolife.com is a
+        // separate US Shopify store in USD (measured from the server); the UK
+        // section scrapes vivolife.co.uk in GBP below. 32 rows through the real
+        // scraper, no accessories. "Perform Protein UK" is its own listing next
+        // to "Perform Protein" at a different price, a real product on this store.
+        new("Vivo Life", "https://www.vivolife.com"),
 
         // ---- UK SECTION (www.wheyproof.com/uk) ----------------------------
         // Scraped only by the UK instance (Market:Code=UK), priced in GBP.
