@@ -20,9 +20,10 @@ export interface Edition {
 // live. Adding a country is a row here plus its build configuration.
 export const EDITIONS: readonly Edition[] = [
   { code: 'US', label: 'United States', basePath: '', hreflang: 'en-US', listed: true },
-  // Unlisted until the UK section opens (SITE_NOINDEX removed, UK legal pages
-  // in place). Flipping this to true shows the switcher on both editions.
-  { code: 'UK', label: 'United Kingdom', basePath: '/uk', hreflang: 'en-GB', listed: false },
+  // Opened 2026-09-19. This flag is the whole opening: it shows the edition in
+  // the switcher, adds hreflang both ways, lists its sitemap in robots.txt and
+  // lifts its noindex (see server.ts). Setting it back to false closes all four.
+  { code: 'UK', label: 'United Kingdom', basePath: '/uk', hreflang: 'en-GB', listed: true },
 ];
 
 /** The edition this build serves. */
