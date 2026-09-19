@@ -94,6 +94,8 @@ services:
       # Awin (https://www.awin1.com/cread.php?awinmid=<advertiser>&awinaffid=<publisher>&ued={url}):
       - Affiliate__Rules__4__Host=musclepharm.com
       - Affiliate__Rules__4__Link=${AFFILIATE_MUSCLEPHARM:-}
+      - Affiliate__Rules__5__Host=tryauri.com
+      - Affiliate__Rules__5__Link=${AFFILIATE_AURI:-}
       - PublicBaseUrl=https://api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com
       # Product images are resized and served by .NET, not Caddy (see Program.cs).
