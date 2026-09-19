@@ -32,10 +32,18 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 /// size collapse into a single product priced at the cheapest in-stock one,
 /// because an out-of-stock flavor cannot be bought.
 ///
-/// <b>A 429 stops the crawl but keeps what was collected.</b> Dropping a
-/// partial catalog would lose that day's price points for everything fetched.
+/// <b>A 429 is retried once, then stops the crawl but keeps what was
+/// collected.</b> Dropping a partial catalog would lose that day's price
+/// points for everything fetched. The single retry is for stores that throttle
+/// intermittently: Kaged (behind Cloudflare) answered 429 on its FIRST page in
+/// two of three cycles on 2026-09-19, one of them six hours after the previous
+/// cycle, and 200 to a single request right after; giving up at once left it
+/// with no prices for the cycle. Only once, so a store that keeps refusing us
+/// isn't pressed harder.
 /// </remarks>
-public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifyStore store, ILogger<ShopifyStoreScraper> logger)
+/// <param name="rateLimitRetryDelay">Wait before the one retry; tests pass zero.</param>
+public sealed partial class ShopifyStoreScraper(
+    HttpClient httpClient, ShopifyStore store, ILogger<ShopifyStoreScraper> logger, TimeSpan? rateLimitRetryDelay = null)
     : IBrandScraper, IProductDetailFetcher
 {
     // Only stores that print the nutrition panel as text on the product page
@@ -68,6 +76,8 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
 
     private string CurrencyQuery => $"currency={store.StoreMarket.Currency}";
     private const int PageSize = 250;
+
+    private readonly TimeSpan retryDelay = rateLimitRetryDelay ?? TimeSpan.FromMinutes(1);
     private const int MaxPages = 20;
 
     // Polite gap between catalog pages. One store (Ghost) answered 429 to a
@@ -134,12 +144,11 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
             ShopifyProductsResponse? response;
             try
             {
-                response = await httpClient.GetFromJsonAsync<ShopifyProductsResponse>(
-                    $"{store.BaseUrl}/products.json?limit={PageSize}&page={page}&{CurrencyQuery}", JsonOptions, cancellationToken);
+                response = await GetPageAsync(page, cancellationToken);
             }
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
             {
-                logger.LogWarning("{Store}: rate limited on page {Page}; keeping {Count} products.",
+                logger.LogWarning("{Store}: rate limited on page {Page} after a retry; keeping {Count} products.",
                     store.BrandName, page, result.Count);
                 break;
             }
@@ -157,6 +166,23 @@ public sealed partial class ShopifyStoreScraper(HttpClient httpClient, ShopifySt
         }
 
         return result;
+    }
+
+    /// <summary>One catalog page; a 429 is retried once after <see cref="retryDelay"/>.</summary>
+    private async Task<ShopifyProductsResponse?> GetPageAsync(int page, CancellationToken cancellationToken)
+    {
+        var url = $"{store.BaseUrl}/products.json?limit={PageSize}&page={page}&{CurrencyQuery}";
+        try
+        {
+            return await httpClient.GetFromJsonAsync<ShopifyProductsResponse>(url, JsonOptions, cancellationToken);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            logger.LogInformation("{Store}: rate limited on page {Page}; retrying once in {Delay}.",
+                store.BrandName, page, retryDelay);
+            await Task.Delay(retryDelay, cancellationToken);
+            return await httpClient.GetFromJsonAsync<ShopifyProductsResponse>(url, JsonOptions, cancellationToken);
+        }
     }
 
     private async Task EnsureMarketCurrencyAsync(CancellationToken cancellationToken)
