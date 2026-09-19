@@ -15,6 +15,7 @@ import {
   categoryPhosphorIcon,
 } from '../core/nav-icons';
 import { SUPPLEMENT_DOSAGES } from '../core/supplement-dosages';
+import { EditionSwitcher } from '../edition-switcher/edition-switcher';
 import { ThemePreference, ThemeService } from '../core/theme.service';
 
 // Shared nav for every page except the home page (category, brand,
@@ -22,7 +23,7 @@ import { ThemePreference, ThemeService } from '../core/theme.service';
 // one place. The home page keeps its own nav because it holds the search box.
 @Component({
   selector: 'app-site-header',
-  imports: [FormsModule, RouterLink, RouterLinkActive],
+  imports: [FormsModule, RouterLink, RouterLinkActive, EditionSwitcher],
   templateUrl: './site-header.html',
 })
 export class SiteHeader implements OnInit {

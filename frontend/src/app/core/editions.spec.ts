@@ -1,0 +1,36 @@
+import { EDITIONS, Edition, editionHref } from './editions';
+
+const us = EDITIONS.find((e) => e.code === 'US') as Edition;
+const uk = EDITIONS.find((e) => e.code === 'UK') as Edition;
+
+describe('editionHref', () => {
+  it('keeps a page that exists in every edition', () => {
+    expect(editionHref(uk, '/category/creatine')).toBe('/uk/category/creatine');
+    expect(editionHref(uk, '/calculators/protein')).toBe('/uk/calculators/protein');
+    expect(editionHref(us, '/privacy')).toBe('/privacy');
+  });
+
+  it('maps home to home', () => {
+    expect(editionHref(uk, '/')).toBe('/uk/');
+    expect(editionHref(us, '/')).toBe('/');
+  });
+
+  // Catalogs differ per country: a product or brand page may not exist there.
+  it('sends edition-specific pages to the target home page', () => {
+    expect(editionHref(uk, '/product/12/naked-whey')).toBe('/uk/');
+    expect(editionHref(uk, '/brand/transparent-labs')).toBe('/uk/');
+    expect(editionHref(us, '/guides/creatine-loading')).toBe('/');
+  });
+
+  it('drops the query and fragment of this edition', () => {
+    expect(editionHref(uk, '/category/creatine?page=3&sort=price')).toBe('/uk/category/creatine');
+    expect(editionHref(us, '/privacy#retention')).toBe('/privacy');
+  });
+
+  // The US address is root-relative with no prefix; from the UK section this
+  // is exactly what leaves the /uk app.
+  it('never prefixes the US edition', () => {
+    expect(us.basePath).toBe('');
+    expect(editionHref(us, '/categories')).toBe('/categories');
+  });
+});

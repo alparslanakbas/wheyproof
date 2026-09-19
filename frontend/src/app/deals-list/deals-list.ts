@@ -40,6 +40,7 @@ import { ThemePreference, ThemeService } from '../core/theme.service';
 import { ProductCardSparkline } from '../product-card-sparkline/product-card-sparkline';
 import { ProductModal } from '../product-modal/product-modal';
 import { PreferredProducts } from '../preferred-products/preferred-products';
+import { EditionSwitcher } from '../edition-switcher/edition-switcher';
 import { showNotFound } from '../core/not-found-navigation';
 
 type ViewMode = 'deals' | 'all' | 'store';
@@ -103,7 +104,7 @@ const FAQ_ITEMS: { question: string; answer: string }[] = [
 
 @Component({
   selector: 'app-deals-list',
-  imports: [PricePipe, DecimalPipe, FormsModule, PreferredProducts, ProductCardSparkline, ProductModal, RouterLink],
+  imports: [PricePipe, DecimalPipe, FormsModule, PreferredProducts, ProductCardSparkline, ProductModal, RouterLink, EditionSwitcher],
   templateUrl: './deals-list.html',
 })
 export class DealsList implements OnInit {

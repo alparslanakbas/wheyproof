@@ -15,6 +15,7 @@ import { ComparisonBar } from './comparison-bar/comparison-bar';
 import { CookieConsentBanner } from './cookie-consent-banner/cookie-consent-banner';
 import { MobileTabBar } from './mobile-tab-bar/mobile-tab-bar';
 import { NewsletterSignup } from './newsletter-signup/newsletter-signup';
+import { EditionSwitcher } from './edition-switcher/edition-switcher';
 import { UpdateBanner } from './update-banner/update-banner';
 
 // Finds the component at the deepest point of the route tree, with the same
@@ -31,7 +32,7 @@ function leafComponent(snapshot: ActivatedRouteSnapshot): unknown {
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, NewsletterSignup, CookieConsentBanner, MobileTabBar, ComparisonBar, UpdateBanner],
+  imports: [RouterOutlet, RouterLink, NewsletterSignup, CookieConsentBanner, MobileTabBar, ComparisonBar, UpdateBanner, EditionSwitcher],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
