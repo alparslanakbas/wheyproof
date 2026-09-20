@@ -846,6 +846,16 @@
                     (ngModelChange)="onDataFilterChange('needsManual', $event)"
                   />Needs manual entry</label
                 >
+                <label
+                  class="checkbox"
+                  title="Products whose category or nutrition panel was entered here; the ones closed as having no panel are included."
+                  ><input
+                    type="checkbox"
+                    name="manuallyEntered"
+                    [ngModel]="manuallyEnteredOnly()"
+                    (ngModelChange)="onDataFilterChange('manuallyEntered', $event)"
+                  />Entered by hand</label
+                >
                 <button type="submit">Search</button>
               </form>
 

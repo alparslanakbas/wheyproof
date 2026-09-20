@@ -341,7 +341,7 @@ internal static class AdminEndpoints
         // was cut. Id is the last sort key so a page never repeats or skips a row.
         app.MapGet("/api/dev/products", async (
             AppDbContext db, string? search, bool? hiddenOnly, bool? missingNutrition, bool? uncategorised,
-            bool? needsManual, int? page, int? pageSize, CancellationToken ct) =>
+            bool? needsManual, bool? manuallyEntered, int? page, int? pageSize, CancellationToken ct) =>
         {
             var query = db.Products.IgnoreQueryFilters().AsNoTracking();
 
@@ -361,6 +361,12 @@ internal static class AdminEndpoints
             //   checked yet. It only visits the brand's own store (Seller == null).
             // The regular crawl has already run for every row, so a row it didn't
             // fill it won't fill later.
+            // ENTERED BY HAND, so the person can find their own work again. Both
+            // flags count, since both are that person's decision; a product closed
+            // with "no panel on this product" belongs here too, empty table and all.
+            if (manuallyEntered == true)
+                query = query.Where(p => p.NutritionIsManual || p.CategoryIsManual);
+
             if (needsManual == true)
             {
                 query = query.Where(p => p.NutritionJson == null
@@ -380,7 +386,10 @@ internal static class AdminEndpoints
                     || EF.Functions.ILike(p.Name, "%" + lower + "%")
                     || EF.Functions.ILike(p.Brand!.Name, "%" + raw + "%"));
             }
-            else if (hiddenOnly != true && missingNutrition != true && uncategorised != true && needsManual != true)
+            // A NEW FILTER MUST BE ADDED HERE TOO: one missing from this condition
+            // silently returns an empty list, because the query never runs.
+            else if (hiddenOnly != true && missingNutrition != true && uncategorised != true
+                && needsManual != true && manuallyEntered != true)
             {
                 // Without a search the list would be uselessly large.
                 return Results.Ok(new { items = Array.Empty<object>(), total = 0, page = 1, pageSize = 0 });

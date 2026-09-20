@@ -73,6 +73,7 @@ export class AdminService {
     missingNutrition = false,
     uncategorised = false,
     needsManual = false,
+    manuallyEntered = false,
     page = 1,
   ): Observable<AdminProductPage> {
     const params = new URLSearchParams();
@@ -81,6 +82,7 @@ export class AdminService {
     if (missingNutrition) params.set('missingNutrition', 'true');
     if (uncategorised) params.set('uncategorised', 'true');
     if (needsManual) params.set('needsManual', 'true');
+    if (manuallyEntered) params.set('manuallyEntered', 'true');
     if (page > 1) params.set('page', String(page));
     const query = params.toString();
     return this.http.get<AdminProductPage>(`${this.base}/products${query ? `?${query}` : ''}`);
