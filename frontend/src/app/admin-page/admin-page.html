@@ -954,6 +954,20 @@
                           </td>
                           <td class="product-actions">
                             <div class="row-actions">
+                              <!-- No slug in the href: /product/{id} redirects to the
+                                   canonical slug, so the link survives a rename and the
+                                   admin query does not have to carry slugs. It goes
+                                   through sitePath because the UK edition serves this
+                                   panel under /uk/. Opens in a new tab so half-finished
+                                   work in the panel is not lost. -->
+                              <a
+                                class="row-action row-action-link"
+                                [href]="productLink(p.id)"
+                                target="_blank"
+                                rel="noopener"
+                              >
+                                View product
+                              </a>
                               <button type="button" class="row-action" (click)="openDataEditor(p)">
                                 Edit data
                               </button>

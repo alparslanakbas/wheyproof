@@ -77,6 +77,11 @@ export class AdminPage implements OnInit {
   // Same origin as the panel, under the edition's path (/uk/admin/api in the UK section).
   protected readonly digestPreviewUrl = sitePath('/admin/api/digest/preview');
 
+  /** The public page for a product row; the id-only path redirects to its slug. */
+  protected productLink(id: number): string {
+    return sitePath(`/product/${id}`);
+  }
+
   private readonly api = inject(AdminService);
   private readonly pageMeta = inject(PageMetaService);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
