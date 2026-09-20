@@ -26,7 +26,7 @@ describe('AdminService visibility endpoints', () => {
   });
 
   it('encodes the product search and hidden filter in the URL', () => {
-    service.products('whey protein', true).subscribe();
+    service.products({ search: 'whey protein', hiddenOnly: true }).subscribe();
     const request = http.expectOne('/admin/api/products?search=whey+protein&hiddenOnly=true');
     expect(request.request.method).toBe('GET');
     request.flush([]);

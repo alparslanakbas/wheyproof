@@ -680,15 +680,15 @@ export class AdminPage implements OnInit {
     this.productSearchDone.set(true);
     this.visibilityMessage.set(null);
     this.api
-      .products(
-        query,
-        this.hiddenOnly(),
-        this.missingNutritionOnly(),
-        this.uncategorisedOnly(),
-        this.needsManualOnly(),
-        this.manuallyEnteredOnly(),
+      .products({
+        search: query,
+        hiddenOnly: this.hiddenOnly(),
+        missingNutrition: this.missingNutritionOnly(),
+        uncategorised: this.uncategorisedOnly(),
+        needsManual: this.needsManualOnly(),
+        manuallyEntered: this.manuallyEnteredOnly(),
         page,
-      )
+      })
       .subscribe({
         next: (result) => {
           const lastPage = Math.max(1, Math.ceil(result.total / Math.max(1, result.pageSize)));

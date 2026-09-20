@@ -196,51 +196,65 @@ describe('AdminPage visibility safety', () => {
   // used to stop at 200 with no way to reach the rest.
   it('pages the product list and keeps the page after an edit', () => {
     api.products.mockImplementation((...args: unknown[]) =>
-      of({ items: [product] as unknown[], total: 1234, page: (args[6] as number) ?? 1, pageSize: 50 }),
+      of({ items: [product] as unknown[], total: 1234, page: ((args[0] as { page?: number }).page) ?? 1, pageSize: 50 }),
     );
 
     page.onDataFilterChange('missingNutrition', true);
-    expect(api.products).toHaveBeenLastCalledWith('', false, true, false, false, false, 1);
+    expect(api.products).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: '', hiddenOnly: false, missingNutrition: true, uncategorised: false, needsManual: false, manuallyEntered: false, page: 1 }),
+    );
     expect(page.productPageCount()).toBe(25);
 
     page.goToProductPage(3);
-    expect(api.products).toHaveBeenLastCalledWith('', false, true, false, false, false, 3);
+    expect(api.products).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: '', hiddenOnly: false, missingNutrition: true, uncategorised: false, needsManual: false, manuallyEntered: false, page: 3 }),
+    );
     expect(page.productPage()).toBe(3);
     expect(page.productRangeStart()).toBe(101);
 
     // Past the last page is clamped, not requested.
     page.goToProductPage(99);
-    expect(api.products).toHaveBeenLastCalledWith('', false, true, false, false, false, 25);
+    expect(api.products).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: '', hiddenOnly: false, missingNutrition: true, uncategorised: false, needsManual: false, manuallyEntered: false, page: 25 }),
+    );
 
     page.goToProductPage(3);
     page.openDataEditor(product);
     page.saveCategory();
-    expect(api.products).toHaveBeenLastCalledWith('', false, true, false, false, false, 3);
+    expect(api.products).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: '', hiddenOnly: false, missingNutrition: true, uncategorised: false, needsManual: false, manuallyEntered: false, page: 3 }),
+    );
 
     // A new filter starts over at page 1.
     page.onDataFilterChange('uncategorised', true);
-    expect(api.products).toHaveBeenLastCalledWith('', false, true, true, false, false, 1);
+    expect(api.products).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: '', hiddenOnly: false, missingNutrition: true, uncategorised: true, needsManual: false, manuallyEntered: false, page: 1 }),
+    );
   });
 
   // "Needs manual entry" lists only rows no automatic source can still fill.
   it('asks the API for the needs-manual list on its own, without a search', () => {
     page.onDataFilterChange('needsManual', true);
 
-    expect(api.products).toHaveBeenLastCalledWith('', false, false, false, true, false, 1);
+    expect(api.products).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: '', hiddenOnly: false, missingNutrition: false, uncategorised: false, needsManual: true, manuallyEntered: false, page: 1 }),
+    );
     expect(page.productSearchDone()).toBe(true);
   });
 
   // Saving rows out of the filtered list can leave the viewed page past the end.
   it('falls back to the last page when the current one emptied', () => {
     api.products.mockImplementation((...args: unknown[]) => {
-      const requested = (args[6] as number) ?? 1;
+      const requested = ((args[0] as { page?: number }).page) ?? 1;
       return of({ items: (requested > 2 ? [] : [product]) as unknown[], total: 60, page: requested, pageSize: 50 });
     });
 
     page.onDataFilterChange('missingNutrition', true);
     page.searchProducts(3);
 
-    expect(api.products).toHaveBeenLastCalledWith('', false, true, false, false, false, 2);
+    expect(api.products).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: '', hiddenOnly: false, missingNutrition: true, uncategorised: false, needsManual: false, manuallyEntered: false, page: 2 }),
+    );
     expect(page.productPage()).toBe(2);
   });
 

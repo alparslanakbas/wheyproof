@@ -67,22 +67,20 @@ export class AdminService {
   }
 
   /** One page of products; `total` counts every match, not just this page. */
-  products(
-    search: string,
-    hiddenOnly: boolean,
-    missingNutrition = false,
-    uncategorised = false,
-    needsManual = false,
-    manuallyEntered = false,
-    page = 1,
-  ): Observable<AdminProductPage> {
+  /**
+   * One page of products. The options come as ONE OBJECT: they used to be
+   * positional, so every filter inserted in the middle shifted both the calls and
+   * the tests' reading of the page number (adding "entered by hand" broke three
+   * tests at once). Named fields leave existing calls alone, and since the filter
+   * names match the backend's parameters exactly, a new one is a single line.
+   */
+  products(options: ProductQueryOptions = {}): Observable<AdminProductPage> {
+    const { search = '', page = 1 } = options;
     const params = new URLSearchParams();
     if (search.trim()) params.set('search', search.trim());
-    if (hiddenOnly) params.set('hiddenOnly', 'true');
-    if (missingNutrition) params.set('missingNutrition', 'true');
-    if (uncategorised) params.set('uncategorised', 'true');
-    if (needsManual) params.set('needsManual', 'true');
-    if (manuallyEntered) params.set('manuallyEntered', 'true');
+    for (const filter of PRODUCT_FILTERS) {
+      if (options[filter]) params.set(filter, 'true');
+    }
     if (page > 1) params.set('page', String(page));
     const query = params.toString();
     return this.http.get<AdminProductPage>(`${this.base}/products${query ? `?${query}` : ''}`);
@@ -246,6 +244,22 @@ export interface AdminProduct {
   nutritionLabelStatus: string | null;
   servingSizeGrams: number | null;
 }
+
+/** The product list's boolean filters; the names match the backend parameters. */
+export const PRODUCT_FILTERS = [
+  'hiddenOnly',
+  'missingNutrition',
+  'uncategorised',
+  'needsManual',
+  'manuallyEntered',
+] as const;
+
+export type ProductFilter = (typeof PRODUCT_FILTERS)[number];
+
+export type ProductQueryOptions = Partial<Record<ProductFilter, boolean>> & {
+  search?: string;
+  page?: number;
+};
 
 export interface AdminProductPage {
   items: AdminProduct[];
