@@ -26,11 +26,33 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 /// The edition the store belongs to; null means US. An instance registers only
 /// its own market's stores and requires that market's currency from them.
 /// </param>
+/// <param name="CatalogUrl">
+/// Where the catalog is READ from, when that differs from where shoppers are
+/// SENT. Huel's public site sits behind a geo redirect that sends our Frankfurt
+/// server to its German store, while the Shopify backend behind it answers the
+/// US catalog from anywhere. Product links still use <see cref="BaseUrl"/>,
+/// the address a US visitor can open.
+/// </param>
+/// <param name="ExcludeTags">
+/// Products carrying any of these tags are left out: the store's OWN marking of
+/// what is not a standalone listing (Huel tags hidden add-ons HUEL_HIDDEN).
+/// Preferred over guessing from price or title.
+/// </param>
+/// <param name="ExcludeProductTypes">Product types left out, as the store names them.</param>
+/// <param name="ExcludeHandles">
+/// Named products left out, the reverse of <paramref name="OnlyHandles"/>. For rows
+/// no store marking separates, listed with the measurement that justifies each.
+/// </param>
 public sealed record ShopifyStore(
     string BrandName, string BaseUrl, bool IsRetailer = false, IReadOnlySet<string>? OnlyCategories = null,
-    bool NutritionOnPage = false, IReadOnlySet<string>? OnlyHandles = null, SiteMarket? Market = null)
+    bool NutritionOnPage = false, IReadOnlySet<string>? OnlyHandles = null, SiteMarket? Market = null,
+    string? CatalogUrl = null, IReadOnlySet<string>? ExcludeTags = null,
+    IReadOnlySet<string>? ExcludeProductTypes = null, IReadOnlySet<string>? ExcludeHandles = null)
 {
     public SiteMarket StoreMarket => Market ?? SiteMarket.Us;
+
+    /// <summary>The address the catalog and its currency are read from.</summary>
+    public string CatalogBase => CatalogUrl ?? BaseUrl;
 }
 
 public static class ShopifyStores
@@ -124,6 +146,32 @@ public static class ShopifyStores
                 "super-mushroom-hsn-gummies-hair-skin-nails", "kids-daily-gummies", "super-mushroom-reishi-elixir",
                 "super-mushroom-lion-s-mane-elixir", "super-mushroom-cordyceps-elixir", "super-mushroom-chaga-elixir",
                 "pre-probiotic-elixir", "performance-power-bundle", "mind-focus-bundle",
+            }),
+        // Added 2026-09-21. Its Awin US programme REJECTED the first application,
+        // most likely because the reviewer found no Huel products here: the public
+        // site 307s our Frankfurt server to de.huel.com (a Vercel geo redirect keyed
+        // on a huel_user_country_iso cookie). The Shopify backend behind it,
+        // huelamerica.myshopify.com, answers the US catalog from anywhere and its
+        // meta.json declares USD, so the catalog is read there while shoppers are
+        // sent to huel.com, which a US visitor opens normally (200, measured).
+        // 112 catalog rows become ~48:
+        // - HUEL_HIDDEN and huel_child_product are the store's own marks for add-ons
+        //   and bundle parts ($1.78 single bar, free caps, loyalty gifts);
+        // - Merch/Womens/Accessories are apparel; Outlet and DISCOUNT_HIDDEN_PRODUCT
+        //   repeat the main listings (Black Edition appeared three times);
+        // - the handles below are pick-your-own kits priced PER UNIT under a
+        //   multi-pack title ("5x Complete Nutrition Bars" at $3.55 = one bar).
+        //   Each has a twin priced as the pack, which stays: 3.55 x 5 = 17.75,
+        //   6.10 x 4 = 24.40, 5.18 x 4 = 20.72, 3.50 x 3 = 10.50, 6.25 x 4 = 25.00.
+        //   The affiliate bundle is an offer for affiliates' audiences, not a product.
+        new("Huel", "https://huel.com", CatalogUrl: "https://huelamerica.myshopify.com",
+            ExcludeTags: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "HUEL_HIDDEN", "huel_child_product" },
+            ExcludeProductTypes: new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                { "Merch", "Womens", "Accessories", "Outlet", "DISCOUNT_HIDDEN_PRODUCT" },
+            ExcludeHandles: new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "5x-complete-nutrition-bars", "4x-ready-to-drink-1", "4x-hot-savoury-meal-packs-kitt",
+                "3x-energy-kit", "ready-to-drink-black-edition-mini-bundle-1", "affiliate-bundle",
             }),
 
         // ---- UK SECTION (www.wheyproof.com/uk) ----------------------------

@@ -171,7 +171,7 @@ public sealed partial class ShopifyStoreScraper(
     /// <summary>One catalog page; a 429 is retried once after <see cref="retryDelay"/>.</summary>
     private async Task<ShopifyProductsResponse?> GetPageAsync(int page, CancellationToken cancellationToken)
     {
-        var url = $"{store.BaseUrl}/products.json?limit={PageSize}&page={page}&{CurrencyQuery}";
+        var url = $"{store.CatalogBase}/products.json?limit={PageSize}&page={page}&{CurrencyQuery}";
         try
         {
             return await httpClient.GetFromJsonAsync<ShopifyProductsResponse>(url, JsonOptions, cancellationToken);
@@ -185,9 +185,42 @@ public sealed partial class ShopifyStoreScraper(
         }
     }
 
+    private async Task<string?> ReadShopCurrencyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(
+                await httpClient.GetStringAsync($"{store.CatalogBase}/meta.json", cancellationToken));
+            return doc.RootElement.TryGetProperty("currency", out var c) && c.ValueKind == JsonValueKind.String
+                ? c.GetString()
+                : null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException)
+        {
+            logger.LogWarning(ex, "{Store}: meta.json did not load; checking the storefront instead.", store.BrandName);
+            return null;
+        }
+    }
+
     private async Task EnsureMarketCurrencyAsync(CancellationToken cancellationToken)
     {
         var required = store.StoreMarket.Currency;
+
+        // A separate catalog host is a Shopify backend: its /meta.json states the
+        // shop currency outright, which is stronger than reading a storefront page
+        // (the public site in front of it may not be a Shopify theme at all).
+        if (store.CatalogUrl is not null)
+        {
+            var declared = await ReadShopCurrencyAsync(cancellationToken);
+            if (declared is not null)
+            {
+                if (!declared.Equals(required, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException(
+                        $"{store.BrandName}: shop currency is {declared}, not {required}. Skipped so that prices in the wrong currency never reach the site.");
+                return;
+            }
+        }
+
         string html;
         try
         {
@@ -234,6 +267,9 @@ public sealed partial class ShopifyStoreScraper(
     internal static IEnumerable<ScrapedProduct> ToScrapedProducts(ShopifyProduct product, ShopifyStore store, string? seller)
     {
         if (store.OnlyHandles is { } handles && !handles.Contains(product.Handle))
+            yield break;
+
+        if (store.ExcludeHandles is { } excludedHandles && excludedHandles.Contains(product.Handle))
             yield break;
 
         if (IsExcluded(product, store))
@@ -324,6 +360,13 @@ public sealed partial class ShopifyStoreScraper(
     {
         var type = product.ProductType?.Trim();
         if (!string.IsNullOrEmpty(type) && ExcludedProductTypes.Contains(type))
+            return true;
+
+        // The store's own classification comes first: when it marks a product as
+        // hidden or as a type it does not sell on its own, that beats any guess.
+        if (store.ExcludeTags is { } excludedTags && product.Tags.Any(excludedTags.Contains))
+            return true;
+        if (store.ExcludeProductTypes is { } excludedTypes && excludedTypes.Contains(product.ProductType ?? ""))
             return true;
 
         // Ghost keeps a hidden parent record per product line ("GHOST® WHEY")
