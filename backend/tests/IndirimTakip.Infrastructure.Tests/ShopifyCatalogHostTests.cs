@@ -11,7 +11,7 @@ public class ShopifyCatalogHostTests
 {
     private const string Catalog = """
         {"products":[
-          {"title":"Black Edition","handle":"black-edition","product_type":"Huel Powder","tags":[],
+          {"title":"Black Edition","handle":"huel-black-edition","product_type":"Huel Powder","tags":[],
            "options":[{"name":"Title","position":1}],
            "variants":[{"id":1,"option1":"Default Title","price":"39.00","available":true}],"images":[]},
           {"title":"Huel Complete Nutrition Bar","handle":"hidden-bar","product_type":"Huel Bars","tags":["HUEL_HIDDEN"],
@@ -60,13 +60,13 @@ public class ShopifyCatalogHostTests
         Assert.Contains("huelamerica.myshopify.com/products.json", handler.Requested);
         Assert.DoesNotContain(handler.Requested, r => r.StartsWith("huel.com/products.json"));
         var item = Assert.Single(products);
-        Assert.StartsWith("https://huel.com/products/black-edition", item.Url);
+        Assert.StartsWith("https://huel.com/products/huel-black-edition", item.Url);
     }
 
-    // The store's own markings (hidden tag, merch type) and a per-unit kit drop out;
-    // only the real listing is left in the catalog above.
+    // Only handles whose public page opened are listed: a hidden add-on, a merch
+    // item and a per-unit kit in the same catalog all drop out.
     [Fact]
-    public async Task Hidden_merch_and_per_unit_kits_are_left_out()
+    public async Task Only_products_with_a_public_page_are_listed()
     {
         var scraper = new ShopifyStoreScraper(new HttpClient(new Handler("USD")), Huel, NullLogger<ShopifyStoreScraper>.Instance);
 

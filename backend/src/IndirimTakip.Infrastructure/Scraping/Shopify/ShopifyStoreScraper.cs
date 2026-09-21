@@ -269,9 +269,6 @@ public sealed partial class ShopifyStoreScraper(
         if (store.OnlyHandles is { } handles && !handles.Contains(product.Handle))
             yield break;
 
-        if (store.ExcludeHandles is { } excludedHandles && excludedHandles.Contains(product.Handle))
-            yield break;
-
         if (IsExcluded(product, store))
             yield break;
 
@@ -360,13 +357,6 @@ public sealed partial class ShopifyStoreScraper(
     {
         var type = product.ProductType?.Trim();
         if (!string.IsNullOrEmpty(type) && ExcludedProductTypes.Contains(type))
-            return true;
-
-        // The store's own classification comes first: when it marks a product as
-        // hidden or as a type it does not sell on its own, that beats any guess.
-        if (store.ExcludeTags is { } excludedTags && product.Tags.Any(excludedTags.Contains))
-            return true;
-        if (store.ExcludeProductTypes is { } excludedTypes && excludedTypes.Contains(product.ProductType ?? ""))
             return true;
 
         // Ghost keeps a hidden parent record per product line ("GHOST® WHEY")
