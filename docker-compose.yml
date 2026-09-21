@@ -96,6 +96,10 @@ services:
       - Affiliate__Rules__4__Link=${AFFILIATE_MUSCLEPHARM:-}
       - Affiliate__Rules__5__Host=tryauri.com
       - Affiliate__Rules__5__Link=${AFFILIATE_AURI:-}
+      # Approved 2026-09-20. The UK store is vivolife.co.uk and belongs to a
+      # separate programme, so this host is the US one only.
+      - Affiliate__Rules__6__Host=vivolife.com
+      - Affiliate__Rules__6__Link=${AFFILIATE_VIVOLIFE:-}
       - PublicBaseUrl=https://api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com
       # Product images are resized and served by .NET, not Caddy (see Program.cs).
