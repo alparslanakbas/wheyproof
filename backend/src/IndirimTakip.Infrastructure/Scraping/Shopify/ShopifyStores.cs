@@ -223,6 +223,24 @@ public static class ShopifyStores
         // (measured through the real scraper, 2026-09-19).
         new("Bodybuilding Warehouse", "https://bodybuildingwarehouse.co.uk", IsRetailer: true,
             OnlyCategories: SportCategories, Market: SiteMarket.Uk),
+        // Added 2026-09-21, on Awin (application pending), the same way as the US
+        // entry above: uk.huel.com 307s our Frankfurt server to de.huel.com, while
+        // its Shopify backend, hibble.myshopify.com, answers the UK catalog from
+        // anywhere and declares GBP in meta.json. 86 product pages opened as a GB
+        // visitor, 27 answered 200 and are listed here (32 rows); the other 59 are
+        // single units and bundle parts sold only through the cart builder.
+        new("Huel", "https://uk.huel.com", Market: SiteMarket.Uk, CatalogUrl: "https://hibble.myshopify.com",
+            OnlyHandles: new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "huel", "huel-black-edition", "black-edition-10-meals", "black-edition-10-meals-banana",
+                "black-edition-bulk-save", "huel-essential", "huel-complete-protein", "huel-professional",
+                "huel-gluten-free", "huel-diet-powder", "huel-daily-greens", "huel-daily-greens-ready-to-drink",
+                "huel-daily-a-z-vitamins", "huel-ready-to-drink", "huel-black-edition-ready-to-drink",
+                "huel-lite-ready-to-drink", "huel-bar", "hot-and-savoury-meal-packs",
+                "hot-and-savoury-black-edition-ramen", "hot-and-savoury-lite-ramen", "huel-bestseller-bundle",
+                "huel-taster-bundle", "breakfast-lunch-bundle", "daily-wellness-set", "high-protein-starter-kit",
+                "huel-high-protein-bundle", "light-lean-bundle",
+            }),
     ];
 
     /// <summary>The stores an instance of the given market scrapes.</summary>

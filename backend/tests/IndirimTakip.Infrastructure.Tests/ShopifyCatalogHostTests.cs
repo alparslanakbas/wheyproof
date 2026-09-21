@@ -1,3 +1,4 @@
+using IndirimTakip.Infrastructure;
 using System.Net;
 using System.Text;
 using IndirimTakip.Infrastructure.Scraping.Shopify;
@@ -47,7 +48,9 @@ public class ShopifyCatalogHostTests
         }
     }
 
-    private static readonly ShopifyStore Huel = ShopifyStores.All.Single(s => s.BrandName == "Huel");
+    // Huel has a US and a UK entry; the fixture is the US one.
+    private static readonly ShopifyStore Huel =
+        ShopifyStores.All.Single(s => s.BrandName == "Huel" && s.StoreMarket == SiteMarket.Us);
 
     [Fact]
     public async Task Catalog_is_read_from_the_backend_but_links_point_at_the_public_site()
