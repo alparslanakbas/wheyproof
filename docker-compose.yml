@@ -100,6 +100,9 @@ services:
       # separate programme, so this host is the US one only.
       - Affiliate__Rules__6__Host=vivolife.com
       - Affiliate__Rules__6__Link=${AFFILIATE_VIVOLIFE:-}
+      # Approved 2026-09-22.
+      - Affiliate__Rules__7__Host=gorillamind.com
+      - Affiliate__Rules__7__Link=${AFFILIATE_GORILLAMIND:-}
       - PublicBaseUrl=https://api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com
       # Product images are resized and served by .NET, not Caddy (see Program.cs).
