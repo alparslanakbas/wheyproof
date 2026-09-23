@@ -202,6 +202,13 @@ services:
       # US site also scrapes (Optimum Nutrition's /en-us) leaves US links alone.
       - Affiliate__Rules__0__Host=optimumnutrition.com
       - Affiliate__Rules__0__Link=${AFFILIATE_UK_OPTIMUMNUTRITION:-}
+      # Joined as of 2026-09-23 (Awin 60035). A separate programme from the US
+      # vivolife.com rule, which only the US instance reads.
+      - Affiliate__Rules__1__Host=vivolife.co.uk
+      - Affiliate__Rules__1__Link=${AFFILIATE_UK_VIVOLIFE:-}
+      # Joined as of 2026-09-23; stays off until its programme ID is in .env.
+      - Affiliate__Rules__2__Host=veloforte.com
+      - Affiliate__Rules__2__Link=${AFFILIATE_UK_VELOFORTE:-}
       - PublicBaseUrl=https://uk-api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com/uk
       - ProductImages__Enabled=true
