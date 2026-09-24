@@ -347,4 +347,22 @@ public class ShopifyStoreScraperTests
         Assert.Equal(39.00m, item.Price);
         Assert.Equal("Daily Greens", item.Name);
     }
+
+    // LOUCO (UK) writes the British "One-Off Purchase". Unrecognised, its
+    // subscription plans stayed in play and the cheapest-first pick would
+    // publish a plan's price once the plans are discounted (on 2026-09-25 all
+    // three cost the same, so nothing wrong was visible yet).
+    [Fact]
+    public void One_off_purchase_counts_as_the_one_time_variant()
+    {
+        var p = Product("Nourish", null, ["Subscribe & Save"],
+            (1, "Loyalty Subscription (3 Pack)", null, 55.24m, true),
+            (2, "Starter Subscription (1 Pack)", null, 58.49m, true),
+            (3, "One-Off Purchase", null, 64.99m, true));
+
+        var item = Assert.Single(ShopifyStoreScraper.ToScrapedProducts(p, Brand, null));
+
+        Assert.Equal("Nourish", item.Name);
+        Assert.Equal(64.99m, item.Price);
+    }
 }

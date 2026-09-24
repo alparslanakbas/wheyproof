@@ -521,9 +521,10 @@ public sealed partial class ShopifyStoreScraper(
         RegexOptions.IgnoreCase)]
     private static partial Regex SubscriptionOptionRegex();
 
-    // "One-time", "One time purchase", "Single". Anything else under a
-    // subscription option is a recurring plan.
-    [GeneratedRegex(@"\b(one\s*-?\s*time|single|once)\b", RegexOptions.IgnoreCase)]
+    // "One-time", "One time purchase", "Single", and the British "One-Off
+    // Purchase" (LOUCO). Anything else under a subscription option is a
+    // recurring plan.
+    [GeneratedRegex(@"\b(one\s*-?\s*(time|off)|single|once)\b", RegexOptions.IgnoreCase)]
     private static partial Regex OneTimeValueRegex();
 
     [GeneratedRegex(@"Shopify\.currency\s*=\s*\{\s*""active""\s*:\s*""(?<code>[A-Za-z]{3})""")]

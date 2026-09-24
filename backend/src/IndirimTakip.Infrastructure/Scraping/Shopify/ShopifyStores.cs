@@ -175,6 +175,14 @@ public static class ShopifyStores
         // declared GBP with currency=GBP and answered products.json. All four
         // run Awin programmes (applications pending).
         new("Vivo Life", "https://www.vivolife.co.uk", Market: SiteMarket.Uk),
+        // Added 2026-09-25, on Awin (115535): women's plant-based protein, three
+        // products (Perform, Nourish and the two as a Starter Kit), GBP. Each has
+        // a "Subscribe & Save" option; its plans are not sizes, and the price
+        // taken is the "One-Off Purchase" one. Written without the
+        // brand's "Ø": slugify and search don't fold it, so "LØUCO" would give
+        // /brand/l-uco and a search for "louco" would miss it. The pack size and
+        // nutrition are on the product page only and are entered by hand.
+        new("LOUCO", "https://louco.co", Market: SiteMarket.Uk),
         // Added 2026-09-20, on Awin (application pending). A UK protein brand
         // since 1995; 88 catalog rows become 78 after the shared filters drop
         // its clothing, water bottles and shakers (measured through the real
