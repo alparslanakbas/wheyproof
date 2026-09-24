@@ -8,6 +8,8 @@ describe('editionHref', () => {
     expect(editionHref(uk, '/category/creatine')).toBe('/uk/category/creatine');
     expect(editionHref(uk, '/calculators/protein')).toBe('/uk/calculators/protein');
     expect(editionHref(us, '/privacy')).toBe('/privacy');
+    expect(editionHref(uk, '/guides/how-to-choose-whey-protein')).toBe('/uk/guides/how-to-choose-whey-protein');
+    expect(editionHref(us, '/guides')).toBe('/guides');
   });
 
   it('maps home to home', () => {
@@ -19,7 +21,6 @@ describe('editionHref', () => {
   it('sends edition-specific pages to the target home page', () => {
     expect(editionHref(uk, '/product/12/naked-whey')).toBe('/uk/');
     expect(editionHref(uk, '/brand/transparent-labs')).toBe('/uk/');
-    expect(editionHref(us, '/guides/creatine-loading')).toBe('/');
   });
 
   it('drops the query and fragment of this edition', () => {
@@ -44,6 +45,16 @@ describe('alternateLinksFor', () => {
       { hreflang: 'en-US', href: 'https://www.wheyproof.com/category/creatine' },
       { hreflang: 'en-GB', href: 'https://www.wheyproof.com/uk/category/creatine' },
       { hreflang: 'x-default', href: 'https://www.wheyproof.com/category/creatine' },
+    ]);
+  });
+
+  // Search Console reported the UK guides as duplicates of the US ones while
+  // they had no alternates (2026-09-23).
+  it('links a guide to the same article in every edition', () => {
+    expect(alternateLinksFor('/guides/how-to-choose-whey-protein', both, origin)).toEqual([
+      { hreflang: 'en-US', href: 'https://www.wheyproof.com/guides/how-to-choose-whey-protein' },
+      { hreflang: 'en-GB', href: 'https://www.wheyproof.com/uk/guides/how-to-choose-whey-protein' },
+      { hreflang: 'x-default', href: 'https://www.wheyproof.com/guides/how-to-choose-whey-protein' },
     ]);
   });
 

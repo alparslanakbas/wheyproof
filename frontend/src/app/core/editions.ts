@@ -31,10 +31,8 @@ export const CURRENT_EDITION: Edition =
   EDITIONS.find((edition) => edition.basePath === BASE_PATH) ?? EDITIONS[0];
 
 // Pages that exist at the same address in every edition. Everything else
-// (products, reviews, brands, comparisons, guides) is edition-specific: the
-// catalogs differ per country, and a brand or article in one may not exist in
-// the other. Guides are here as "specific" because the UK section has no
-// articles yet; move them into this list once it does.
+// (products, reviews, brands, comparisons) is edition-specific: the catalogs
+// differ per country, and a brand in one may not exist in the other.
 const SHARED_ROUTES: readonly RegExp[] = [
   /^\/$/,
   /^\/categories$/,
@@ -49,6 +47,13 @@ const SHARED_ROUTES: readonly RegExp[] = [
   /^\/cookies$/,
   /^\/terms$/,
   /^\/watchlist$/,
+  // Every edition seeds the same embedded articles at startup (backend
+  // ArticleSeeder), so each guide exists at the same slug in all of them.
+  // Guides were left out on the belief that the UK section had no articles;
+  // without hreflang, Search Console reported the UK copies as duplicates of
+  // the US ones (2026-09-23). An article added through the admin API to one
+  // database only would break this pairing.
+  /^\/guides(\/[a-z0-9-]+)?$/,
 ];
 
 /**
