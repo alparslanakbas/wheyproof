@@ -103,6 +103,12 @@ services:
       # Approved 2026-09-22.
       - Affiliate__Rules__7__Host=gorillamind.com
       - Affiliate__Rules__7__Link=${AFFILIATE_GORILLAMIND:-}
+      # Approved 2026-09-25 (Awin 76284).
+      - Affiliate__Rules__8__Host=bouncenutrition.com
+      - Affiliate__Rules__8__Link=${AFFILIATE_BOUNCE:-}
+      # Approved 2026-09-25 (Awin 91093).
+      - Affiliate__Rules__9__Host=ultimatepaleoprotein.com
+      - Affiliate__Rules__9__Link=${AFFILIATE_ULTIMATEPALEO:-}
       - PublicBaseUrl=https://api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com
       # Product images are resized and served by .NET, not Caddy (see Program.cs).
