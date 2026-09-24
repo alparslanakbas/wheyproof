@@ -168,6 +168,14 @@ public static class ShopifyStores
         // line alone, published in JSON-LD so the rating refresh reads them. Its
         // 13 shirts and hats are typed "Gear", already an excluded product type.
         new("Protekt", "https://protekt.com"),
+        // Added 2026-09-25, on Awin (118073, application pending): two organic
+        // plant proteins and two collagen shakes, one size each, $32.99. All four
+        // were sold out when added, asked as a US shopper too (products.json with
+        // country=US, JSON-LD OutOfStock, "sold out" on the page), and the pages
+        // point to Amazon meanwhile. Listed for the Protekt reason: 74-106
+        // reviews each in JSON-LD, ready the day stock returns. "Enchant" is the
+        // name on the pack; "Enchant Brands" is the company.
+        new("Enchant", "https://enchantbrands.com"),
 
         // ---- UK SECTION (www.wheyproof.com/uk) ----------------------------
         // Scraped only by the UK instance (Market:Code=UK), priced in GBP.
