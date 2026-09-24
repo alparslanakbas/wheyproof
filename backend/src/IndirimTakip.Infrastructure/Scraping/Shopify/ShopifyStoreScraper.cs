@@ -74,7 +74,9 @@ public sealed partial class ShopifyStoreScraper(
 
     public const string HttpClientName = "shopify";
 
-    private string CurrencyQuery => $"currency={store.StoreMarket.Currency}";
+    // The market's currency AND country: the country decides which prices
+    // (with or without VAT) and which products a store shows (see SiteMarket.Country).
+    private string MarketQuery => $"currency={store.StoreMarket.Currency}&country={store.StoreMarket.Country}";
     private const int PageSize = 250;
 
     private readonly TimeSpan retryDelay = rateLimitRetryDelay ?? TimeSpan.FromMinutes(1);
@@ -171,7 +173,7 @@ public sealed partial class ShopifyStoreScraper(
     /// <summary>One catalog page; a 429 is retried once after <see cref="retryDelay"/>.</summary>
     private async Task<ShopifyProductsResponse?> GetPageAsync(int page, CancellationToken cancellationToken)
     {
-        var url = $"{store.CatalogBase}/products.json?limit={PageSize}&page={page}&{CurrencyQuery}";
+        var url = $"{store.CatalogBase}/products.json?limit={PageSize}&page={page}&{MarketQuery}";
         try
         {
             return await httpClient.GetFromJsonAsync<ShopifyProductsResponse>(url, JsonOptions, cancellationToken);
@@ -224,7 +226,7 @@ public sealed partial class ShopifyStoreScraper(
         string html;
         try
         {
-            html = await httpClient.GetStringAsync($"{store.BaseUrl}?{CurrencyQuery}", cancellationToken);
+            html = await httpClient.GetStringAsync($"{store.BaseUrl}?{MarketQuery}", cancellationToken);
         }
         catch (HttpRequestException ex)
         {

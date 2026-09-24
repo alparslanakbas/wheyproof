@@ -27,6 +27,15 @@ public sealed record SiteMarket(string Code, string Currency, string CultureName
     public CultureInfo Culture => CultureInfo.GetCultureInfo(CultureName);
 
     /// <summary>
+    /// ISO 3166 country of the market ("US", "GB"; the edition code is "UK").
+    /// Stores price and publish their catalogs per country: asked without one,
+    /// Shopify goes by our server's location (Frankfurt), where LOUCO dropped UK
+    /// VAT from its one-off prices and Gorilla Mind hid 19 US-only products,
+    /// Gorilla Mode among them (measured 2026-09-25).
+    /// </summary>
+    public string Country => Code == "UK" ? "GB" : Code;
+
+    /// <summary>
     /// The configured market. Missing means US, the site that existed first.
     /// An unknown code stops the start-up: guessing a market would scrape the
     /// wrong stores into the wrong database.
