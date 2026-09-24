@@ -161,6 +161,13 @@ public static class ShopifyStores
                 "fiber-boost-bundle", "glp1-companion-pack", "high-protein-starter-kit",
                 "huel-high-protein-bundle",
             }),
+        // Added 2026-09-25: liquid energy, hydration, immunity and sleep shots,
+        // a lion's mane capsule and a tincture. Every supplement was sold out
+        // when added (products.json, the .js endpoint and the page's JSON-LD all
+        // agreed); it is listed anyway for its reviews, 1,459 on the hydration
+        // line alone, published in JSON-LD so the rating refresh reads them. Its
+        // 13 shirts and hats are typed "Gear", already an excluded product type.
+        new("Protekt", "https://protekt.com"),
 
         // ---- UK SECTION (www.wheyproof.com/uk) ----------------------------
         // Scraped only by the UK instance (Market:Code=UK), priced in GBP.
