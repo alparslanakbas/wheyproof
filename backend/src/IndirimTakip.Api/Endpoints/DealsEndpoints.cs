@@ -117,6 +117,30 @@ internal static class DealsEndpoints
             return Results.Ok(result);
         }).CacheOutput(cachePolicy);
 
+        // The categories page's product counts in ONE request. The page used
+        // to send a separate /api/products?pageSize=1 per category; on the
+        // Turkish site that made a real visitor reach 42 API requests in
+        // 10 s, the one thing blocking the API from Cloudflare's rate limit
+        // (30 per 10 s) there (2026-09-26, Caddy log).
+        // Counted with the SAME list query and /api/products's arguments, not
+        // a separate COUNT: the number on the card must match the total you
+        // get on clicking through. Server work is unchanged (one query per
+        // category), just in one response and cached.
+        app.MapGet("/api/category-product-counts", async (
+            DealsQueryService deals, CatalogStatsQueryService catalog, CancellationToken ct) =>
+        {
+            var counts = new Dictionary<string, int>();
+            foreach (var category in (await catalog.GetFilterOptionsAsync(ct)).Categories)
+            {
+                var result = await deals.GetDealsAsync(
+                    30, null, [category], null, null, null, null,
+                    onlyDiscounted: false, onlyStoreDiscounted: false, sortBy: null,
+                    page: 1, pageSize: 1, ct);
+                counts[category] = result.TotalCount;
+            }
+            return Results.Ok(counts);
+        }).CacheOutput(cachePolicy);
+
         // Brand chips in the calculator table: only brands with at least one
         // product in that category whose price per serving can be calculated.
         app.MapGet("/api/best-value-brands", async (string? category, DealsQueryService deals, CancellationToken ct) =>

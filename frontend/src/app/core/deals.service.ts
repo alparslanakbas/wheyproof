@@ -137,6 +137,11 @@ export class DealsService {
     return this.http.get<BrandProductCount[]>(`${API_BASE_URL}/api/brand-product-counts`);
   }
 
+  /** Category slug → product count, in one request (categories page). */
+  getCategoryProductCounts(): Observable<Record<string, number>> {
+    return this.http.get<Record<string, number>>(`${API_BASE_URL}/api/category-product-counts`);
+  }
+
   // Batched request for the product cards' mini sparklines: one call per
   // page (24 cards) instead of one per card (N+1).
   getSparklines(ids: number[], days = 30): Observable<ProductSparkline[]> {

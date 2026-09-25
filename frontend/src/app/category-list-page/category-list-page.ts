@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { forkJoin, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 import { CATEGORY_INTROS, CATEGORY_LABELS } from '../core/category-labels';
 import { DealsService } from '../core/deals.service';
@@ -94,22 +94,20 @@ export class CategoryListPage implements OnInit {
           return;
         }
 
-        // The real product count per category (pageSize: 1, only totalCount
-        // is needed) so no invented or estimated number is shown.
-        const counts$ = options.categories.map((slug) =>
-          this.dealsService.getAllProducts({ categories: [slug], pageSize: 1 }).pipe(
-            map((result) => result.totalCount),
-            catchError(() => of(0)),
-          ),
-        );
-
-        forkJoin(counts$).subscribe((counts) => {
+        // Real product counts (so no invented or estimated number is shown)
+        // in ONE request. It used to be one request per category, and a
+        // visitor going back and forth between pages could approach
+        // Cloudflare's API rate limit. The server counts with the list query
+        // itself, so the number matches the total you get on clicking through.
+        this.dealsService.getCategoryProductCounts().pipe(
+          catchError(() => of({} as Record<string, number>)),
+        ).subscribe((counts) => {
           const cards = options.categories
-            .map((slug, i) => ({
+            .map((slug) => ({
               slug,
               label: CATEGORY_LABELS[slug] ?? slug,
               intro: CATEGORY_INTROS[slug] ?? '',
-              productCount: counts[i],
+              productCount: counts[slug] ?? 0,
               iconClass: categoryPhosphorIcon(slug),
               tone: CATEGORY_TONES[slug] ?? 'violet',
             }))
