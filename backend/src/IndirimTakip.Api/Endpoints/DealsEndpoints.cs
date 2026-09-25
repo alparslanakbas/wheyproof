@@ -128,16 +128,16 @@ internal static class DealsEndpoints
             return Results.Ok(result);
         }).CacheOutput(cachePolicy);
 
-        app.MapGet("/api/filters", async (DealsQueryService deals, CancellationToken ct) =>
+        app.MapGet("/api/filters", async (CatalogStatsQueryService catalog, CancellationToken ct) =>
         {
-            var result = await deals.GetFilterOptionsAsync(ct);
+            var result = await catalog.GetFilterOptionsAsync(ct);
             return Results.Ok(result);
         }).CacheOutput(cachePolicy);
 
         // Summary numbers for the home page's live scraping strip.
-        app.MapGet("/api/stats", async (DealsQueryService deals, CancellationToken ct) =>
+        app.MapGet("/api/stats", async (CatalogStatsQueryService catalog, CancellationToken ct) =>
         {
-            var result = await deals.GetHomepageStatsAsync(cancellationToken: ct);
+            var result = await catalog.GetHomepageStatsAsync(cancellationToken: ct);
             return Results.Ok(result);
         }).CacheOutput(cachePolicy);
 
@@ -153,27 +153,27 @@ internal static class DealsEndpoints
         }).CacheOutput(cachePolicy);
 
         // The brand page's overview section: original content built from our own
-        // data, not copied (see DealsQueryService.GetBrandStatsAsync). With a
+        // data, not copied (see CatalogStatsQueryService.GetBrandStatsAsync). With a
         // category, statistics come only from the brand's products in that
         // category (brand x category pages).
-        app.MapGet("/api/brand-stats", async (string? brand, string? category, DealsQueryService deals, CancellationToken ct) =>
+        app.MapGet("/api/brand-stats", async (string? brand, string? category, CatalogStatsQueryService catalog, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(brand))
                 return Results.BadRequest(new { message = "The brand parameter is required." });
 
-            var result = await deals.GetBrandStatsAsync(
+            var result = await catalog.GetBrandStatsAsync(
                 brand, category: string.IsNullOrWhiteSpace(category) ? null : category, cancellationToken: ct);
             return Results.Ok(result);
         }).CacheOutput(cachePolicy);
 
         // The product review page's "how this product compares in its category"
-        // section; see DealsQueryService.GetCategoryPriceStatsAsync.
-        app.MapGet("/api/category-price-stats", async (string? category, DealsQueryService deals, CancellationToken ct) =>
+        // section; see CatalogStatsQueryService.GetCategoryPriceStatsAsync.
+        app.MapGet("/api/category-price-stats", async (string? category, CatalogStatsQueryService catalog, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(category))
                 return Results.BadRequest(new { message = "The category parameter is required." });
 
-            var result = await deals.GetCategoryPriceStatsAsync(category, ct);
+            var result = await catalog.GetCategoryPriceStatsAsync(category, ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         }).CacheOutput(cachePolicy);
 
@@ -185,9 +185,9 @@ internal static class DealsEndpoints
 
         // Data for sitemap.xml. The XML itself is built in the frontend's SSR
         // server (it knows its own domain); this only returns the raw entries.
-        app.MapGet("/api/products/sitemap", async (DealsQueryService deals, CancellationToken ct) =>
+        app.MapGet("/api/products/sitemap", async (CatalogStatsQueryService catalog, CancellationToken ct) =>
         {
-            var result = await deals.GetSitemapEntriesAsync(ct);
+            var result = await catalog.GetSitemapEntriesAsync(ct);
             return Results.Ok(result);
         }).CacheOutput(cachePolicy);
     }

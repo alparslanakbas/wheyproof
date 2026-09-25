@@ -9,6 +9,6 @@ namespace IndirimTakip.Infrastructure.Deals;
 // schema.org FAQ block 113 too). Across the catalog 16% of products weren't
 // counted, and brands with no categorised products showed "0 products".
 //
-// This count uses the SAME definition as GetBrandStatsAsync (active brand + not
+// This count uses the SAME definition as CatalogStatsQueryService.GetBrandStatsAsync (active brand + not
 // stale), so both pages show the same number.
 public record BrandProductCountDto(string BrandName, int ProductCount);
