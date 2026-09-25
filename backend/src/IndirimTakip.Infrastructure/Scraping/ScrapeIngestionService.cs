@@ -4,6 +4,7 @@ using IndirimTakip.Core.Scraping;
 using IndirimTakip.Infrastructure.Subscribers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace IndirimTakip.Infrastructure.Scraping;
 
@@ -11,7 +12,8 @@ public class ScrapeIngestionService(
     AppDbContext db,
     ProductWatchNotifier watchNotifier,
     IndexNowClient indexNow,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    ILogger<ScrapeIngestionService> logger)
 {
     /// <summary>
     /// Per-source concurrency lock. Two scrapes of the same source must not run at
@@ -84,6 +86,17 @@ public class ScrapeIngestionService(
         CancellationToken cancellationToken)
     {
         var scrapedAt = DateTimeOffset.UtcNow;
+
+        // The shared check every source passes (see ScrapedProductGuard). Drops
+        // aren't silent: they're the first sign that a source broke.
+        var valid = scrapedProducts.Select(ScrapedProductGuard.Clean).OfType<ScrapedProduct>().ToList();
+        if (valid.Count < scrapedProducts.Count)
+        {
+            logger.LogWarning(
+                "{Source}: {Dropped} products failed the shared check (zero/negative price or non-https URL).",
+                scraper.BrandName, scrapedProducts.Count - valid.Count);
+        }
+        scrapedProducts = valid;
 
         // Brands are cached by name: a multi-brand source (a retailer catalog) needs
         // a brand resolved per product, and a query per product would mean hundreds
