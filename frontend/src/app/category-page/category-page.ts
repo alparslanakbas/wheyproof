@@ -3,6 +3,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
+import { LatestRequest } from '../core/latest-request';
 import { buildBreadcrumbJsonLd } from '../core/breadcrumb';
 import { canonicalOrigin } from '../core/canonical-link';
 import { CATEGORY_FAQS, FaqItem } from '../core/category-faqs';
@@ -36,6 +37,9 @@ export class CategoryPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly dealsService = inject(DealsService);
+  // Only the newest request is handled: a stale response arriving late
+  // after a quick filter change must not overwrite the list.
+  private readonly listRequest = new LatestRequest();
   private readonly pageMeta = inject(PageMetaService);
   private readonly document = inject(DOCUMENT);
   private readonly priceHistoryService = inject(PriceHistoryService);
@@ -200,7 +204,7 @@ export class CategoryPage implements OnInit {
           ? this.dealsService.getStoreDeals(query)
           : this.dealsService.getAllProducts(query);
 
-    request$.subscribe({
+    this.listRequest.run(request$, {
       next: (result) => {
         this.items.set(result.items);
         this.totalCount.set(result.totalCount);

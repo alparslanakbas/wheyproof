@@ -5,6 +5,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
 
+import { LatestRequest } from '../core/latest-request';
 import { filterSelectValue, readFilterSelection } from '../core/filter-select';
 import { buildProductJsonLdDescription, offerAvailability } from '../core/product-facts';
 import { ArticleSummary } from '../core/article.model';
@@ -151,6 +152,10 @@ export class DealsList implements OnInit {
   // Mini sparklines on the product cards, filled by one batched request per
   // page load (see loadSparklines), not one request per card.
   protected readonly sparklines = signal<Map<number, PricePoint[]>>(new Map());
+  // Only the newest request is handled: a stale response arriving late
+  // after a quick filter change must not overwrite the list.
+  private readonly listRequest = new LatestRequest();
+  private readonly sparklineRequest = new LatestRequest();
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   // The default tab is "store" on purpose: "Real price drops" is mostly empty
@@ -783,7 +788,7 @@ export class DealsList implements OnInit {
           ? this.dealsService.getStoreDeals(query)
           : this.dealsService.getAllProducts(query);
 
-    request$.subscribe({
+    this.listRequest.run(request$, {
       next: (result) => {
         this.deals.set(result.items);
         this.totalCount.set(result.totalCount);
@@ -801,8 +806,8 @@ export class DealsList implements OnInit {
   private loadSparklines(deals: Deal[]): void {
     this.sparklines.set(new Map());
     const ids = deals.map((d) => d.productId);
-    this.dealsService.getSparklines(ids).subscribe((result) => {
-      this.sparklines.set(new Map(result.map((s) => [s.productId, s.points])));
+    this.sparklineRequest.run(this.dealsService.getSparklines(ids), {
+      next: (result) => this.sparklines.set(new Map(result.map((s) => [s.productId, s.points]))),
     });
   }
 
