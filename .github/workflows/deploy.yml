@@ -10,12 +10,22 @@ concurrency:
   group: deploy-wheyproof
   cancel-in-progress: false
 
+# The job doesn't even read the repository (SSH only): narrowest token scope.
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+        # A commit SHA, not a tag: a tag can be moved to other code later (the
+        # tj-actions incident) and this step sees the production SSH key.
+        # SHA = v1.0.3, `git ls-remote https://github.com/appleboy/ssh-action refs/tags/v1.0.3`.
+        # Host key fingerprint deliberately NOT set: the server offers three key
+        # types and which one the action picks is unclear; the wrong one would
+        # fail every deploy (security review, 2026-09-25).
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
