@@ -56,6 +56,13 @@ services:
     restart: unless-stopped
     # Site total capped at 1.5 cores / 4 GB (scripts/wheyproof.slice).
     cgroup_parent: wheyproof.slice
+    # Non-root user (Dockerfile), no kernel capabilities, and no privilege
+    # escalation through setuid binaries. The app needs none of them: port
+    # 8080/4000, and the only thing it writes is its own image directory.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - PORT=8080
@@ -156,6 +163,10 @@ services:
     restart: unless-stopped
     # Site total capped at 1.5 cores / 4 GB (scripts/wheyproof.slice).
     cgroup_parent: wheyproof.slice
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       - PORT=4000
       # Angular SSR rejects requests for hosts not listed here.
@@ -186,6 +197,10 @@ services:
     build: ./backend
     restart: unless-stopped
     cgroup_parent: wheyproof.slice
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - PORT=8080
@@ -249,6 +264,10 @@ services:
         BUILD_SCRIPT: build:uk
     restart: unless-stopped
     cgroup_parent: wheyproof.slice
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       - PORT=4000
       - NG_ALLOWED_HOSTS=wheyproof.com,www.wheyproof.com

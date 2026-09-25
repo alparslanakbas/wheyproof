@@ -29,6 +29,13 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("Default")));
 
+        // Every HTTP client connects to public addresses only (SSRF protection,
+        // see PublicNetworkConnection). Set as the default so a new scraper
+        // can't forget it; a client that goes internal on purpose has to pick
+        // its own handler explicitly.
+        services.ConfigureHttpClientDefaults(b =>
+            b.ConfigurePrimaryHttpMessageHandler(PublicNetworkConnection.CreateHandler));
+
         // Refreshes the public data cache after a scrape. The REAL implementation
         // lives in the Api project (tied to ASP.NET's output cache); this is only a
         // no-op fallback for environments without the Api (tests, console tools).

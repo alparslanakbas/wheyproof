@@ -19,4 +19,8 @@ COPY --from=build /src/node_modules ./node_modules
 ENV PORT=4000
 EXPOSE 4000
 
+# Without root (the node image's `node`, UID 1000). SSR doesn't write to disk,
+# it only reads files; the port is above 1024, no privilege needed.
+USER node
+
 ENTRYPOINT ["node", "dist/frontend/server/server.mjs"]

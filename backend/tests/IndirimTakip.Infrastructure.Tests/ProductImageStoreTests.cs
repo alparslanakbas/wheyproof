@@ -107,6 +107,40 @@ public class ProductImageStoreTests
         Assert.Equal(150, result.Height);
     }
 
+    /// <summary>
+    /// A few dozen bytes of file header claiming 30000x30000. Handed to the
+    /// decoder it would ask for ~3.6 GB of pixel memory; the limit must catch
+    /// it at the header. The message belongs to our check, so another library
+    /// error can't pass the test.
+    /// </summary>
+    [Fact]
+    public async Task Image_whose_header_claims_a_huge_size_is_not_opened()
+    {
+        using var input = new MemoryStream(BmpHeader(30_000, 30_000));
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => ProductImageStore.ResizeAsync(input, 78, CancellationToken.None));
+
+        Assert.Contains("exceeds the pixel limit", error.Message);
+        Assert.Contains("30000x30000", error.Message);
+    }
+
+    // Header only (14 + 40 bytes) of an uncompressed 24-bit BMP, no pixels.
+    private static byte[] BmpHeader(int width, int height)
+    {
+        var b = new byte[54];
+        b[0] = (byte)'B';
+        b[1] = (byte)'M';
+        BitConverter.GetBytes(54).CopyTo(b, 2);      // file size
+        BitConverter.GetBytes(54).CopyTo(b, 10);     // pixel data offset
+        BitConverter.GetBytes(40).CopyTo(b, 14);     // info header size
+        BitConverter.GetBytes(width).CopyTo(b, 18);
+        BitConverter.GetBytes(height).CopyTo(b, 22);
+        BitConverter.GetBytes((short)1).CopyTo(b, 26);   // planes
+        BitConverter.GetBytes((short)24).CopyTo(b, 28);  // bits per pixel
+        return b;
+    }
+
     private static MemoryStream FakeImage(int width, int height)
     {
         using var image = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(width, height);

@@ -39,6 +39,12 @@ public sealed class ProductImageStore(
     public const int MaxEdge = 400;
 
     /// <summary>
+    /// Largest image that is decoded (width x height). 40 million pixels is
+    /// ~160 MB of memory (4 bytes/pixel), far below the slice's 4 GB cap.
+    /// </summary>
+    internal const long MaxPixels = 40_000_000;
+
+    /// <summary>
     /// Local file name for a source URL. A pure function: the same URL always
     /// gives the same name.
     /// </summary>
@@ -148,6 +154,18 @@ public sealed class ProductImageStore(
     /// </summary>
     internal static async Task<byte[]> ResizeAsync(Stream input, int quality, CancellationToken cancellationToken)
     {
+        // PIXEL LIMIT, BEFORE DECODING (security review, 2026-09-26). The byte
+        // limit isn't enough: a file of a few kB can claim 30000x30000 in its
+        // header and the decoder would try to hold that many pixels in memory
+        // (~3.6 GB; the slice cap is 4 GB). The header is read and the size
+        // checked; only then is the image opened.
+        var info = await Image.IdentifyAsync(input, cancellationToken)
+            ?? throw new InvalidOperationException("Unrecognized image format.");
+        if ((long)info.Width * info.Height > MaxPixels)
+            throw new InvalidOperationException(
+                $"Image exceeds the pixel limit ({info.Width}x{info.Height}).");
+        input.Position = 0;
+
         using var image = await Image.LoadAsync(input, cancellationToken);
 
         // SMALLER IMAGES AREN'T UPSCALED: Max mode only shrinks an edge above the

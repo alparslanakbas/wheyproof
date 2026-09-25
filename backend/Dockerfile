@@ -21,6 +21,16 @@ RUN apt-get update \
 
 COPY --from=build /app/publish .
 
+# RUNS WITHOUT ROOT (security review, 2026-09-26). The backend processes
+# third-party HTML and images (ImageSharp, Tesseract); a flaw in one of those
+# parsers hands over the unprivileged `app` user (ready in the aspnet image,
+# UID 1654) instead of root.
+# The only place written to is the image directory. Giving it to `app` here
+# carries the right ownership into a NEW volume (Docker fills an empty volume
+# from the image's directory); the EXISTING volumes were chowned once by hand.
+RUN mkdir -p /app/product-images && chown $APP_UID:$APP_UID /app/product-images
+USER $APP_UID
+
 # Render (ve benzeri platformlar) PORT ortam değişkenini kendisi atıyor —
 # varsa onu kullan, yoksa 8080'e düş.
 ENV PORT=8080

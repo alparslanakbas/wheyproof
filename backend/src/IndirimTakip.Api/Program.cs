@@ -150,7 +150,11 @@ builder.Services.AddOutputCache(options =>
 builder.Services.AddHttpClient(nameof(OutputCacheRefresher), client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
-});
+})
+    // Warms our own API over localhost: the one client that goes to an
+    // internal address ON PURPOSE. The default handler (PublicNetworkConnection)
+    // rejects localhost, so a plain handler is chosen explicitly here.
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler());
 builder.Services.AddScoped<IPublicCacheRefresher, OutputCacheRefresher>();
 
 builder.Services.Configure<AffiliateOptions>(builder.Configuration.GetSection("Affiliate"));
