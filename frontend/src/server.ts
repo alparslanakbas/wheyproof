@@ -54,6 +54,24 @@ const app = express();
 // without this req.protocol is always "http" (X-Forwarded-Proto ignored).
 app.set('trust proxy', true);
 
+// Proxy headers can come from the CLIENT: Cloudflare passes X-Forwarded-Host
+// through and Caddy, which trusts Cloudflare, leaves it alone. With trust proxy
+// on, req.hostname reads it, so a forged value made robots.txt answer
+// "Disallow: /" and pages carry noindex, in a response marked cacheable for
+// 4 hours (measured on the live site, 2026-09-25). Angular's SSR engine can
+// also build the request URL from Forwarded / X-Forwarded-Host / -Port.
+// Nothing in our chain sets these legitimately and Host itself is right
+// (Cloudflare only forwards our own domains), so X-Forwarded-Host is
+// overwritten with Host and the other two are dropped.
+app.use((req, _res, next) => {
+  const host = req.headers.host;
+  if (host) req.headers['x-forwarded-host'] = host;
+  else delete req.headers['x-forwarded-host'];
+  delete req.headers['forwarded'];
+  delete req.headers['x-forwarded-port'];
+  next();
+});
+
 // Every request from a host OTHER than the canonical one gets a noindex
 // header: not just the sitemap and robots, but every page Angular SSR
 // renders. The goal is that no second copy of the site gets indexed.

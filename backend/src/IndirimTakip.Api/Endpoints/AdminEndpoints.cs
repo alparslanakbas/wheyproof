@@ -166,9 +166,13 @@ internal static class AdminEndpoints
 
         // The digest is sent automatically by DigestBackgroundService; this
         // endpoint stays for manual and test sends.
-        app.MapPost("/api/dev/send-digest", async (DigestService digest, HttpContext http, CancellationToken ct) =>
+        app.MapPost("/api/dev/send-digest", async (DigestService digest, IConfiguration config, CancellationToken ct) =>
         {
-            var baseUrl = $"{http.Request.Scheme}://{http.Request.Host}";
+            // The same address as the scheduled send. Built from Host, a digest
+            // triggered through the panel path (www) got unsubscribe links that
+            // fell through to the frontend and answered 404 (security review,
+            // 2026-09-25).
+            var baseUrl = (config["PublicBaseUrl"] ?? "https://api.wheyproof.com").TrimEnd('/');
             var result = await digest.SendDigestAsync(baseUrl, ct);
             return Results.Ok(result);
         }).RequireAdminKey(adminApiKey);

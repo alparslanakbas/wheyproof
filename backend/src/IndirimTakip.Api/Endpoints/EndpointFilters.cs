@@ -35,8 +35,11 @@ internal static class AdminAuthExtensions
         if (string.IsNullOrEmpty(expectedKey))
             return false;
 
+        // The same constant-time comparison as the sign-in endpoint. This path
+        // used a plain ==, although the key can email every subscriber, so it
+        // is where the protection matters most (security review, 2026-09-25).
         var providedKey = http.Request.Headers["X-Admin-Key"].FirstOrDefault();
-        if (providedKey == expectedKey)
+        if (AdminSessionEndpoints.ConstantTimeEquals(providedKey, expectedKey))
             return true;
 
         var dataProtection = http.RequestServices.GetService<IDataProtectionProvider>();

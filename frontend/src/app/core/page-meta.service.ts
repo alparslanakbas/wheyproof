@@ -91,6 +91,11 @@ export function upsertJsonLdScript(document: Document, existingEl: HTMLScriptEle
     el.type = 'application/ld+json';
     document.head.appendChild(el);
   }
-  el.textContent = JSON.stringify(data);
+  // "<" is escaped: JSON.stringify leaves it as is and SSR writes <script>
+  // content unescaped, so a scraped product name containing
+  // "</script><script>..." closed the tag and ran the rest on the page, with
+  // the admin's session since the admin panel shares the origin.
+  // < is the same character in JSON; readers see no difference.
+  el.textContent = JSON.stringify(data).replace(/</g, '\\u003c');
   return el;
 }

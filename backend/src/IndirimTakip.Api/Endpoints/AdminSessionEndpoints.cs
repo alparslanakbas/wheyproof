@@ -111,7 +111,7 @@ internal static class AdminSessionEndpoints
     // Hashed first so a length difference leaks nothing either:
     // FixedTimeEquals returns early for arrays of different lengths, which
     // would let someone measure the key's length.
-    private static bool ConstantTimeEquals(string? given, string expected)
+    internal static bool ConstantTimeEquals(string? given, string expected)
     {
         if (string.IsNullOrEmpty(given))
             return false;
