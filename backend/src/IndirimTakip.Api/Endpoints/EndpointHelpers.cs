@@ -274,4 +274,32 @@ internal static class EndpointHelpers
     // pageSize has an upper bound: an unbounded ?pageSize=5000000 would mean a
     // huge sorted query.
     internal static int NormalizePageSize(int? pageSize) => pageSize is null or <= 0 ? 24 : Math.Min(pageSize.Value, 100);
+
+    // page=2147483647 overflowed (page-1)*size and answered 500 (measured on
+    // the Turkish site, 2026-09-25). 10,000 pages is far beyond the catalog
+    // even at 100 per page.
+    internal static int NormalizePage(int? page) => page is null or <= 0 ? 1 : Math.Min(page.Value, 10_000);
+
+    // Price history window. The site asks for 30 days; days=99999999
+    // overflowed AddDays and answered 500. 730 days is far beyond the site's age.
+    internal static int NormalizeHistoryDays(int? days) => days is null or <= 0 ? 30 : Math.Min(days.Value, 730);
+
+    // Every search word adds its own condition block to the SQL and the length
+    // had no limit. Real searches (product names included) fit inside; the rest
+    // is dropped and the search just gets a little broader.
+    private const int MaxSearchLength = 100;
+    private const int MaxSearchWords = 8;
+
+    internal static string? NormalizeSearch(string? search)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+            return search;
+
+        var text = search.Trim();
+        if (text.Length > MaxSearchLength)
+            text = text[..MaxSearchLength];
+
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return words.Length <= MaxSearchWords ? text : string.Join(' ', words.Take(MaxSearchWords));
+    }
 }

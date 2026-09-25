@@ -37,11 +37,16 @@ internal static class DealsEndpoints
                 bool? preferBrandStore,
                 CancellationToken ct) =>
             {
-                var windowDays = days is null or <= 0 ? 30 : days.Value;
+                // The window is FIXED at 30 days; days is ignored on purpose. The
+                // site never sends it to these endpoints, and any other value fell
+                // into the old per-product subquery path: days=31 took 6.1 s in one
+                // request against 0.7 s normally, and a random parameter skipped
+                // the cache too (measured on the Turkish site, 2026-09-25).
+                const int windowDays = 30;
                 var result = await deals.GetDealsAsync(
-                    windowDays, brands, categories, sellers, search, minPrice, maxPrice,
+                    windowDays, brands, categories, sellers, EndpointHelpers.NormalizeSearch(search), minPrice, maxPrice,
                     onlyDiscounted, onlyStoreDiscounted, sortBy,
-                    page is null or <= 0 ? 1 : page.Value, EndpointHelpers.NormalizePageSize(pageSize), ct,
+                    EndpointHelpers.NormalizePage(page), EndpointHelpers.NormalizePageSize(pageSize), ct,
                     expandSearchSynonyms: expandSynonyms ?? true,
                     preferBrandStore: preferBrandStore ?? false);
                 return Results.Ok(result);
@@ -87,8 +92,8 @@ internal static class DealsEndpoints
             var result = await deals.GetBestValuePerServingAsync(
                 category,
                 brands is { Length: > 0 } ? brands : null,
-                string.IsNullOrWhiteSpace(search) ? null : search,
-                page is null or <= 0 ? 1 : page.Value,
+                string.IsNullOrWhiteSpace(search) ? null : EndpointHelpers.NormalizeSearch(search),
+                EndpointHelpers.NormalizePage(page),
                 EndpointHelpers.NormalizePageSize(pageSize),
                 ct);
 

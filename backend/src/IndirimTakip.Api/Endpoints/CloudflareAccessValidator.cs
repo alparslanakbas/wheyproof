@@ -43,6 +43,13 @@ public sealed class CloudflareAccessValidator
     private IReadOnlyCollection<JsonWebKey> keys = [];
     private DateTimeOffset keysFetchedAt = DateTimeOffset.MinValue;
 
+    // How often an unknown kid may force a refresh. Without a limit, EVERY
+    // request with a forged Cf-Access-Jwt-Assertion header downloaded the keys
+    // from Cloudflare, queued behind the lock: a way to slow the endpoint down
+    // (security review, 2026-09-25).
+    private static readonly TimeSpan ForcedRefreshInterval = TimeSpan.FromMinutes(5);
+    private long lastForcedRefresh;
+
     public CloudflareAccessValidator(
         IConfiguration configuration,
         IHttpClientFactory httpClientFactory,
@@ -81,8 +88,15 @@ public sealed class CloudflareAccessValidator
             var valid = await ValidateAsync(token, refreshed: false, cancellationToken);
 
             // A signature mismatch may mean the key rotated: refresh once and retry.
-            if (!valid && await RefreshKeysAsync(cancellationToken))
+            // Only when the token's kid is NOT among the keys we hold (a known key
+            // failing won't change after a refresh) and a forced refresh isn't too
+            // recent.
+            if (!valid && HasUnknownKid(token) && ForcedRefreshAllowed()
+                && await RefreshKeysAsync(cancellationToken))
+            {
+                logger.LogInformation("Cloudflare Access keys refreshed because of an unknown kid.");
                 valid = await ValidateAsync(token, refreshed: true, cancellationToken);
+            }
 
             return valid;
         }
@@ -91,6 +105,33 @@ public sealed class CloudflareAccessValidator
             logger.LogWarning(ex, "Could not validate the Cloudflare Access token.");
             return false;
         }
+    }
+
+    private bool HasUnknownKid(string token)
+    {
+        string kid;
+        try
+        {
+            kid = new JsonWebTokenHandler().ReadJsonWebToken(token).Kid;
+        }
+        catch (Exception)
+        {
+            // A token that can't be read validates against no key; not worth a download.
+            return false;
+        }
+
+        return !string.IsNullOrEmpty(kid) && keys.All(k => k.Kid != kid);
+    }
+
+    private bool ForcedRefreshAllowed()
+    {
+        var now = DateTimeOffset.UtcNow.UtcTicks;
+        var last = Interlocked.Read(ref lastForcedRefresh);
+        if (now - last < ForcedRefreshInterval.Ticks)
+            return false;
+
+        // Of requests arriving together, only one gets the slot.
+        return Interlocked.CompareExchange(ref lastForcedRefresh, now, last) == last;
     }
 
     private async Task<bool> ValidateAsync(string token, bool refreshed, CancellationToken cancellationToken)

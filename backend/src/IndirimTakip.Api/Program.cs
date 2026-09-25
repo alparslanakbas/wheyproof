@@ -15,6 +15,13 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Request body limit. Kestrel's default is ~30 MB and in Minimal APIs the
+// authorization filter runs AFTER the body is read and parsed, so even a
+// keyless request could make the server upload and parse 30 MB (security
+// review, 2026-09-25). The largest legitimate body is a store catalog on the
+// ingest endpoint, a few hundred kB; 2 MB leaves ample room.
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 2_000_000);
+
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();

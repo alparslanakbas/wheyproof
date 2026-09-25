@@ -10,12 +10,45 @@ concurrency:
   group: deploy-wheyproof
   cancel-in-progress: false
 
-# The job doesn't even read the repository (SSH only): narrowest token scope.
+# The test jobs read the repository, the deploy job is SSH only: narrowest
+# token scope.
 permissions:
   contents: read
 
 jobs:
+  # TEST GATE: deploy starts only after both test jobs pass. Before, a push
+  # went straight to production and failures of the "every endpoint answers
+  # 500" kind were only seen live (security review, 2026-09-25). The actions
+  # are pinned to commit SHAs like the deploy step.
+  backend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      # The test PROJECT path: given the solution file (.slnx), dotnet test
+      # ran no tests and still reported success (measured), which would make
+      # the gate a false comfort.
+      - run: dotnet test backend/tests/IndirimTakip.Infrastructure.Tests/IndirimTakip.Infrastructure.Tests.csproj
+
+  frontend-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx ng test --watch=false
+
   deploy:
+    needs: [backend-test, frontend-test]
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
