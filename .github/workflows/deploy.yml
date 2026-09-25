@@ -22,6 +22,26 @@ jobs:
   # are pinned to commit SHAs like the deploy step.
   backend-test:
     runs-on: ubuntu-latest
+    # Real PostgreSQL: DealsQueryService's bugs show up at SQL translation
+    # (this class took the Turkish site down twice), which in-memory tests
+    # can't see. initdb settings match production (builtin / C.UTF-8): a
+    # different collation silently changes text ordering.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: wheyproof_test
+          POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DB: Host=localhost;Port=5432;Database=wheyproof_test;Username=postgres;Password=test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
