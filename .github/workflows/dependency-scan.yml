@@ -1,0 +1,46 @@
+name: Dependency scan
+
+# Weekly: do the npm and NuGet packages have known vulnerabilities (security
+# review, 26 Sept)? The two SSR vulnerabilities in Angular 22.1.1 (25 Sept)
+# were only noticed by looking by hand; no job ran this check.
+#
+# Deliberately NOT in the deploy gate: it would lock deploys on the day a new
+# advisory is published, which is exactly the day shipping the fix matters
+# most. GitHub emails a failed scheduled run; it can also be run by hand
+# (Actions > Dependency scan > Run workflow).
+on:
+  schedule:
+    - cron: '47 5 * * 1' # Monday 05:47 UTC (30 min after the Turkish repo's scan)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      # npm audit reads the lock file; no install needed.
+      # Packages that ship (run in the SSR server): moderate and up fail.
+      - run: npm audit --omit=dev --audit-level=moderate
+      # Build and test tooling: high and critical only. Moderate dev advisories
+      # come often; a job that went red on each would become an alarm nobody reads.
+      - run: npm audit --audit-level=high
+
+  nuget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      # `dotnet list package --vulnerable` exits 0 even when it finds
+      # something; the script decides from the JSON output.
+      - run: python3 scripts/nuget-vulnerability-check.py
