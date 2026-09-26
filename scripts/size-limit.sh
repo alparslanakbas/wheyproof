@@ -23,16 +23,29 @@ declare -A CEILING=(
   [backend/src/IndirimTakip.Infrastructure/Deals/DealsQueryService.cs]=814
 )
 
+# The list is taken into a variable FIRST: set -e doesn't see the exit code of
+# a process substitution (< <(...)); when git failed, the loop read zero files
+# and printed "OK" (measured, 27 Sept). Here a git failure stops the script at
+# the assignment; if the list comes back empty for another reason, the counter
+# below does.
+list=$(git ls-files 'backend/src/*.cs' 'frontend/src/*.ts' 'frontend/src/*.html')
 failed=0
+count=0
 while IFS= read -r file; do
+  [[ -z $file || $file == */Migrations/* || $file == *.spec.ts ]] && continue
+  count=$((count + 1))
   lines=$(wc -l < "$file")
   allowed=${CEILING[$file]:-$LIMIT}
   if (( lines > allowed )); then
     echo "LIMIT EXCEEDED: $file has $lines lines (allowed $allowed)"
     failed=1
   fi
-done < <(git ls-files 'backend/src/*.cs' 'frontend/src/*.ts' 'frontend/src/*.html' \
-           | grep -v -e '/Migrations/' -e '\.spec\.ts$')
+done <<< "$list"
+
+if (( count == 0 )); then
+  echo "ERROR: no files were read — is the script running inside the git repository?"
+  exit 1
+fi
 
 for file in "${!CEILING[@]}"; do
   if [[ ! -f $file ]]; then
@@ -46,4 +59,4 @@ if (( failed )); then
   echo "Split the file, or (on purpose) raise its ceiling in scripts/size-limit.sh."
   exit 1
 fi
-echo "Size limit OK (limit $LIMIT lines, ${#CEILING[@]} files frozen at today's size)."
+echo "Size limit OK ($count files; limit $LIMIT lines, ${#CEILING[@]} files frozen at today's size)."
