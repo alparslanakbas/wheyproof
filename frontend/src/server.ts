@@ -13,6 +13,7 @@ import { INTERNAL_API_HEADERS, toInternalApiUrl } from './app/core/internal-api'
 import { CURRENT_EDITION, listedEditions } from './app/core/editions';
 import { BASE_PATH } from './app/core/site-path';
 import { slugify } from './app/core/slugify';
+import { ssrCacheKey } from './app/core/ssr-cache-key';
 import { BODY_CALCULATORS } from './app/core/body-calculators';
 import { SUPPLEMENT_DOSAGES } from './app/core/supplement-dosages';
 
@@ -378,18 +379,14 @@ interface SsrCacheEntry {
 /** Insertion order is kept, so the oldest entry is always the first key. */
 const ssrCache = new Map<string, SsrCacheEntry>();
 
-function ssrCacheKey(req: express.Request): string | null {
-  if (req.method !== 'GET') return null;
-  const path = req.path;
-  // The watchlist depends on the key in the browser; a recovery link carries
-  // a token that belongs to one person.
-  if (path.startsWith(`${BASE_PATH}/watchlist`)) return null;
-  if (req.query['recover'] !== undefined) return null;
-  return req.originalUrl;
+// Requests with an unknown query parameter stay out too (26 Sept); the
+// reasoning, and why they aren't dropped from the key, is in ssr-cache-key.ts.
+function requestCacheKey(req: express.Request): string | null {
+  return ssrCacheKey(req.method, req.originalUrl, BASE_PATH);
 }
 
 app.use((req, res, next) => {
-  const key = ssrCacheKey(req);
+  const key = requestCacheKey(req);
 
   if (key) {
     const hit = ssrCache.get(key);

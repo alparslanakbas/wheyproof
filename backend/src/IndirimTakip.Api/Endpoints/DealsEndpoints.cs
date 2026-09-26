@@ -25,7 +25,7 @@ internal static class DealsEndpoints
                 // sellers: where the product is bought (not the same as the brand).
                 // The "brand's own store" label is mapped to NULL in DealsQueryService.
                 DealsQueryService deals, string[]? brands, string[]? categories, string[]? sellers, string? search,
-                decimal? minPrice, decimal? maxPrice, int? days, string? sortBy, int? page, int? pageSize,
+                decimal? minPrice, decimal? maxPrice, string? sortBy, int? page, int? pageSize,
                 // Pages looking for one ingredient (e.g. the beta-alanine dose
                 // calculator) can TURN OFF synonym expansion: a search for
                 // "alanine" returned the WHOLE amino acids category, because that
@@ -37,11 +37,13 @@ internal static class DealsEndpoints
                 bool? preferBrandStore,
                 CancellationToken ct) =>
             {
-                // The window is FIXED at 30 days; days is ignored on purpose. The
-                // site never sends it to these endpoints, and any other value fell
-                // into the old per-product subquery path: days=31 took 6.1 s in one
-                // request against 0.7 s normally, and a random parameter skipped
-                // the cache too (measured on the Turkish site, 2026-09-25).
+                // The window is FIXED at 30 days. The site never sends days to
+                // these endpoints, and any other value fell into the old
+                // per-product subquery path: days=31 took 6.1 s in one request
+                // against 0.7 s normally (measured on the Turkish site,
+                // 2026-09-25). days is also OUT of the signature (26 Sept): the
+                // cache key is built from the signature's parameters, and an
+                // unused days left there would still let ?days=<random> skip it.
                 const int windowDays = 30;
                 var result = await deals.GetDealsAsync(
                     windowDays, brands, categories, sellers, EndpointHelpers.NormalizeSearch(search), minPrice, maxPrice,

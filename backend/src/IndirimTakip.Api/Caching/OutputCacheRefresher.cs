@@ -37,19 +37,29 @@ public sealed class OutputCacheRefresher(
     /// <summary>
     /// Paths to warm: the endpoints the home page's SSR calls.
     ///
-    /// The policy uses <c>SetVaryByQuery("*")</c>, so every distinct query
-    /// string is a SEPARATE cache entry. These paths must match EXACTLY what
-    /// the page requests; otherwise warming fills a different entry and the
-    /// visitor still hits a cold cache.
+    /// The key holds the query parameters the endpoint binds
+    /// (<see cref="EndpointQueryKeysPolicy"/>): these paths must carry those
+    /// parameters with the VALUES the page really sends; otherwise warming
+    /// fills a different entry and the visitor still hits a cold cache.
+    /// (<c>preferred-products?take=12</c> did nothing for exactly this reason:
+    /// the endpoint reads <c>count</c> and the home page sends
+    /// <c>count=60</c> — 26 Sept.) Checked against the code the same day: the
+    /// home page's default view is <c>'store'</c>, so its main list comes from
+    /// <c>/api/store-deals</c>, which was never warmed; the hero card and the
+    /// product counter are two more list queries.
     /// </summary>
     private static readonly string[] WarmupPaths =
     [
+        "/api/store-deals?page=1&pageSize=24",
+        "/api/deals?pageSize=1",
+        "/api/products?pageSize=1",
+        // First page of the "Deals" view.
         "/api/deals?page=1&pageSize=24",
         "/api/stats",
         "/api/filters",
         "/api/brand-category-pairs",
         "/api/brand-product-counts",
-        "/api/preferred-products?take=12",
+        "/api/preferred-products?count=60",
     ];
 
     /// <summary>

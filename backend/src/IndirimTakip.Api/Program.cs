@@ -125,23 +125,10 @@ var publicCacheSeconds = builder.Configuration.GetValue("OutputCache:PublicSecon
 builder.Services.AddOutputCache(options =>
 {
     options.AddBasePolicy(policy => policy.NoCache());
-    options.AddPolicy(PublicDataCachePolicy, policy => policy
-        .Expire(TimeSpan.FromSeconds(publicCacheSeconds))
-        // The post-scrape purge works by this tag.
-        .Tag(OutputCacheRefresher.Tag)
-        // Filter and paging parameters change the response entirely; without
-        // all of them in the cache key, different filters would see each
-        // other's results.
-        .SetVaryByQuery("*")
-        // HOST IS NOT PART OF THE KEY (16 Sept). SSR now reaches the API over
-        // the Docker network (http://wheyproof-backend:8080). Node's fetch won't
-        // send a custom Host header (measured), so internal requests arrive
-        // with the container name as Host; with Host in the key they would never
-        // see the warmed entries (Host: api.wheyproof.com) and every page would
-        // hit the database cold. These responses don't depend on Host and the
-        // API is served from one public address. The scheme STAYS in the key:
-        // SSR and the warmup both send X-Forwarded-Proto: https.
-        .SetVaryByHost(false));
+    // Duration, tag and key rules live in PublicDataCache (the tests use the
+    // same setup).
+    options.AddPolicy(PublicDataCachePolicy, policy =>
+        PublicDataCache.Apply(policy, TimeSpan.FromSeconds(publicCacheSeconds)));
 });
 
 // The implementation that refreshes the cache after a scrape. The interface

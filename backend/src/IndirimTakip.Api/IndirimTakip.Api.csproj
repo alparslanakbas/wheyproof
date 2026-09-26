@@ -22,4 +22,10 @@
     <ProjectReference Include="..\IndirimTakip.Infrastructure\IndirimTakip.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Tests build the real endpoint definitions (internal Map* classes) and
+         read their cache keys. -->
+    <InternalsVisibleTo Include="IndirimTakip.Infrastructure.Tests" />
+  </ItemGroup>
+
 </Project>
