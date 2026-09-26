@@ -11,6 +11,12 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <!-- Pinned explicitly: this project compiles against Relational 10.0.10
+         through Design (PrivateAssets), but Design doesn't flow, so the test
+         project got the 10.0.4 that Npgsql 10.0.3 asks for (MSB3277 in CI).
+         SQL translation lives in Relational; the real-PostgreSQL test must run
+         the same version as production (security review, 26 Sept). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.10" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
