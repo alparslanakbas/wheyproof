@@ -53,7 +53,9 @@ public static partial class ProductAttributeParser
         ("pre-workout", ["pre-workout", "pre workout", "preworkout", "pump", "nitric oxide", "stim-free", "caffeine", "glycerol"]),
         ("creatine", ["creatine", "creapure"]),
         ("amino-acids", ["amino", "bcaa", "eaa", "glutamine", "arginine", "citrulline", "beta-alanine", "alanine", "glycine", "taurine", "theanine", "tyrosine", "leucine", "hmb"]),
-        ("hydration", ["electrolyte", "hydration", "hydrate"]),
+        // "mineral salts" are electrolyte capsules/drinks (226ERS, Gold Nutrition);
+        // without it "mineral" filed half of them under vitamins (2026-09-26).
+        ("hydration", ["electrolyte", "hydration", "hydrate", "mineral salt"]),
         ("fat-burners", ["fat burner", "burner", "thermogenic", "l-carnitine", "carnitine", "cla", "fat loss", "weight loss"]),
         ("mass-gainers", ["gainer", "mass", "creamy rice", "cream of rice", "carb", "carbohydrate", "maltodextrin", "dextrose", "cyclic dextrin", "highly branched"]),
         ("protein-powder", ["protein", "whey", "isolate", "casein", "collagen"]),
@@ -339,14 +341,35 @@ public static partial class ProductAttributeParser
         if (SnackBarFormRegex().IsMatch(normalized) && !PowderFormRegex().IsMatch(normalized))
             return "protein-snacks";
 
+        // IN-RACE FUEL IS NOT A PRE-WORKOUT (2026-09-26). "caffeine" is a
+        // pre-workout word, so a caffeinated energy gel or electrolyte drink sat
+        // next to the stims: already live, Veloforte's Desto/Doppio gels and
+        // Attivo electrolyte (9 UK rows), then 365Rider's caffeine gels and salts.
+        // The gel/electrolyte FORM skips the pre-workout family; the rest still
+        // decides. An explicit "pre-workout" in the name wins: Warrior, PER4M, ON
+        // and Bulk sell "Pre-Workout Shots" and must stay (measured). "shot" is
+        // NOT a fuel word for the same reason.
+        var skipPreWorkout = EnduranceFuelFormRegex().IsMatch(normalized)
+            && !ExplicitPreWorkoutRegex().IsMatch(normalized);
+
         foreach (var (category, pattern) in CategoryPatterns)
         {
+            if (skipPreWorkout && category == "pre-workout")
+                continue;
+
             if (pattern.IsMatch(normalized))
                 return category;
         }
 
         return null;
     }
+
+    /// <summary>Forms of fuel taken during exercise: gels and electrolyte/salt drinks or capsules.</summary>
+    [GeneratedRegex(@"\b(gels?|electrolytes?|mineral\s+salts?|hydro)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex EnduranceFuelFormRegex();
+
+    [GeneratedRegex(@"\bpre[\s-]?workouts?\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ExplicitPreWorkoutRegex();
 
     // Synonym groups for the search box, a structure DELIBERATELY SEPARATE from
     // CategoryKeywords. The CategoryKeywords lists are right for CATEGORY DETECTION

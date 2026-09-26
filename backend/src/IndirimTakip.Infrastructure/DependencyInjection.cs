@@ -99,6 +99,30 @@ public static class DependencyInjection
                 sp.GetRequiredService<ILogger<Scraping.Magento.MagentoStoreScraper>>()));
         }
 
+        // PrestaShop stores (365Rider in both editions): one configurable scraper
+        // reads the category listing, the stores live in PrestaShopStores.All.
+        // Its own handler, still the public-network one: cookies stay on (the
+        // store keeps language and currency in the session) and redirects are
+        // off, because a listing page answering 302 means the session was lost
+        // and must fail rather than be read (see PrestaShopStoreScraper).
+        services.AddHttpClient(Scraping.PrestaShop.PrestaShopStoreScraper.HttpClientName, client =>
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+            client.Timeout = TimeSpan.FromSeconds(30);
+        }).ConfigurePrimaryHttpMessageHandler(() =>
+        {
+            var handler = PublicNetworkConnection.CreateHandler();
+            handler.AllowAutoRedirect = false;
+            return handler;
+        });
+        foreach (var store in Scraping.PrestaShop.PrestaShopStores.ForMarket(market))
+        {
+            services.AddScoped<IBrandScraper>(sp => new Scraping.PrestaShop.PrestaShopStoreScraper(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient(Scraping.PrestaShop.PrestaShopStoreScraper.HttpClientName),
+                store,
+                sp.GetRequiredService<ILogger<Scraping.PrestaShop.PrestaShopStoreScraper>>()));
+        }
+
         // Notifies search engines of page changes (IndexNow: Bing and others).
         services.AddHttpClient<IndexNowClient>(client =>
         {
