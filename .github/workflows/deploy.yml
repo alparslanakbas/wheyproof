@@ -67,8 +67,16 @@ jobs:
       - run: npm ci
       - run: npx ng test --watch=false
 
+  # Split large files must not grow back (security review B5, 26 Sept).
+  # The limit and the frozen ceilings live in the script.
+  size-limit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: bash scripts/size-limit.sh
+
   deploy:
-    needs: [backend-test, frontend-test]
+    needs: [backend-test, frontend-test, size-limit]
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
