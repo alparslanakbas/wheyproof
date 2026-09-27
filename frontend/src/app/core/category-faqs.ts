@@ -223,6 +223,24 @@ export const CATEGORY_FAQS: Record<string, FaqItem[]> = {
     },
   ],
 
+  'energy-gels-drinks': [
+    {
+      question: 'What is the difference between an energy gel and an energy drink?',
+      answer:
+        'Both supply carbohydrate during exercise. A gel is a concentrated single serving, usually taken with water; a drink mix combines the carbohydrate with the fluid you drink anyway. Canned energy drinks are a different product: they are built around caffeine, and many carry little or no carbohydrate.',
+    },
+    {
+      question: 'What does isotonic mean on a gel?',
+      answer:
+        'An isotonic gel is diluted to roughly the concentration of body fluids, so it is made to be taken without extra water. It carries less carbohydrate per gram than a standard gel, so a serving is larger.',
+    },
+    {
+      question: 'Do energy gels contain caffeine?',
+      answer:
+        'Some do, and the amount differs from product to product, so check the label. Caffeinated and caffeine-free versions of the same gel are often sold side by side; keep track of which one you have, especially if you take several during a race.',
+    },
+  ],
+
   'mass-gainers': [
     {
       question: 'What is a mass gainer, and how is it different from protein powder?',

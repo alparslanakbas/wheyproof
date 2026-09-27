@@ -138,11 +138,14 @@ public class ManualProductDataTests
     }
 
     // The panel's dropdown and the endpoint's check both rely on this list.
+    // Ten since 2026-09-28 (energy gels and drinks); frontend category-labels.ts
+    // must list the same slugs.
     [Fact]
-    public void Category_slugs_are_the_nine_site_categories()
+    public void Category_slugs_are_the_ten_site_categories()
     {
-        Assert.Equal(9, ProductAttributeParser.CategorySlugs.Count);
+        Assert.Equal(10, ProductAttributeParser.CategorySlugs.Count);
         Assert.Contains("protein-snacks", ProductAttributeParser.CategorySlugs);
         Assert.Contains("protein-powder", ProductAttributeParser.CategorySlugs);
+        Assert.Contains("energy-gels-drinks", ProductAttributeParser.CategorySlugs);
     }
 }

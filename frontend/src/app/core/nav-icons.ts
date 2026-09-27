@@ -8,6 +8,7 @@ export const CATEGORY_ICON_PATHS: Record<string, string> = {
   'amino-acids': 'M9 3h6M10 3v5.5L4.5 18a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L14 8.5V3',
   'pre-workout': 'M3 12h4l2-7 4 14 2-7h6',
   hydration: 'M12 3s6 7 6 11.5A6 6 0 0 1 6 14.5C6 10 12 3 12 3Z',
+  'energy-gels-drinks': 'M9 3h6M10 3v3L7 9v10a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9l-3-3V3M7 13h10',
   'fat-burners': 'M12 3c-1 3-4 4-4 8a4 4 0 0 0 8 0c0-1-.5-1.5-1-2 .3 1.5-.5 2.5-1.5 2.5-1.4 0-2-1.2-1.2-2.7C13 7 12.6 5 12 3Z',
   'mass-gainers': 'M3 17l6-6 4 4 8-8M14 7h7v7',
   vitamins: 'M12 2l2.9 6.3 6.9.6-5.2 4.6 1.6 6.8L12 16.9l-6.2 3.4 1.6-6.8L3.2 8.9l6.9-.6Z',
@@ -24,6 +25,8 @@ export const CATEGORY_PHOSPHOR_ICONS: Record<string, string> = {
   creatine: 'ph-lightning',
   'pre-workout': 'ph-gauge',
   hydration: 'ph-drop',
+  // In the icon font subset; ph-lightning is creatine's.
+  'energy-gels-drinks': 'ph-heartbeat',
   'fat-burners': 'ph-fire',
   'mass-gainers': 'ph-barbell',
   vitamins: 'ph-shield-plus',

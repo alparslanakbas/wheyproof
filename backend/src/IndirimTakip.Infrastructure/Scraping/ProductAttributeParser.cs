@@ -63,12 +63,16 @@ public static partial class ProductAttributeParser
     ];
 
     /// <summary>
-    /// Every valid category slug: the keyword families plus "protein-snacks",
-    /// which is decided by product form rather than a keyword. Built from the
-    /// list above so a manual category can never drift from the automatic ones.
+    /// Every valid category slug: the keyword families plus "protein-snacks"
+    /// and "energy-gels-drinks", which are decided by product form rather than
+    /// a keyword. Built from the list above so a manual category can never
+    /// drift from the automatic ones.
     /// </summary>
     public static readonly IReadOnlySet<string> CategorySlugs =
-        CategoryKeywords.Select(c => c.Category).Append("protein-snacks").ToHashSet(StringComparer.Ordinal);
+        CategoryKeywords.Select(c => c.Category)
+            .Append("protein-snacks")
+            .Append("energy-gels-drinks")
+            .ToHashSet(StringComparer.Ordinal);
 
     private static readonly (string Category, Regex Pattern)[] CategoryPatterns =
     [
@@ -341,6 +345,16 @@ public static partial class ProductAttributeParser
         if (SnackBarFormRegex().IsMatch(normalized) && !PowderFormRegex().IsMatch(normalized))
             return "protein-snacks";
 
+        // ENERGY GELS & DRINKS (2026-09-28): fuel taken during endurance sport,
+        // also decided by FORM before the ingredient families. A gel's name
+        // lists what is in it and each ingredient pulled a share onto the wrong
+        // shelf: caffeine -> pre-workout, carbohydrate -> mass gainers,
+        // electrolyte -> hydration, BCAA -> amino acids. Measured in both
+        // markets: most gels and carbohydrate drinks were uncategorised and the
+        // rest were split across five categories.
+        if (IsEnergyFuel(normalized))
+            return "energy-gels-drinks";
+
         // IN-RACE FUEL IS NOT A PRE-WORKOUT (2026-09-26). "caffeine" is a
         // pre-workout word, so a caffeinated energy gel or electrolyte drink sat
         // next to the stims: already live, Veloforte's Desto/Doppio gels and
@@ -367,6 +381,39 @@ public static partial class ProductAttributeParser
     /// <summary>Forms of fuel taken during exercise: gels and electrolyte/salt drinks or capsules.</summary>
     [GeneratedRegex(@"\b(gels?|electrolytes?|mineral\s+salts?|hydro)\b", RegexOptions.IgnoreCase)]
     private static partial Regex EnduranceFuelFormRegex();
+
+    /// <summary>
+    /// Gels, isotonic/sports/energy drinks and energy chews. The words were
+    /// measured against every product name in both markets (2026-09-28):
+    /// <list type="bullet">
+    /// <item>"gel" alone also catches capsules ("Omega 3 120 Soft Gels",
+    /// "Amino Gel-Caps"), so those forms veto.</item>
+    /// <item>"drink mix" is also the electrolyte mixes' word; with an
+    /// electrolyte or hydration word the product stays in hydration. A GEL
+    /// with electrolytes is still a gel.</item>
+    /// <item>"fuel" (a brand word: Sports Fuel, Panda FUEL protein) and a bare
+    /// "chews" (creatine chews, pet chews) were left out.</item>
+    /// <item>An explicit "pre-workout" keeps the product there (the
+    /// pre-workout shots, same rule as above).</item>
+    /// </list>
+    /// </summary>
+    private static bool IsEnergyFuel(string normalized) =>
+        !ExplicitPreWorkoutRegex().IsMatch(normalized)
+        && !CapsuleGelRegex().IsMatch(normalized)
+        && (EnergyFuelFormRegex().IsMatch(normalized)
+            || (DrinkMixRegex().IsMatch(normalized) && !ElectrolyteWordRegex().IsMatch(normalized)));
+
+    [GeneratedRegex(@"\b(gels?|isotonic|sports?\s+drinks?|energy\s+(drinks?|chews?|blocks?|bloks?|gummies))\b", RegexOptions.IgnoreCase)]
+    private static partial Regex EnergyFuelFormRegex();
+
+    [GeneratedRegex(@"\b(soft|liquid|veggie|vegan)[\s-]?gels?\b|\bgel[\s-]?caps?\b", RegexOptions.IgnoreCase)]
+    private static partial Regex CapsuleGelRegex();
+
+    [GeneratedRegex(@"\bdrink\s+mix(es)?\b", RegexOptions.IgnoreCase)]
+    private static partial Regex DrinkMixRegex();
+
+    [GeneratedRegex(@"\b(electrolytes?|hydration|hydrate)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ElectrolyteWordRegex();
 
     [GeneratedRegex(@"\bpre[\s-]?workouts?\b", RegexOptions.IgnoreCase)]
     private static partial Regex ExplicitPreWorkoutRegex();

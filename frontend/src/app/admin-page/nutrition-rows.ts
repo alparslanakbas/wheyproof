@@ -65,6 +65,12 @@ export const ROW_TEMPLATES: Record<string, TemplateRow[]> = {
     { label: 'Magnesium', unit: 'mg' },
     { label: 'Calcium', unit: 'mg' },
   ],
+  // Carbohydrate has its own field; the label rows that set gels apart.
+  'energy-gels-drinks': [
+    { label: 'Total Sugars', unit: 'g' },
+    { label: 'Sodium', unit: 'mg' },
+    { label: 'Caffeine', unit: 'mg' },
+  ],
   vitamins: [
     { label: 'Vitamin A', unit: 'mcg' },
     { label: 'Vitamin C', unit: 'mg' },

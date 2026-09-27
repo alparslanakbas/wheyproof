@@ -7,6 +7,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   'amino-acids': 'Amino Acids',
   'pre-workout': 'Pre-Workout',
   hydration: 'Hydration & Electrolytes',
+  'energy-gels-drinks': 'Energy Gels & Drinks',
   'fat-burners': 'Fat Burners',
   'mass-gainers': 'Mass Gainers',
   vitamins: 'Vitamins & Minerals',
@@ -28,6 +29,8 @@ export const CATEGORY_INTROS: Record<string, string> = {
     'Pre-workout formulas typically combine caffeine with ingredients such as beta-alanine and citrulline. Caffeine content varies widely between products, so check the label.',
   hydration:
     'Hydration and electrolyte mixes add sodium, potassium and magnesium to water, for long sessions, hot weather or low-carb diets.',
+  'energy-gels-drinks':
+    'Energy gels, carbohydrate drinks and energy chews are fuel for long runs, rides and races, taken during the effort rather than before it. Carbohydrate per serving, caffeine and electrolytes vary widely between products, so check the label.',
   'fat-burners':
     'Fat burners are thermogenic formulas, usually built around caffeine and plant extracts, used alongside a diet and training plan. They are not a substitute for either.',
   'mass-gainers':

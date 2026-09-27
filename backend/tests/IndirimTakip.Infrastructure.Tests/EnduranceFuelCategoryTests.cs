@@ -4,13 +4,16 @@ namespace IndirimTakip.Infrastructure.Tests;
 
 /// <summary>
 /// "caffeine" is a pre-workout word, so caffeinated in-race fuel landed next to
-/// the stims (2026-09-26). The names below are real catalog rows.
+/// the stims (2026-09-26). Since 2026-09-28 gels, carbohydrate drinks and
+/// energy chews have their own category, "energy-gels-drinks". The names below
+/// are real catalog rows.
 /// </summary>
 public class EnduranceFuelCategoryTests
 {
     /// <summary>
-    /// Already live before the fix: Veloforte's caffeine gels sat on the UK
-    /// pre-workout page. There's no gel category, so they stay uncategorised.
+    /// Already live before the first fix: Veloforte's caffeine gels sat on the
+    /// UK pre-workout page. They were left uncategorised then; now they have a
+    /// shelf of their own.
     /// </summary>
     [Theory]
     [InlineData("Desto - Natural Energy Gel with Caffeine - 12")]
@@ -18,9 +21,46 @@ public class EnduranceFuelCategoryTests
     [InlineData("Sis Cola Gel 75mg Caffeine 60ml")]
     [InlineData("226ers High Fructose Cherry Energy Gel 160mg Caffeine 80g")]
     [InlineData("Enervit Carbo Gel C2:1PRO - Cola with caffeine - 60 ml")]
-    public void Caffeinated_gel_is_not_a_pre_workout(string name)
+    public void Caffeinated_gel_is_an_energy_gel(string name)
     {
-        Assert.NotEqual("pre-workout", ProductAttributeParser.InferCategory(name));
+        Assert.Equal("energy-gels-drinks", ProductAttributeParser.InferCategory(name));
+    }
+
+    /// <summary>
+    /// Each came from a different wrong place or from no category: "carb"
+    /// filed the sports drink under mass gainers, "caffeine" the chews under
+    /// pre-workout, and nothing at all matched the isotonic gel or the drinks.
+    /// </summary>
+    [Theory]
+    [InlineData("226ERS Energy Drink - 1kg Lemon")]
+    [InlineData("226ERS Banana energy gel 76g. (1 unit)")]
+    [InlineData("SIS Go Isotonic Tropical Gel 60ml")]
+    [InlineData("Neversecond Sport Drink C90 High-Carb Mix Citrus 94g / 8 Envelopes")]
+    [InlineData("Maurten Drink Mix 320 CAF100 - 80 g")]
+    [InlineData("Amaro Energy Chews with Caffeine - 12")]
+    [InlineData("Orange Naked Sparkling Energy / Clean Energy Drink - 12 Cans")]
+    [InlineData("Endurance Gels - 12 Pack")]
+    public void Endurance_fuel_is_energy_gels_and_drinks(string name)
+    {
+        Assert.Equal("energy-gels-drinks", ProductAttributeParser.InferCategory(name));
+    }
+
+    /// <summary>
+    /// Look-alikes found by running the rule over every live name: capsules
+    /// called "soft gels", electrolyte drink mixes, creatine chews, an energy
+    /// BAR (snack form wins) and "Fuel" as a brand word.
+    /// </summary>
+    [Theory]
+    [InlineData("Omega 3 1000mg 120 Soft Gels", "vitamins")]
+    [InlineData("Prolab Nutrition Amino Gel-Caps - 200 Softgels", "amino-acids")]
+    [InlineData("Salted Orange Electrolyte Drink Mix - 30 Single Sticks", "hydration")]
+    [InlineData("Creatine Chews 50-Count", "creatine")]
+    [InlineData("SIS Beta Fuel Orange Energy Chewable Bar 45g CHO", "protein-snacks")]
+    [InlineData("Fatherhood Fuel Essential Pre-Workout", "pre-workout")]
+    [InlineData("PANDA Supplements Fuel Isolate Protein", "protein-powder")]
+    public void Look_alikes_stay_where_they_were(string name, string expected)
+    {
+        Assert.Equal(expected, ProductAttributeParser.InferCategory(name));
     }
 
     [Theory]
@@ -52,10 +92,21 @@ public class EnduranceFuelCategoryTests
         Assert.Equal("pre-workout", ProductAttributeParser.InferCategory(name));
     }
 
-    /// <summary>A fuel form only skips the pre-workout family; the others still decide.</summary>
+    /// <summary>
+    /// Changed on 2026-09-28: without a gel category this gel stayed in
+    /// hydration for its electrolytes. It is a gel first; the electrolytes
+    /// are in it, like the caffeine or the carbohydrate in the others.
+    /// </summary>
     [Fact]
-    public void Gel_with_electrolytes_is_still_hydration()
+    public void Gel_with_electrolytes_is_an_energy_gel()
     {
-        Assert.Equal("hydration", ProductAttributeParser.InferCategory("Sis Go Energy + Electrolyte Raspberry Gel 60ml"));
+        Assert.Equal("energy-gels-drinks", ProductAttributeParser.InferCategory("Sis Go Energy + Electrolyte Raspberry Gel 60ml"));
+    }
+
+    /// <summary>The admin panel accepts only known slugs; the new one must be one.</summary>
+    [Fact]
+    public void Energy_gels_and_drinks_is_a_valid_category()
+    {
+        Assert.Contains("energy-gels-drinks", ProductAttributeParser.CategorySlugs);
     }
 }

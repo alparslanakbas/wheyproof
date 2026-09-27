@@ -24,7 +24,13 @@ type CategoryFilter = 'all' | 'performance' | 'nutrition' | 'weight';
 type CategoryTone = 'violet' | 'mint' | 'blue' | 'indigo' | 'cyan' | 'rose' | 'orange';
 
 const CATEGORY_FILTER_SLUGS: Record<Exclude<CategoryFilter, 'all'>, ReadonlySet<string>> = {
-  performance: new Set(['amino-acids', 'creatine', 'pre-workout', 'hydration']),
+  performance: new Set([
+    'amino-acids',
+    'creatine',
+    'pre-workout',
+    'hydration',
+    'energy-gels-drinks',
+  ]),
   nutrition: new Set(['protein-powder', 'vitamins', 'protein-snacks']),
   weight: new Set(['mass-gainers', 'fat-burners']),
 };
@@ -35,6 +41,7 @@ const CATEGORY_TONES: Record<string, CategoryTone> = {
   'amino-acids': 'blue',
   'mass-gainers': 'indigo',
   hydration: 'cyan',
+  'energy-gels-drinks': 'orange',
   creatine: 'blue',
   'pre-workout': 'rose',
   'protein-snacks': 'orange',

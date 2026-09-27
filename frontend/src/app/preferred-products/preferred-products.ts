@@ -28,7 +28,7 @@ interface PreferenceTab {
 
 const PREFERENCE_TABS: readonly PreferenceTab[] = [
   { id: 'all', label: 'All', categories: [] },
-  { id: 'performance', label: 'Performance', categories: ['amino-acids', 'creatine', 'pre-workout', 'hydration'] },
+  { id: 'performance', label: 'Performance', categories: ['amino-acids', 'creatine', 'pre-workout', 'hydration', 'energy-gels-drinks'] },
   { id: 'nutrition', label: 'Nutrition', categories: ['protein-powder', 'vitamins', 'protein-snacks'] },
   { id: 'weight', label: 'Weight', categories: ['fat-burners', 'mass-gainers'] },
 ];

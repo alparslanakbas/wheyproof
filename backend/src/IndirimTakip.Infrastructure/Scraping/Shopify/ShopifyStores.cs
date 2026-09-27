@@ -57,6 +57,7 @@ public static class ShopifyStores
     {
         "protein-powder", "creatine", "amino-acids", "pre-workout",
         "hydration", "mass-gainers", "fat-burners", "protein-snacks",
+        "energy-gels-drinks",
     };
 
     /// <summary>
