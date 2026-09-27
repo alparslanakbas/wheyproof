@@ -3,6 +3,7 @@ import { Component, OnInit, PLATFORM_ID, computed, inject, signal } from '@angul
 import { FormsModule } from '@angular/forms';
 import { AdminEditorFocus } from './admin-editor-focus';
 import { AdminFailureReason } from './admin-failure-reason';
+import { DataDrafts, NutritionField, ProductDataForm, SavedData } from './data-form';
 import { Observable } from 'rxjs';
 
 import { CATEGORY_LABELS } from '../core/category-labels';
@@ -15,7 +16,6 @@ import {
   NutritionRowForm,
   ROW_NAME_SUGGESTIONS,
   ROW_TEMPLATES,
-  storedOtherRows,
   templateRowsToAdd,
 } from './nutrition-rows';
 import { sitePath } from '../core/site-path';
@@ -33,16 +33,6 @@ import {
 } from './admin.service';
 
 type Tab = 'status' | 'events' | 'coupons' | 'visibility' | 'subscribers';
-type NutritionField = 'servingSizeGrams' | 'calories' | 'protein' | 'carbs' | 'fat' | 'fiber';
-
-/** The admin editor's working copy; inputs are kept as text until saved. */
-interface ProductDataForm extends Record<NutritionField, string> {
-  product: AdminProduct;
-  /** '' = automatic. */
-  category: string;
-  /** Label rows beyond the macros (Supplement Facts). */
-  otherRows: NutritionRowForm[];
-}
 type SubscriberFilter = 'all' | SubscriberStatus;
 type VisibilityView = 'brands' | 'products';
 type BrandFilter = 'all' | 'visible' | 'hidden';
@@ -173,6 +163,7 @@ export class AdminPage implements OnInit {
   readonly rowNameSuggestions = ROW_NAME_SUGGESTIONS;
   /** The product whose category and nutrition are being edited; null when closed. */
   readonly editingData = signal<ProductDataForm | null>(null);
+  private readonly dataDrafts = new DataDrafts();
   readonly dataSaving = signal(false);
   readonly dataMessage = signal<string | null>(null);
   readonly productSearchDone = signal(false);
@@ -740,28 +731,16 @@ export class AdminPage implements OnInit {
   }
 
   openDataEditor(product: AdminProduct): void {
-    const table = this.parseNutrition(product.nutritionJson);
-    // "160", "2.5g" -> the number as text for the input.
-    const value = (label: string) => table[label]?.match(/\d+(?:\.\d+)?/)?.[0] ?? '';
-    const other = storedOtherRows(table);
-    // An automatic reading can hold rows this editor can't express ("10%").
-    // Saving replaces the whole table, so say which ones would go.
-    this.dataMessage.set(
-      other.skipped.length > 0
-        ? `Saving from here drops rows this editor can't edit: ${other.skipped.join(', ')}.`
-        : null,
-    );
-    this.editingData.set({
-      product,
-      category: product.categoryIsManual ? (product.category ?? '') : '',
-      servingSizeGrams: product.servingSizeGrams?.toString() ?? value('Serving Size'),
-      calories: value('Calories'),
-      protein: value('Protein'),
-      carbs: value('Total Carbohydrate'),
-      fat: value('Total Fat'),
-      fiber: value('Dietary Fiber'),
-      otherRows: other.rows,
-    });
+    const { form, draft, skipped } = this.dataDrafts.open(product);
+    // Saving replaces the whole table, so say which uneditable rows would go.
+    const messages = [
+      draft ? 'Restored the inputs you closed without saving.' : '',
+      skipped.length > 0
+        ? `Saving from here drops rows this editor can't edit: ${skipped.join(', ')}.`
+        : '',
+    ];
+    this.dataMessage.set(messages.filter(Boolean).join(' ') || null);
+    this.editingData.set(form);
   }
 
   /** The label of the category whose template rows can still be added, or null. */
@@ -806,7 +785,9 @@ export class AdminPage implements OnInit {
   }
 
   closeDataEditor(): void {
-    if (this.dataSaving()) return;
+    const form = this.editingData();
+    if (this.dataSaving() || !form) return;
+    this.dataDrafts.close(form);
     this.editingData.set(null);
   }
 
@@ -822,6 +803,7 @@ export class AdminPage implements OnInit {
     this.runDataEdit(
       this.api.setProductCategory(form.product.id, form.category || null),
       'Category saved',
+      'category',
     );
   }
 
@@ -856,21 +838,33 @@ export class AdminPage implements OnInit {
     this.runDataEdit(
       this.api.setProductNutrition(form.product.id, { ...body, otherRows }),
       'Nutrition saved',
+      'nutrition',
     );
   }
 
   clearNutrition(): void {
     const form = this.editingData();
     if (!form) return;
-    this.runDataEdit(this.api.clearProductNutrition(form.product.id), 'Nutrition cleared');
+    this.runDataEdit(
+      this.api.clearProductNutrition(form.product.id),
+      'Nutrition cleared',
+      'nutrition',
+    );
   }
 
-  private runDataEdit(request: Observable<{ rowsUpdated: number }>, done: string): void {
+  private runDataEdit(
+    request: Observable<{ rowsUpdated: number }>,
+    done: string,
+    what: SavedData,
+  ): void {
+    // The state that was sent: input typed while the request runs isn't saved.
+    const sent = this.editingData();
     this.dataSaving.set(true);
     this.dataMessage.set(null);
     request.subscribe({
       next: (r) => {
         this.dataSaving.set(false);
+        if (sent) this.dataDrafts.saveSucceeded(sent, what);
         this.dataMessage.set(
           `${done} for ${r.rowsUpdated} row${r.rowsUpdated === 1 ? '' : 's'} (every size of this page).`,
         );
@@ -886,15 +880,6 @@ export class AdminPage implements OnInit {
         this.dataMessage.set(message?.trim() || this.errorText(e, "Couldn't save."));
       },
     });
-  }
-
-  private parseNutrition(json: string | null): Record<string, string> {
-    if (!json) return {};
-    try {
-      return JSON.parse(json) as Record<string, string>;
-    } catch {
-      return {};
-    }
   }
 
   // Hiding asks for confirmation; publishing again applies right away.

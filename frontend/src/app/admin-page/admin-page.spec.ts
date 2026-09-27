@@ -267,6 +267,73 @@ describe('AdminPage visibility safety', () => {
     expect(api.setProductCategory).toHaveBeenCalledWith(21, null);
   });
 
+  // A click outside the editor closes it; half-entered input must not be lost.
+  it('restores inputs closed without saving on reopen, and keeps them to their product', () => {
+    page.openDataEditor(product);
+    page.updateDataField('protein', 30);
+    page.updateDataField('carbs', 5);
+    page.addOtherRow();
+    page.updateOtherRow(0, 'label', 'Caffeine');
+    page.closeDataEditor();
+    expect(page.editingData()).toBeNull();
+
+    page.openDataEditor({ ...product, id: 22 });
+    expect(page.editingData()!.protein).toBe('25');
+    expect(page.dataMessage()).toBeNull();
+    page.closeDataEditor();
+
+    page.openDataEditor(product);
+    const form = page.editingData()!;
+    expect(form.protein).toBe('30');
+    expect(form.carbs).toBe('5');
+    expect(form.fat).toBe('2.5');
+    expect(form.otherRows.map((r) => r.label)).toEqual(['Caffeine']);
+    expect(page.dataMessage()).toContain('Restored');
+  });
+
+  it('keeps no draft for unchanged or saved input', () => {
+    page.openDataEditor(product);
+    page.closeDataEditor();
+    page.openDataEditor(product);
+    expect(page.dataMessage()).toBeNull();
+
+    page.updateDataField('protein', 30);
+    page.saveNutrition();
+    page.closeDataEditor();
+
+    // No draft left, so the form is built from the product record given.
+    page.openDataEditor(product);
+    expect(page.editingData()!.protein).toBe('25');
+    expect(page.dataMessage()).toBeNull();
+  });
+
+  // Category and nutrition are saved by separate buttons.
+  it('keeps typed nutrition as a draft when only the category was saved', () => {
+    page.openDataEditor(product);
+    page.updateDataField('protein', 30);
+    page.updateDataField('category', 'vitamins');
+    page.saveCategory();
+    page.closeDataEditor();
+
+    page.openDataEditor({ ...product, category: 'vitamins', categoryIsManual: true });
+    expect(page.editingData()!.protein).toBe('30');
+    expect(page.editingData()!.category).toBe('vitamins');
+    expect(page.dataMessage()).toContain('Restored');
+  });
+
+  it('keeps the input of a refused save', () => {
+    api.setProductNutrition.mockReturnValueOnce(
+      throwError(() => ({ status: 400, error: { message: "calories 400 don't match the macros" } })),
+    );
+    page.openDataEditor(product);
+    page.updateDataField('calories', 400);
+    page.saveNutrition();
+    page.closeDataEditor();
+
+    page.openDataEditor(product);
+    expect(page.editingData()!.calories).toBe('400');
+  });
+
   it('shows the backend reason when a confirmation email is refused', () => {
     api.sendSubscriberConfirmation.mockReturnValueOnce(
       throwError(() => ({ status: 429, error: { message: 'A confirmation email went out less than 5 minutes ago.' } })),
