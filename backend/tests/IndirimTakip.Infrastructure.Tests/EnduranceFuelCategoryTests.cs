@@ -40,6 +40,8 @@ public class EnduranceFuelCategoryTests
     [InlineData("Amaro Energy Chews with Caffeine - 12")]
     [InlineData("Orange Naked Sparkling Energy / Clean Energy Drink - 12 Cans")]
     [InlineData("Endurance Gels - 12 Pack")]
+    [InlineData("Additions Maurten Orange for Drink Mix (6 Units)")]
+    [InlineData("Cellucor 12pk C4 Energy Shots Energy Drinks")]    // Shopify title + product type
     public void Endurance_fuel_is_energy_gels_and_drinks(string name)
     {
         Assert.Equal("energy-gels-drinks", ProductAttributeParser.InferCategory(name));
@@ -58,6 +60,11 @@ public class EnduranceFuelCategoryTests
     [InlineData("SIS Beta Fuel Orange Energy Chewable Bar 45g CHO", "protein-snacks")]
     [InlineData("Fatherhood Fuel Essential Pre-Workout", "pre-workout")]
     [InlineData("PANDA Supplements Fuel Isolate Protein", "protein-powder")]
+    // Shopify category text is title + product type; these two went live in
+    // the wrong place on the first crawl (2026-09-28) because the dry run only
+    // had the stored titles.
+    [InlineData("Greens: Cherry Limeade Greens Drink Mix", "vitamins")]
+    [InlineData("Core Nutritionals Hydrate Hydration & Sports Drinks", "hydration")]
     public void Look_alikes_stay_where_they_were(string name, string expected)
     {
         Assert.Equal(expected, ProductAttributeParser.InferCategory(name));

@@ -375,6 +375,16 @@ public static partial class ProductAttributeParser
                 return category;
         }
 
+        // "drink mix" is a WEAK form word, checked only when no ingredient
+        // family claimed the product: stores also sell greens, protein and BCAA
+        // as a "drink mix". A Shopify product type of "Greens Drink Mix" moved
+        // seven greens powders into energy gels on the first crawl (2026-09-28),
+        // which the dry run over stored names could not see: the Shopify
+        // category text is title plus product type. Maurten's Drink Mix 160/320
+        // has no ingredient word and still lands here.
+        if (DrinkMixRegex().IsMatch(normalized) && !ExplicitPreWorkoutRegex().IsMatch(normalized))
+            return "energy-gels-drinks";
+
         return null;
     }
 
@@ -388,9 +398,12 @@ public static partial class ProductAttributeParser
     /// <list type="bullet">
     /// <item>"gel" alone also catches capsules ("Omega 3 120 Soft Gels",
     /// "Amino Gel-Caps"), so those forms veto.</item>
-    /// <item>"drink mix" is also the electrolyte mixes' word; with an
-    /// electrolyte or hydration word the product stays in hydration. A GEL
-    /// with electrolytes is still a gel.</item>
+    /// <item>A sports or energy DRINK with an electrolyte or hydration word
+    /// stays in hydration: bodybuilding.com types its electrolyte mixes as
+    /// "Hydration &amp; Sports Drinks". A GEL with electrolytes is still a
+    /// gel.</item>
+    /// <item>"drink mix" is weak and handled after the families (see
+    /// <see cref="InferCategory"/>).</item>
     /// <item>"fuel" (a brand word: Sports Fuel, Panda FUEL protein) and a bare
     /// "chews" (creatine chews, pet chews) were left out.</item>
     /// <item>An explicit "pre-workout" keeps the product there (the
@@ -401,10 +414,13 @@ public static partial class ProductAttributeParser
         !ExplicitPreWorkoutRegex().IsMatch(normalized)
         && !CapsuleGelRegex().IsMatch(normalized)
         && (EnergyFuelFormRegex().IsMatch(normalized)
-            || (DrinkMixRegex().IsMatch(normalized) && !ElectrolyteWordRegex().IsMatch(normalized)));
+            || (EnergyDrinkFormRegex().IsMatch(normalized) && !ElectrolyteWordRegex().IsMatch(normalized)));
 
-    [GeneratedRegex(@"\b(gels?|isotonic|sports?\s+drinks?|energy\s+(drinks?|chews?|blocks?|bloks?|gummies))\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(gels?|isotonic|energy\s+(chews?|blocks?|bloks?|gummies))\b", RegexOptions.IgnoreCase)]
     private static partial Regex EnergyFuelFormRegex();
+
+    [GeneratedRegex(@"\b(sports?\s+drinks?|energy\s+drinks?)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex EnergyDrinkFormRegex();
 
     [GeneratedRegex(@"\b(soft|liquid|veggie|vegan)[\s-]?gels?\b|\bgel[\s-]?caps?\b", RegexOptions.IgnoreCase)]
     private static partial Regex CapsuleGelRegex();
