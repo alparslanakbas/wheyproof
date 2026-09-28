@@ -44,7 +44,7 @@ public sealed record ManualEditResult(bool Found, bool Accepted, string? Reason 
 /// <b>Typed values pass the same calorie check as automatic readings.</b> A typo
 /// such as 250 g protein instead of 25 breaks the 4/4/9 sum and is refused
 /// with the reason, instead of going live. Supplement Facts rows have no sum to
-/// check, so each one is checked on its own (unit list, above zero, a gram
+/// check, so each one is checked on its own (unit list, not negative, a gram
 /// amount no larger than the serving); see <see cref="Check"/>.
 /// </remarks>
 public sealed class ManualProductDataService(AppDbContext db)
@@ -220,8 +220,14 @@ public sealed class ManualProductDataService(AppDbContext db)
 
             if (row.Amount is not { } amount)
                 return ([], $"'{label}' has no amount");
-            if (amount <= 0)
-                return ([], $"'{label}' must be above zero");
+            // ZERO IS A VALUE (2026-09-28): a label that prints "Total Sugars 0g"
+            // or "Saturated Fat 0g" states a value, not a gap. An empty row never
+            // gets here (the form drops rows without an amount, and the check
+            // above catches one that arrives), so refusing 0 only forbade what the
+            // label says: the admin had to leave those rows out. The Turkish site
+            // already accepted it.
+            if (amount < 0)
+                return ([], $"'{label}' can't be negative");
             if (amount > MaxRowAmount)
                 return ([], $"'{label}' {amount} looks like a typo");
 

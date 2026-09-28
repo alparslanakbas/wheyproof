@@ -93,7 +93,6 @@ public class ManualProductDataTests
     [Theory]
     [InlineData("", 5.0, "g")]                        // no name
     [InlineData("Caffeine", null, "mg")]              // no amount
-    [InlineData("Caffeine", 0.0, "mg")]               // zero
     [InlineData("Caffeine", -200.0, "mg")]            // negative
     [InlineData("Caffeine", 200.0, "mgs")]            // unit outside the list
     [InlineData("Caffeine", 200.0, null)]             // no unit
@@ -107,6 +106,22 @@ public class ManualProductDataTests
 
         Assert.False(verdict.Accepted);
         Assert.False(string.IsNullOrWhiteSpace(verdict.Reason));
+    }
+
+    // A label that prints 0g states a value (2026-09-28): the admin typed
+    // Saturated Fat 0 and Total Sugars 0 from a brand's own label and the panel
+    // refused them, so those rows had to be left out.
+    [Fact]
+    public void A_zero_row_is_a_value_and_is_kept()
+    {
+        var (reading, verdict) = ManualProductDataService.Check(NakedWhey with
+        {
+            OtherRows = [new("Saturated Fat", 0, "g"), new("Total Sugars", 0, "g")],
+        });
+
+        Assert.True(verdict.Accepted, verdict.Reason);
+        Assert.Contains(reading.Rows, r => r.Label == "Saturated Fat" && r.Amount == "0g");
+        Assert.Contains(reading.Rows, r => r.Label == "Total Sugars" && r.Amount == "0g");
     }
 
     [Fact]
