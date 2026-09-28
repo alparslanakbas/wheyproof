@@ -210,13 +210,33 @@ describe('AdminPage visibility safety', () => {
     expect(page.editingData()?.serving).toBe('20 ml (20.5g)');
   });
 
-  it('does not send a serving it cannot read', () => {
+  // The message names what was typed; the old one's example ("30") read as a
+  // minimum the box demanded.
+  it('does not send a serving it cannot read, and says what it could not read', () => {
     page.openDataEditor(product);
     page.updateDataField('serving', '2 scoops');
     page.saveNutrition();
 
     expect(api.setProductNutrition).not.toHaveBeenCalled();
-    expect(page.dataMessage()).toContain('Serving size');
+    expect(page.dataMessage()).toContain('"2 scoops"');
+    expect(page.dataMessage()).not.toContain('"30"');
+  });
+
+  // 226ers HydraZero (2026-09-28): the admin typed "7,5g" and it was refused.
+  it.each([
+    ['7,5g', { servingSizeGrams: 7.5, servingCount: null, servingUnit: null }],
+    ['7.5 gr', { servingSizeGrams: 7.5, servingCount: null, servingUnit: null }],
+    ['1 sachet (7,5 gr)', { servingSizeGrams: 7.5, servingCount: 1, servingUnit: 'sachet' }],
+    ['20,5 ml', { servingSizeGrams: null, servingMilliliters: 20.5 }],
+  ])('reads the serving "%s" with a comma or "gr"', (typed, expected) => {
+    page.openDataEditor({ ...product, servingSizeGrams: null, nutritionJson: null });
+    page.updateDataField('serving', typed);
+    page.addOtherRow();
+    page.updateOtherRow(0, 'label', 'Sodium');
+    page.updateOtherRow(0, 'amount', 500);
+    page.saveNutrition();
+
+    expect(api.setProductNutrition).toHaveBeenCalledWith(21, expect.objectContaining(expected));
   });
 
   it('adds the category template once and skips its rows left without an amount', () => {

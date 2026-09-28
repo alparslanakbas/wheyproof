@@ -148,7 +148,8 @@ public sealed class ManualProductDataService(AppDbContext db)
     // Units a serving may be counted in (2026-09-28: 226ERS electrolyte capsules
     // print "1 Cap" and no weight). Grams stay in ServingSizeGrams. Above the most
     // a serving goes is a typo.
-    private static readonly string[] ServingUnits = ["capsule", "tablet", "softgel"];
+    // "sachet" (same day): single-serve powders print "1 sachet x 7.5 gr".
+    private static readonly string[] ServingUnits = ["capsule", "tablet", "softgel", "sachet"];
     private const int MaxServingCount = 20;
 
     // A liquid serving in ml (226ERS Sea Water prints "20ml"); a litre is the most

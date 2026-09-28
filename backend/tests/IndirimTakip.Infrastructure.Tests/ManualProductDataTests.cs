@@ -165,6 +165,17 @@ public class ManualProductDataTests
         Assert.False(string.IsNullOrWhiteSpace(verdict.Reason));
     }
 
+    // 226ers HydraZero: "1 sachet x 7.5 gr".
+    [Fact]
+    public void A_sachet_is_a_counted_serving_with_its_weight()
+    {
+        var (reading, verdict) = ManualProductDataService.Check(
+            Rows(7.5m, ("Sodium", 500, "mg")) with { ServingCount = 1, ServingUnit = "sachet" });
+
+        Assert.True(verdict.Accepted, verdict.Reason);
+        Assert.Equal(("Serving Size", "1 sachet (7.5g)"), (reading.Rows[0].Label, reading.Rows[0].Amount));
+    }
+
     // --- Liquid servings: 226ERS Sea Water prints its values per 20 ml ---
 
     [Fact]

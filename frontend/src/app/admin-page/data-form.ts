@@ -20,9 +20,9 @@ export interface ProductDataForm extends Record<NutritionField, string> {
 export type SavedData = 'category' | 'nutrition';
 
 /** Units a serving may be counted in: the backend's list, in the same spelling. */
-export const SERVING_UNITS = ['capsule', 'tablet', 'softgel'] as const;
+export const SERVING_UNITS = ['capsule', 'tablet', 'softgel', 'sachet'] as const;
 
-// The words capsule and tablet labels print for a counted serving ("1 Cap").
+// The words labels print for a counted serving ("1 Cap", "1 sachet x 7.5 gr").
 const SERVING_WORDS: Record<string, (typeof SERVING_UNITS)[number]> = {
   cap: 'capsule',
   caps: 'capsule',
@@ -34,10 +34,18 @@ const SERVING_WORDS: Record<string, (typeof SERVING_UNITS)[number]> = {
   tablets: 'tablet',
   softgel: 'softgel',
   softgels: 'softgel',
+  sachet: 'sachet',
+  sachets: 'sachet',
 };
-const GRAM_SERVING = /^(\d+(?:\.\d+)?)\s*g?$/i;
-const ML_SERVING = /^(\d+(?:\.\d+)?)\s*ml\s*(?:\(\s*(\d+(?:\.\d+)?)\s*g\s*\))?$/i;
-const COUNTED_SERVING = /^(\d+)\s*([a-z]+)\s*(?:\(\s*(\d+(?:\.\d+)?)\s*g\s*\))?$/i;
+// "7,5g" and "7.5 gr" are both typed (2026-09-28: "7,5g" was refused while the box
+// was a number field no more; a Turkish browser used to turn the comma into a point).
+const GRAMS = String.raw`\s*(?:g|gr|grams?)`;
+const NUMBER = String.raw`(\d+(?:[.,]\d+)?)`;
+const IN_GRAMS = String.raw`(?:\(\s*${NUMBER}${GRAMS}\s*\))?`;
+const GRAM_SERVING = new RegExp(`^${NUMBER}(?:${GRAMS})?$`, 'i');
+const ML_SERVING = new RegExp(String.raw`^${NUMBER}\s*ml\s*${IN_GRAMS}$`, 'i');
+const COUNTED_SERVING = new RegExp(String.raw`^(\d+)\s*([a-z]+)\s*${IN_GRAMS}$`, 'i');
+const decimal = (text: string) => Number(text.replace(',', '.'));
 
 type Serving = Pick<
   ManualNutrition,
@@ -51,21 +59,21 @@ const NO_SERVING: Serving = {
 };
 
 /**
- * The serving box: grams ("30"), ml for a liquid ("20 ml"), or a count as
- * capsule and tablet labels print it ("1 capsule", "2 tablets (1.2 g)"), whose
- * weight is rarely on the label. Null when it is none of these.
+ * The serving box: grams ("7.5", "7,5 g"), ml for a liquid ("20 ml"), or a count
+ * as labels print it ("1 capsule", "1 sachet (7.5 g)"), whose weight is often not
+ * on the label. Null when it is none of these.
  */
 export function parseServing(text: string): Serving | null {
   const t = text.trim();
   if (t === '') return { ...NO_SERVING };
   const grams = t.match(GRAM_SERVING);
-  if (grams) return { ...NO_SERVING, servingSizeGrams: Number(grams[1]) };
+  if (grams) return { ...NO_SERVING, servingSizeGrams: decimal(grams[1]) };
   const liquid = t.match(ML_SERVING);
   if (liquid) {
     return {
       ...NO_SERVING,
-      servingSizeGrams: liquid[2] ? Number(liquid[2]) : null,
-      servingMilliliters: Number(liquid[1]),
+      servingSizeGrams: liquid[2] ? decimal(liquid[2]) : null,
+      servingMilliliters: decimal(liquid[1]),
     };
   }
   const counted = t.match(COUNTED_SERVING);
@@ -73,7 +81,7 @@ export function parseServing(text: string): Serving | null {
   if (!counted || !unit) return null;
   return {
     ...NO_SERVING,
-    servingSizeGrams: counted[3] ? Number(counted[3]) : null,
+    servingSizeGrams: counted[3] ? decimal(counted[3]) : null,
     servingCount: Number(counted[1]),
     servingUnit: unit,
   };
@@ -130,8 +138,13 @@ export function nutritionRequest(
   form: ProductDataForm,
 ): { body: ManualNutrition } | { error: string } {
   const serving = parseServing(form.serving);
-  if (!serving)
-    return { error: 'Serving size: grams ("30"), ml ("20 ml") or a count ("1 capsule", "2 tablets").' };
+  // Says what was typed and gives examples; a bare example number ("30") read as
+  // a minimum the box demanded.
+  if (!serving) {
+    return {
+      error: `Serving size "${form.serving.trim()}" can't be read: write a weight ("7.5 g"), ml ("20 ml") or a count ("1 capsule", "1 sachet (7.5 g)").`,
+    };
+  }
 
   // Empty stays null (not 0): a blank fiber means "not entered", and the
   // backend requires the four core values itself.
