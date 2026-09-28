@@ -1305,10 +1305,10 @@
                   <label
                     >{{ f.label }}
                     <input
-                      type="number"
+                      [type]="f.text ? 'text' : 'number'"
                       min="0"
                       step="0.1"
-                      inputmode="decimal"
+                      [attr.inputmode]="f.text ? null : 'decimal'"
                       [ngModel]="form[f.key]"
                       (ngModelChange)="updateDataField(f.key, $event)"
                       [ngModelOptions]="{ standalone: true }"

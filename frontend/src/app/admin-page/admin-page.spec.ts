@@ -105,6 +105,8 @@ describe('AdminPage visibility safety', () => {
 
     expect(api.setProductNutrition).toHaveBeenCalledWith(21, {
       servingSizeGrams: 43,
+      servingCount: null,
+      servingUnit: null,
       calories: 160,
       proteinGrams: 25,
       carbohydrateGrams: 11,
@@ -139,6 +141,8 @@ describe('AdminPage visibility safety', () => {
 
     expect(api.setProductNutrition).toHaveBeenCalledWith(21, {
       servingSizeGrams: 5,
+      servingCount: null,
+      servingUnit: null,
       calories: null,
       proteinGrams: null,
       carbohydrateGrams: null,
@@ -149,6 +153,46 @@ describe('AdminPage visibility safety', () => {
         { label: 'Caffeine', amount: 200, unit: 'mg' },
       ],
     });
+  });
+
+  // 226ERS Mineral Salts (2026-09-28): the label's serving is "1 Cap" and no
+  // weight is printed, so none is sent.
+  it('sends a counted serving typed in the serving box, without grams', () => {
+    page.openDataEditor({ ...product, category: 'hydration', servingSizeGrams: null, nutritionJson: null });
+    page.updateDataField('serving', '1 Cap');
+    page.addOtherRow();
+    page.updateOtherRow(0, 'label', 'Sodium');
+    page.updateOtherRow(0, 'amount', 141);
+    page.saveNutrition();
+
+    expect(api.setProductNutrition).toHaveBeenCalledWith(
+      21,
+      expect.objectContaining({ servingSizeGrams: null, servingCount: 1, servingUnit: 'capsule' }),
+    );
+  });
+
+  it('reads a stored counted serving back as typed, with its weight', () => {
+    page.openDataEditor({
+      ...product,
+      servingSizeGrams: 1.2,
+      nutritionJson: '{"Serving Size":"2 tablets (1.2g)","Caffeine":"200mg"}',
+    });
+    expect(page.editingData()?.serving).toBe('2 tablets (1.2g)');
+
+    page.saveNutrition();
+    expect(api.setProductNutrition).toHaveBeenCalledWith(
+      21,
+      expect.objectContaining({ servingSizeGrams: 1.2, servingCount: 2, servingUnit: 'tablet' }),
+    );
+  });
+
+  it('does not send a serving it cannot read', () => {
+    page.openDataEditor(product);
+    page.updateDataField('serving', '2 scoops');
+    page.saveNutrition();
+
+    expect(api.setProductNutrition).not.toHaveBeenCalled();
+    expect(page.dataMessage()).toContain('Serving size');
   });
 
   it('adds the category template once and skips its rows left without an amount', () => {

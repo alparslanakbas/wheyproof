@@ -3,7 +3,13 @@ import { Component, OnInit, PLATFORM_ID, computed, inject, signal } from '@angul
 import { FormsModule } from '@angular/forms';
 import { AdminEditorFocus } from './admin-editor-focus';
 import { AdminFailureReason } from './admin-failure-reason';
-import { DataDrafts, NutritionField, ProductDataForm, SavedData } from './data-form';
+import {
+  DataDrafts,
+  NutritionField,
+  ProductDataForm,
+  SavedData,
+  nutritionRequest,
+} from './data-form';
 import { Observable } from 'rxjs';
 
 import { CATEGORY_LABELS } from '../core/category-labels';
@@ -151,8 +157,9 @@ export class AdminPage implements OnInit {
     slug,
     label,
   }));
-  readonly nutritionFields: { key: NutritionField; label: string }[] = [
-    { key: 'servingSizeGrams', label: 'Serving size (g)' },
+  readonly nutritionFields: { key: NutritionField; label: string; text?: boolean }[] = [
+    // Text: a counted serving ("1 capsule") goes in the same box as grams.
+    { key: 'serving', label: 'Serving size (g, or "1 capsule")', text: true },
     { key: 'calories', label: 'Calories' },
     { key: 'protein', label: 'Protein (g)' },
     { key: 'carbs', label: 'Total carbohydrate (g)' },
@@ -810,33 +817,13 @@ export class AdminPage implements OnInit {
   saveNutrition(): void {
     const form = this.editingData();
     if (!form) return;
-
-    // Empty stays null (not 0): a blank fiber means "not entered", and the
-    // backend requires the four core values itself.
-    const number = (text: string) => (text.trim() === '' ? null : Number(text));
-    const body = {
-      servingSizeGrams: number(form.servingSizeGrams),
-      calories: number(form.calories),
-      proteinGrams: number(form.protein),
-      carbohydrateGrams: number(form.carbs),
-      fatGrams: number(form.fat),
-      fiberGrams: number(form.fiber),
-    };
-    // A template row left without an amount wasn't on the label: skipped, not
-    // sent as an error. A named row with an amount goes to the backend's check.
-    const otherRows = form.otherRows
-      .filter((r) => r.amount.trim() !== '')
-      .map((r) => ({ label: r.label, amount: number(r.amount), unit: r.unit }));
-    if (
-      Object.values(body).some((v) => v !== null && Number.isNaN(v)) ||
-      otherRows.some((r) => r.amount !== null && Number.isNaN(r.amount))
-    ) {
-      this.dataMessage.set('Enter numbers only.');
+    const request = nutritionRequest(form);
+    if ('error' in request) {
+      this.dataMessage.set(request.error);
       return;
     }
-
     this.runDataEdit(
-      this.api.setProductNutrition(form.product.id, { ...body, otherRows }),
+      this.api.setProductNutrition(form.product.id, request.body),
       'Nutrition saved',
       'nutrition',
     );

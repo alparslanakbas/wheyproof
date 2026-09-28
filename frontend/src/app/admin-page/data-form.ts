@@ -2,11 +2,10 @@
 // the editor closes it, and reopening rebuilt the form from the saved values:
 // half-entered input (say, protein and carbs only) was silently lost.
 
-import { AdminProduct } from './admin.service';
+import { AdminProduct, ManualNutrition } from './admin.service';
 import { NutritionRowForm, storedOtherRows } from './nutrition-rows';
 
-export type NutritionField =
-  'servingSizeGrams' | 'calories' | 'protein' | 'carbs' | 'fat' | 'fiber';
+export type NutritionField = 'serving' | 'calories' | 'protein' | 'carbs' | 'fat' | 'fiber';
 
 /** The admin editor's working copy; inputs are kept as text until saved. */
 export interface ProductDataForm extends Record<NutritionField, string> {
@@ -20,6 +19,47 @@ export interface ProductDataForm extends Record<NutritionField, string> {
 /** Category and nutrition are saved by separate buttons, as separate requests. */
 export type SavedData = 'category' | 'nutrition';
 
+/** Units a serving may be counted in: the backend's list, in the same spelling. */
+export const SERVING_UNITS = ['capsule', 'tablet', 'softgel'] as const;
+
+// The words capsule and tablet labels print for a counted serving ("1 Cap").
+const SERVING_WORDS: Record<string, (typeof SERVING_UNITS)[number]> = {
+  cap: 'capsule',
+  caps: 'capsule',
+  capsule: 'capsule',
+  capsules: 'capsule',
+  tab: 'tablet',
+  tabs: 'tablet',
+  tablet: 'tablet',
+  tablets: 'tablet',
+  softgel: 'softgel',
+  softgels: 'softgel',
+};
+const GRAM_SERVING = /^(\d+(?:\.\d+)?)\s*g?$/i;
+const COUNTED_SERVING = /^(\d+)\s*([a-z]+)\s*(?:\(\s*(\d+(?:\.\d+)?)\s*g\s*\))?$/i;
+
+type Serving = Pick<ManualNutrition, 'servingSizeGrams' | 'servingCount' | 'servingUnit'>;
+
+/**
+ * The serving box: grams ("30"), or a count as capsule and tablet labels print
+ * it ("1 capsule", "2 tablets (1.2 g)"), whose weight is rarely on the label.
+ * Null when it is neither.
+ */
+export function parseServing(text: string): Serving | null {
+  const t = text.trim();
+  if (t === '') return { servingSizeGrams: null, servingCount: null, servingUnit: null };
+  const grams = t.match(GRAM_SERVING);
+  if (grams) return { servingSizeGrams: Number(grams[1]), servingCount: null, servingUnit: null };
+  const counted = t.match(COUNTED_SERVING);
+  const unit = counted && SERVING_WORDS[counted[2].toLowerCase()];
+  if (!counted || !unit) return null;
+  return {
+    servingSizeGrams: counted[3] ? Number(counted[3]) : null,
+    servingCount: Number(counted[1]),
+    servingUnit: unit,
+  };
+}
+
 function parseNutrition(json: string | null): Record<string, string> {
   if (!json) return {};
   try {
@@ -27,6 +67,13 @@ function parseNutrition(json: string | null): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+// A counted serving ("2 capsules") is only in the table; grams are also a column.
+function storedServing(product: AdminProduct, table: Record<string, string>): string {
+  const row = table['Serving Size']?.trim() ?? '';
+  if (parseServing(row)?.servingUnit) return row;
+  return product.servingSizeGrams?.toString() ?? row.match(/\d+(?:\.\d+)?/)?.[0] ?? '';
 }
 
 /**
@@ -45,7 +92,7 @@ export function storedDataForm(product: AdminProduct): {
     form: {
       product,
       category: product.categoryIsManual ? (product.category ?? '') : '',
-      servingSizeGrams: product.servingSizeGrams?.toString() ?? value('Serving Size'),
+      serving: storedServing(product, table),
       calories: value('Calories'),
       protein: value('Protein'),
       carbs: value('Total Carbohydrate'),
@@ -55,6 +102,39 @@ export function storedDataForm(product: AdminProduct): {
     },
     skipped: other.skipped,
   };
+}
+
+/** The save request built from the form, or what to tell the admin instead. */
+export function nutritionRequest(
+  form: ProductDataForm,
+): { body: ManualNutrition } | { error: string } {
+  const serving = parseServing(form.serving);
+  if (!serving)
+    return { error: 'Serving size: grams ("30"), or a count ("1 capsule", "2 tablets").' };
+
+  // Empty stays null (not 0): a blank fiber means "not entered", and the
+  // backend requires the four core values itself.
+  const number = (text: string) => (text.trim() === '' ? null : Number(text));
+  const body = {
+    ...serving,
+    calories: number(form.calories),
+    proteinGrams: number(form.protein),
+    carbohydrateGrams: number(form.carbs),
+    fatGrams: number(form.fat),
+    fiberGrams: number(form.fiber),
+  };
+  // A template row left without an amount wasn't on the label: skipped, not
+  // sent as an error. A named row with an amount goes to the backend's check.
+  const otherRows = form.otherRows
+    .filter((r) => r.amount.trim() !== '')
+    .map((r) => ({ label: r.label, amount: number(r.amount), unit: r.unit }));
+  if (
+    Object.values(body).some((v) => typeof v === 'number' && Number.isNaN(v)) ||
+    otherRows.some((r) => r.amount !== null && Number.isNaN(r.amount))
+  ) {
+    return { error: 'Enter numbers only.' };
+  }
+  return { body: { ...body, otherRows } };
 }
 
 // Every field but the product record. The keys come from the form itself, so a

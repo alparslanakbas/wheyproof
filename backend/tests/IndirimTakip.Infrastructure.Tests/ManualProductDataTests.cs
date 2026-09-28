@@ -124,6 +124,47 @@ public class ManualProductDataTests
         Assert.Contains(reading.Rows, r => r.Label == "Total Sugars" && r.Amount == "0g");
     }
 
+    // --- Counted servings: capsule and tablet labels print "1 Cap" and no weight ---
+
+    // 226ERS Mineral Salts (2026-09-28): the label's own column is "1 Cap".
+    [Fact]
+    public void A_counted_serving_heads_the_table_and_no_gram_weight_is_made_up()
+    {
+        var (reading, verdict) = ManualProductDataService.Check(
+            Rows(null, ("Sodium", 141, "mg"), ("Chloride", 309.5m, "mg")) with { ServingCount = 1, ServingUnit = "capsule" });
+
+        Assert.True(verdict.Accepted, verdict.Reason);
+        Assert.Null(reading.ServingSizeGrams);
+        Assert.Equal(("Serving Size", "1 capsule"), (reading.Rows[0].Label, reading.Rows[0].Amount));
+    }
+
+    // Grams and a count together: one row carries both, in the table's first place.
+    [Fact]
+    public void A_counted_serving_with_its_weight_replaces_the_gram_row()
+    {
+        var (reading, verdict) = ManualProductDataService.Check(NakedWhey with { ServingCount = 2, ServingUnit = "Tablet" });
+
+        Assert.True(verdict.Accepted, verdict.Reason);
+        Assert.Equal(43m, reading.ServingSizeGrams);
+        Assert.Equal("Serving Size", reading.Rows[0].Label);
+        Assert.Equal(new[] { "2 tablets (43g)" }, reading.Rows.Where(r => r.Label == "Serving Size").Select(r => r.Amount));
+    }
+
+    [Theory]
+    [InlineData(1, "scoop")]      // not a counted unit: scoops print grams
+    [InlineData(0, "capsule")]
+    [InlineData(21, "capsule")]   // more than any serving: a typo
+    [InlineData(null, "capsule")] // a unit without a count
+    [InlineData(2, null)]         // a count without a unit
+    public void A_counted_serving_outside_the_list_is_refused(int? count, string? unit)
+    {
+        var verdict = ManualProductDataService.Check(
+            Rows(null, ("Sodium", 141, "mg")) with { ServingCount = count, ServingUnit = unit }).Verdict;
+
+        Assert.False(verdict.Accepted);
+        Assert.False(string.IsNullOrWhiteSpace(verdict.Reason));
+    }
+
     [Fact]
     public void The_same_row_twice_is_refused() =>
         Assert.False(ManualProductDataService.Check(Rows(null, ("Zinc", 11, "mg"), ("zinc ", 11, "mg"))).Verdict.Accepted);

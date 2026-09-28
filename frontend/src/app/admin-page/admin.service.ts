@@ -270,6 +270,9 @@ export interface AdminProductPage {
 
 export interface ManualNutrition {
   servingSizeGrams: number | null;
+  /** A serving counted in units ("1 capsule"): the count and the unit. */
+  servingCount: number | null;
+  servingUnit: string | null;
   calories: number | null;
   proteinGrams: number | null;
   carbohydrateGrams: number | null;
