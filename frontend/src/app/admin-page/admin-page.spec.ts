@@ -107,6 +107,7 @@ describe('AdminPage visibility safety', () => {
       servingSizeGrams: 43,
       servingCount: null,
       servingUnit: null,
+      servingMilliliters: null,
       calories: 160,
       proteinGrams: 25,
       carbohydrateGrams: 11,
@@ -143,6 +144,7 @@ describe('AdminPage visibility safety', () => {
       servingSizeGrams: 5,
       servingCount: null,
       servingUnit: null,
+      servingMilliliters: null,
       calories: null,
       proteinGrams: null,
       carbohydrateGrams: null,
@@ -184,6 +186,28 @@ describe('AdminPage visibility safety', () => {
       21,
       expect.objectContaining({ servingSizeGrams: 1.2, servingCount: 2, servingUnit: 'tablet' }),
     );
+  });
+
+  // 226ERS Sea Water: values per 20 ml. Ml stays ml, it is never turned into grams.
+  it('sends a liquid serving in ml and reads it back with its weight', () => {
+    page.openDataEditor({ ...product, servingSizeGrams: null, nutritionJson: null });
+    page.updateDataField('serving', '20 ml');
+    page.addOtherRow();
+    page.updateOtherRow(0, 'label', 'Sodium');
+    page.updateOtherRow(0, 'amount', 141);
+    page.saveNutrition();
+
+    expect(api.setProductNutrition).toHaveBeenCalledWith(
+      21,
+      expect.objectContaining({ servingSizeGrams: null, servingMilliliters: 20, servingCount: null }),
+    );
+
+    page.openDataEditor({
+      ...product,
+      servingSizeGrams: 20.5,
+      nutritionJson: '{"Serving Size":"20 ml (20.5g)","Sodium":"141mg"}',
+    });
+    expect(page.editingData()?.serving).toBe('20 ml (20.5g)');
   });
 
   it('does not send a serving it cannot read', () => {

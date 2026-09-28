@@ -15,6 +15,10 @@ namespace IndirimTakip.Infrastructure.Catalog;
 /// Size: 1 Capsule"), with <paramref name="ServingUnit"/>. Their gram weight is
 /// rarely on the label; ServingSizeGrams then stays empty instead of guessed.
 /// </param>
+/// <param name="ServingMilliliters">
+/// A liquid serving as its label prints it ("20 ml" shot, "60 ml" gel). Millilitres
+/// are not grams and nothing converts them; ServingSizeGrams stays as given.
+/// </param>
 public sealed record ManualNutritionRequest(
     decimal? ServingSizeGrams,
     decimal? Calories,
@@ -24,7 +28,8 @@ public sealed record ManualNutritionRequest(
     decimal? FiberGrams,
     IReadOnlyList<ManualNutritionRow>? OtherRows = null,
     int? ServingCount = null,
-    string? ServingUnit = null);
+    string? ServingUnit = null,
+    decimal? ServingMilliliters = null);
 
 /// <summary>One label row: name, amount per serving and its unit.</summary>
 public sealed record ManualNutritionRow(string? Label, decimal? Amount, string? Unit);
@@ -146,6 +151,10 @@ public sealed class ManualProductDataService(AppDbContext db)
     private static readonly string[] ServingUnits = ["capsule", "tablet", "softgel"];
     private const int MaxServingCount = 20;
 
+    // A liquid serving in ml (226ERS Sea Water prints "20ml"); a litre is the most
+    // a serving plausibly is.
+    private const decimal MaxServingMilliliters = 1000m;
+
     private const int MaxOtherRows = 40;
     private const int MaxLabelLength = 60;
 
@@ -183,7 +192,7 @@ public sealed class ManualProductDataService(AppDbContext db)
         if (rowError is not null)
             return Refuse(reading, rowError);
 
-        var (countedServing, servingError) = CountedServing(request);
+        var (servingRow, servingError) = ServingRow(request);
         if (servingError is not null)
             return Refuse(reading, servingError);
 
@@ -200,7 +209,7 @@ public sealed class ManualProductDataService(AppDbContext db)
             if (!macroVerdict.Accepted)
                 return (macroReading, macroVerdict);
 
-            return (macroReading with { Rows = [.. WithServing(macroReading.Rows, countedServing), .. otherRows] }, macroVerdict);
+            return (macroReading with { Rows = [.. WithServing(macroReading.Rows, servingRow), .. otherRows] }, macroVerdict);
         }
 
         if (otherRows.Count == 0)
@@ -209,32 +218,48 @@ public sealed class ManualProductDataService(AppDbContext db)
         var supplementReading = reading with
         {
             PanelType = "Supplement Facts",
-            Rows = [.. WithServing(LabelTextParser.CheckedRows(reading), countedServing), .. otherRows],
+            Rows = [.. WithServing(LabelTextParser.CheckedRows(reading), servingRow), .. otherRows],
         };
         return (supplementReading, NutritionLabelValidator.Validate(supplementReading));
     }
 
-    // The Serving Size row of a counted serving: "1 capsule", "2 tablets (1.2g)".
-    private static (string? Text, string? Error) CountedServing(ManualNutritionRequest request)
+    // The Serving Size row of a counted serving ("1 capsule", "2 tablets (1.2g)")
+    // or a liquid one ("20 ml", "20 ml (20.5g)"). Null: grams only, or no serving.
+    private static (string? Text, string? Error) ServingRow(ManualNutritionRequest request)
     {
-        if (request.ServingCount is null && string.IsNullOrWhiteSpace(request.ServingUnit))
+        var counted = request.ServingCount is not null || !string.IsNullOrWhiteSpace(request.ServingUnit);
+        if (counted && request.ServingMilliliters is not null)
+            return (null, "a serving is counted or given in ml, not both");
+
+        string text;
+        if (request.ServingMilliliters is { } ml)
+        {
+            if (ml <= 0 || ml > MaxServingMilliliters)
+                return (null, $"a serving in ml is above 0 and at most {MaxServingMilliliters:0}");
+            text = FormatAmount(ml, "ml");
+        }
+        else if (counted)
+        {
+            var unit = ServingUnits.FirstOrDefault(u => string.Equals(u, request.ServingUnit?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (unit is null)
+                return (null, $"a serving is counted in {string.Join(", ", ServingUnits)}, or given in grams or ml");
+            if (request.ServingCount is not { } count || count < 1 || count > MaxServingCount)
+                return (null, $"a serving is 1 to {MaxServingCount} {unit}s");
+            text = count == 1 ? $"1 {unit}" : $"{count} {unit}s";
+        }
+        else
+        {
             return (null, null);
+        }
 
-        var unit = ServingUnits.FirstOrDefault(u => string.Equals(u, request.ServingUnit?.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (unit is null)
-            return (null, $"a serving is counted in {string.Join(", ", ServingUnits)}, or given in grams");
-        if (request.ServingCount is not { } count || count < 1 || count > MaxServingCount)
-            return (null, $"a serving is 1 to {MaxServingCount} {unit}s");
-
-        var text = count == 1 ? $"1 {unit}" : $"{count} {unit}s";
         return (request.ServingSizeGrams is { } grams ? $"{text} ({FormatAmount(grams, "g")})" : text, null);
     }
 
-    // A counted serving takes the place of the grams-only row, or heads the table.
-    private static List<NutritionLabelRow> WithServing(List<NutritionLabelRow> rows, string? countedServing) =>
-        countedServing is null
+    // A counted or liquid serving takes the place of the grams-only row, or heads the table.
+    private static List<NutritionLabelRow> WithServing(List<NutritionLabelRow> rows, string? servingRow) =>
+        servingRow is null
             ? rows
-            : [new NutritionLabelRow("Serving Size", countedServing), .. rows.Where(r => r.Label != "Serving Size")];
+            : [new NutritionLabelRow("Serving Size", servingRow), .. rows.Where(r => r.Label != "Serving Size")];
 
     private static (List<NutritionLabelRow> Rows, string? Error) CheckOtherRows(
         IReadOnlyList<ManualNutritionRow> rows, decimal? servingSizeGrams)

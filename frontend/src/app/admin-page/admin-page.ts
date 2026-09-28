@@ -158,8 +158,8 @@ export class AdminPage implements OnInit {
     label,
   }));
   readonly nutritionFields: { key: NutritionField; label: string; text?: boolean }[] = [
-    // Text: a counted serving ("1 capsule") goes in the same box as grams.
-    { key: 'serving', label: 'Serving size (g, or "1 capsule")', text: true },
+    // Text: a counted or liquid serving ("1 capsule", "20 ml") goes in the same box as grams.
+    { key: 'serving', label: 'Serving size (g, "20 ml" or "1 capsule")', text: true },
     { key: 'calories', label: 'Calories' },
     { key: 'protein', label: 'Protein (g)' },
     { key: 'carbs', label: 'Total carbohydrate (g)' },

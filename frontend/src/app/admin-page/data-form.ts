@@ -36,24 +36,43 @@ const SERVING_WORDS: Record<string, (typeof SERVING_UNITS)[number]> = {
   softgels: 'softgel',
 };
 const GRAM_SERVING = /^(\d+(?:\.\d+)?)\s*g?$/i;
+const ML_SERVING = /^(\d+(?:\.\d+)?)\s*ml\s*(?:\(\s*(\d+(?:\.\d+)?)\s*g\s*\))?$/i;
 const COUNTED_SERVING = /^(\d+)\s*([a-z]+)\s*(?:\(\s*(\d+(?:\.\d+)?)\s*g\s*\))?$/i;
 
-type Serving = Pick<ManualNutrition, 'servingSizeGrams' | 'servingCount' | 'servingUnit'>;
+type Serving = Pick<
+  ManualNutrition,
+  'servingSizeGrams' | 'servingCount' | 'servingUnit' | 'servingMilliliters'
+>;
+const NO_SERVING: Serving = {
+  servingSizeGrams: null,
+  servingCount: null,
+  servingUnit: null,
+  servingMilliliters: null,
+};
 
 /**
- * The serving box: grams ("30"), or a count as capsule and tablet labels print
- * it ("1 capsule", "2 tablets (1.2 g)"), whose weight is rarely on the label.
- * Null when it is neither.
+ * The serving box: grams ("30"), ml for a liquid ("20 ml"), or a count as
+ * capsule and tablet labels print it ("1 capsule", "2 tablets (1.2 g)"), whose
+ * weight is rarely on the label. Null when it is none of these.
  */
 export function parseServing(text: string): Serving | null {
   const t = text.trim();
-  if (t === '') return { servingSizeGrams: null, servingCount: null, servingUnit: null };
+  if (t === '') return { ...NO_SERVING };
   const grams = t.match(GRAM_SERVING);
-  if (grams) return { servingSizeGrams: Number(grams[1]), servingCount: null, servingUnit: null };
+  if (grams) return { ...NO_SERVING, servingSizeGrams: Number(grams[1]) };
+  const liquid = t.match(ML_SERVING);
+  if (liquid) {
+    return {
+      ...NO_SERVING,
+      servingSizeGrams: liquid[2] ? Number(liquid[2]) : null,
+      servingMilliliters: Number(liquid[1]),
+    };
+  }
   const counted = t.match(COUNTED_SERVING);
   const unit = counted && SERVING_WORDS[counted[2].toLowerCase()];
   if (!counted || !unit) return null;
   return {
+    ...NO_SERVING,
     servingSizeGrams: counted[3] ? Number(counted[3]) : null,
     servingCount: Number(counted[1]),
     servingUnit: unit,
@@ -69,10 +88,12 @@ function parseNutrition(json: string | null): Record<string, string> {
   }
 }
 
-// A counted serving ("2 capsules") is only in the table; grams are also a column.
+// A counted or liquid serving ("2 capsules", "20 ml") is only in the table;
+// grams are also a column.
 function storedServing(product: AdminProduct, table: Record<string, string>): string {
   const row = table['Serving Size']?.trim() ?? '';
-  if (parseServing(row)?.servingUnit) return row;
+  const parsed = parseServing(row);
+  if (parsed?.servingUnit || parsed?.servingMilliliters) return row;
   return product.servingSizeGrams?.toString() ?? row.match(/\d+(?:\.\d+)?/)?.[0] ?? '';
 }
 
@@ -110,7 +131,7 @@ export function nutritionRequest(
 ): { body: ManualNutrition } | { error: string } {
   const serving = parseServing(form.serving);
   if (!serving)
-    return { error: 'Serving size: grams ("30"), or a count ("1 capsule", "2 tablets").' };
+    return { error: 'Serving size: grams ("30"), ml ("20 ml") or a count ("1 capsule", "2 tablets").' };
 
   // Empty stays null (not 0): a blank fiber means "not entered", and the
   // backend requires the four core values itself.

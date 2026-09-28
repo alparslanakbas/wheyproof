@@ -165,6 +165,46 @@ public class ManualProductDataTests
         Assert.False(string.IsNullOrWhiteSpace(verdict.Reason));
     }
 
+    // --- Liquid servings: 226ERS Sea Water prints its values per 20 ml ---
+
+    [Fact]
+    public void A_liquid_serving_is_kept_in_ml_and_not_turned_into_grams()
+    {
+        var (reading, verdict) = ManualProductDataService.Check(
+            Rows(null, ("Sodium", 141, "mg")) with { ServingMilliliters = 20 });
+
+        Assert.True(verdict.Accepted, verdict.Reason);
+        Assert.Null(reading.ServingSizeGrams);
+        Assert.Equal(("Serving Size", "20 ml"), (reading.Rows[0].Label, reading.Rows[0].Amount));
+    }
+
+    [Fact]
+    public void A_liquid_serving_with_its_weight_keeps_both()
+    {
+        var (reading, verdict) = ManualProductDataService.Check(
+            Rows(20.5m, ("Sodium", 141, "mg")) with { ServingMilliliters = 20 });
+
+        Assert.True(verdict.Accepted, verdict.Reason);
+        Assert.Equal(new[] { "20 ml (20.5g)" }, reading.Rows.Where(r => r.Label == "Serving Size").Select(r => r.Amount));
+    }
+
+    [Theory]
+    [InlineData(0.0, null)]
+    [InlineData(1001.0, null)]     // more than a litre: a typo
+    [InlineData(20.0, "capsule")]  // counted and in ml at once
+    public void A_liquid_serving_outside_its_range_is_refused(double ml, string? unit)
+    {
+        var verdict = ManualProductDataService.Check(Rows(null, ("Sodium", 141, "mg")) with
+        {
+            ServingMilliliters = (decimal)ml,
+            ServingCount = unit is null ? null : 1,
+            ServingUnit = unit,
+        }).Verdict;
+
+        Assert.False(verdict.Accepted);
+        Assert.False(string.IsNullOrWhiteSpace(verdict.Reason));
+    }
+
     [Fact]
     public void The_same_row_twice_is_refused() =>
         Assert.False(ManualProductDataService.Check(Rows(null, ("Zinc", 11, "mg"), ("zinc ", 11, "mg"))).Verdict.Accepted);

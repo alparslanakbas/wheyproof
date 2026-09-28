@@ -273,6 +273,8 @@ export interface ManualNutrition {
   /** A serving counted in units ("1 capsule"): the count and the unit. */
   servingCount: number | null;
   servingUnit: string | null;
+  /** A liquid serving ("20 ml"); never converted to grams. */
+  servingMilliliters: number | null;
   calories: number | null;
   proteinGrams: number | null;
   carbohydrateGrams: number | null;
