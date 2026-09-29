@@ -1,14 +1,28 @@
 import { describe, expect, it } from 'vitest';
 
-import { brandLogoUrl, brandMonogram, brandMonogramColor } from './brand-logo';
+import {
+  brandLogoNeedsDarkBackdrop,
+  brandLogoUrl,
+  brandMonogram,
+  brandMonogramColor,
+} from './brand-logo';
 
 describe('brandLogoUrl', () => {
-  // No US brand logo has been downloaded yet, and none is invented: every
-  // brand shows its monogram until a verified logo file is added.
-  it('returns null for brands without a downloaded logo', () => {
-    expect(brandLogoUrl('Optimum Nutrition')).toBeNull();
-    expect(brandLogoUrl('Transparent Labs')).toBeNull();
-    expect(brandLogoUrl('Nutricost')).toBeNull();
+  it('points a listed brand to its file, whatever the spelling of its name', () => {
+    expect(brandLogoUrl('Optimum Nutrition')).toBe('/brand-logos/optimum-nutrition.webp');
+    expect(brandLogoUrl('PER4M')).toBe('/brand-logos/per4m.webp');
+    expect(brandLogoUrl('BulkSupplements')).toBe('/brand-logos/bulksupplements.webp');
+  });
+
+  // CON-CRET reaches us only through bodybuilding.com: no logo is invented.
+  it('returns null for a brand without a downloaded logo', () => {
+    expect(brandLogoUrl('CON-CRET')).toBeNull();
+    expect(brandLogoUrl('Dymatize')).toBeNull();
+  });
+
+  it('gives the white logos a dark circle', () => {
+    expect(brandLogoNeedsDarkBackdrop('Veloforte')).toBe(true);
+    expect(brandLogoNeedsDarkBackdrop('Optimum Nutrition')).toBe(false);
   });
 });
 

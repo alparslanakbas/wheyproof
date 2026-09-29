@@ -15,16 +15,62 @@ import { brandSlug } from './brand-slug';
  * put the retailer's logo on them. Those brands get a monogram, never an
  * invented logo.
  *
- * Empty until US brand logos are added; every brand shows its monogram.
+ * 2026-09-29: the 37 brands scraped from their own store (US 30, UK 11, four
+ * in both). Each logo comes from the brand's own site: its structured data
+ * (Organization logo), the header logo or its app icon; logos published only
+ * as SVG were rendered to PNG first. CON-CRET keeps its monogram: its products
+ * reach us through bodybuilding.com. Files are never upscaled.
  */
-const BRANDS_WITH_LOCAL_LOGO: ReadonlySet<string> = new Set<string>([]);
+const BRANDS_WITH_LOCAL_LOGO: ReadonlySet<string> = new Set<string>([
+  '33-nutrition',
+  '33fuel',
+  'animal',
+  'ascent',
+  'auri-nutrition',
+  'bare-performance-nutrition',
+  'bounce-nutrition',
+  'bulk',
+  'bulksupplements',
+  'clean-simple-eats',
+  'dmoose',
+  'enchant',
+  'form',
+  'ghost',
+  'gorilla-mind',
+  'grenade',
+  'huel',
+  'jocko-fuel',
+  'kaged',
+  'louco',
+  'maxinutrition',
+  'momentous',
+  'musclepharm',
+  'muscletech',
+  'naked-nutrition',
+  'nutricost',
+  'optimum-nutrition',
+  'orgain',
+  'per4m',
+  'promix',
+  'protekt',
+  'quest-nutrition',
+  'raw-nutrition',
+  'transparent-labs',
+  'ultimate-paleo-protein',
+  'veloforte',
+  'vivo-life',
+]);
 
 /**
  * Light logos on a transparent background, which vanish on the card's light
  * grey circle. Chosen by MEASURING each file (mean brightness of opaque
- * pixels > 200 and transparency > 20%), not by eye.
+ * pixels > 200 and transparency > 20%), not by eye: the three white logos.
  */
-const NEEDS_DARK_BACKDROP: ReadonlySet<string> = new Set<string>([]);
+const NEEDS_DARK_BACKDROP: ReadonlySet<string> = new Set<string>([
+  'clean-simple-eats',
+  'protekt',
+  'veloforte',
+]);
 
 /** Path to the logo file, or null. */
 export function brandLogoUrl(brandName: string): string | null {
