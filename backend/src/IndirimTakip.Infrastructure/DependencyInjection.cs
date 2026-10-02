@@ -144,6 +144,7 @@ public static class DependencyInjection
         services.AddScoped<ManualProductDataService>();
         services.AddScoped<DealsQueryService>();
         services.AddScoped<CatalogStatsQueryService>();
+        services.AddScoped<ValuePicksQueryService>();
         services.AddScoped<PriceHistoryQueryService>();
         services.AddScoped<CouponService>();
         services.AddScoped<ArticleService>();

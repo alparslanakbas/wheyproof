@@ -102,6 +102,23 @@ internal static class DealsEndpoints
             return Results.Ok(result);
         }).CacheOutput(cachePolicy);
 
+        // The product list of the "Which supplement?" pages: lowest price per kg
+        // in a category, one product per brand (see ValuePickRanker). Category
+        // and type come from closed lists: free text would open a separate
+        // cache entry for every made-up value.
+        app.MapGet("/api/value-picks", async (
+            string? category, string? type, int? count, ValuePicksQueryService picks, CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(category) || !ProductAttributeParser.CategorySlugs.Contains(category))
+                return Results.BadRequest(new { message = "A valid category parameter is required." });
+            if (type is not null && !ValuePickRanker.IsValidType(category, type))
+                return Results.BadRequest(new { message = "This category has no such type." });
+
+            var result = await picks.GetAsync(
+                category, type, Math.Clamp(count ?? ValuePickRanker.DefaultCount, 1, ValuePickRanker.MaxCount), ct);
+            return Results.Ok(result);
+        }).CacheOutput(cachePolicy);
+
         // Brand x category pages: the sitemap and internal links use only pairs
         // that actually have products.
         app.MapGet("/api/brand-category-pairs", async (DealsQueryService deals, CancellationToken ct) =>
