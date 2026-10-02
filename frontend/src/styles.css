@@ -1618,6 +1618,20 @@ body {
   transition: color 160ms ease, background 160ms ease;
 }
 
+/* From 641 px the labels stay on one line; when the strip didn't fit, the
+   flex container squeezed the links down to 92 px and long labels spilled over
+   their neighbours (5 labels at 768 and 1024 px on the Turkish site, measured).
+   Now no link can be narrower than its own label; the base width is still
+   92 px, so short labels give way to long ones when space is tight. If it still
+   doesn't fit, the strip scrolls sideways as it does on phones. The phone rules
+   are unchanged, since the label wraps there. */
+@media (min-width: 641px) {
+  .pa-category-link {
+    width: 92px;
+    min-width: max-content;
+  }
+}
+
 .dark .pa-category-link {
   color: var(--noc-neutral-300);
 }
