@@ -9,6 +9,7 @@ import { Deal } from './deal.model';
 import { HomepageStats } from './homepage-stats.model';
 import { FilterOptions, PagedResult } from './paged-result.model';
 import { ProductSparkline } from './product-sparkline.model';
+import { ValuePicks } from './value-pick.model';
 
 // Brand x category intersection: how many products a brand has per category.
 export interface BrandCategoryPair {
@@ -122,6 +123,15 @@ export class DealsService {
   getBestValueBrands(category: string): Observable<string[]> {
     const params = new HttpParams().set('category', category);
     return this.http.get<string[]>(`${API_BASE_URL}/api/best-value-brands`, { params });
+  }
+
+  // The product list of the "Which supplement?" pages: lowest price per kg in
+  // a category, one product per brand. `type` is isolate/plant for protein
+  // powder, gainer/carbs for mass gainers.
+  getValuePicks(category: string, type: string | null, count: number): Observable<ValuePicks> {
+    let params = new HttpParams().set('category', category).set('count', count);
+    if (type) params = params.set('type', type);
+    return this.http.get<ValuePicks>(`${API_BASE_URL}/api/value-picks`, { params });
   }
 
   // Brand x category pages, only for pairs that really have products. The

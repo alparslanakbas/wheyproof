@@ -102,6 +102,17 @@ export const routes: Routes = [
     path: 'calculators/:slug',
     loadComponent: () => import('./supplement-dosage-page/supplement-dosage-page').then((m) => m.SupplementDosagePage),
   },
+  // The "Which supplement should I take?" quiz and one result page per goal.
+  // The goal page is a single parameterized route so the goal list (with all
+  // its page copy) stays out of the main bundle; an unknown goal shows a 404.
+  {
+    path: 'which-supplement',
+    loadComponent: () => import('./supplement-finder-page/supplement-finder-page').then((m) => m.SupplementFinderPage),
+  },
+  {
+    path: 'which-supplement/:slug',
+    loadComponent: () => import('./supplement-goal-page/supplement-goal-page').then((m) => m.SupplementGoalPage),
+  },
   {
     path: 'watchlist',
     loadComponent: () => import('./favorites-page/favorites-page').then((m) => m.FavoritesPage),

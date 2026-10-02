@@ -16,6 +16,7 @@ import { slugify } from './app/core/slugify';
 import { ssrCacheKey } from './app/core/ssr-cache-key';
 import { BODY_CALCULATORS } from './app/core/body-calculators';
 import { SUPPLEMENT_DOSAGES } from './app/core/supplement-dosages';
+import { FINDER_PATH, SUPPLEMENT_GOALS } from './app/core/supplement-goals';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
@@ -203,6 +204,12 @@ app.get(`${BASE_PATH}/sitemap.xml`, async (req, res) => {
       ).join('') +
       BODY_CALCULATORS.map(
         (c) => `<url><loc>${origin}/calculators/${c.slug}</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>`,
+      ).join('') +
+      // The "Which supplement?" quiz and its goal pages. The product lists on
+      // the goal pages can change with every scan, hence weekly.
+      `<url><loc>${origin}${FINDER_PATH}</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>` +
+      SUPPLEMENT_GOALS.map(
+        (g) => `<url><loc>${origin}${FINDER_PATH}/${g.slug}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`,
       ).join('');
 
     // Brand comparison pages: every brand pair, in alphabetical order (the

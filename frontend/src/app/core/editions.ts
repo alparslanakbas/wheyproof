@@ -39,6 +39,9 @@ const SHARED_ROUTES: readonly RegExp[] = [
   /^\/category\/[a-z0-9-]+$/,
   /^\/brands$/,
   /^\/calculators(\/[a-z0-9-]+)?$/,
+  // The quiz and its goal pages are the same content in every edition; only
+  // the product lists come from each edition's own catalog.
+  /^\/which-supplement(\/[a-z0-9-]+)?$/,
   /^\/glossary$/,
   /^\/how-it-works$/,
   /^\/about$/,

@@ -1,5 +1,7 @@
 <header class="pa-topbar">
-  <div class="pa-container flex min-h-[76px] items-center gap-5">
+  <!-- Tighter gaps on phones: logo, quiz link, country switcher and theme
+       toggle have to share one row down to 360 px. -->
+  <div class="pa-container flex min-h-[76px] items-center gap-2.5 sm:gap-5">
     <a routerLink="/" class="mr-auto flex shrink-0 items-center">
       <img src="brand/logo@2x.png" srcset="brand/logo@2x.png 2x, brand/logo@3x.png 3x" width="235" height="36" alt="WheyProof" class="h-7 w-auto sm:h-9">
     </a>
@@ -41,6 +43,7 @@
       </div>
 
       <a routerLink="/brands" routerLinkActive="is-active" class="pa-nav-link">Brands</a>
+      <a routerLink="/which-supplement" routerLinkActive="is-active" class="pa-nav-link">Which supplement?</a>
 
       <div class="relative">
         <button type="button" class="flex items-center gap-1.5 hover:text-white" [class.text-white]="calculatorsOpen()" (click)="toggleCalculators()">
@@ -61,6 +64,15 @@
       </div>
       <a routerLink="/guides" routerLinkActive="text-white" class="hover:text-white">Guides</a>
     </nav>
+
+    <!-- The menu is hidden below lg; the quiz stays reachable from the header on
+         phones too (the bottom tab bar is full). With the country switcher the
+         full label only fits from md (measured): "Quiz" below it, the icon
+         alone below 375 px. The label is never aria-hidden or replaced by an
+         aria-label, so the accessible name always matches what is shown. -->
+    <a routerLink="/which-supplement" routerLinkActive="border-[#8879f6]/70 text-white" class="inline-flex h-10 items-center gap-1 rounded-[9px] border border-white/15 px-2 text-xs font-medium text-[#e3e5f0] hover:border-[#8879f6]/70 hover:text-white md:gap-1.5 md:px-3 lg:hidden">
+      <i class="ph ph-compass text-[16px]" aria-hidden="true"></i><span class="max-[374px]:sr-only md:hidden">Quiz</span><span class="hidden md:inline">Which supplement?</span>
+    </a>
 
     <app-edition-switcher />
 
