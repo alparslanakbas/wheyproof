@@ -43,4 +43,8 @@ public static class BackgroundJobNames
     // starts these, only an elapsed interval does.
     public const string ScrapeCycle = "scrape-cycle";
     public const string RatingRefresh = "rating-refresh";
+
+    // At a fixed hour (21:00 UTC) rather than an interval; a day cut off by a
+    // deploy or missed entirely runs at the next start (PersistedSchedule.RunDailyAsync).
+    public const string DailyScrape = "daily-scrape";
 }

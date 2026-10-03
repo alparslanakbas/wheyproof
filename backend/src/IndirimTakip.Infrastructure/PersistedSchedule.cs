@@ -24,6 +24,12 @@ namespace IndirimTakip.Infrastructure;
 /// deploy leaves the old stamp in place and the next start runs it again at
 /// once: an interrupted scrape saves nothing, and that day's prices mustn't wait
 /// a whole interval.
+///
+/// <b>DAILY JOBS (2026-10-04).</b> The daily scrape runs at a fixed hour and used
+/// to wait for the next 21:00 in process memory: a deploy that cut it off meant
+/// no scrape until the next day (on the Turkish site a dealer's nightly data was
+/// lost that way). <see cref="RunDailyAsync"/> uses the same stamp: if the last
+/// completion is before the latest scheduled hour, the job runs at once.
 /// </remarks>
 public static class PersistedSchedule
 {
@@ -38,13 +44,49 @@ public static class PersistedSchedule
     }
 
     /// <summary>
+    /// How long until a job that runs every day at <paramref name="runAtUtcHour"/> is
+    /// due. Zero if it hasn't completed since the latest scheduled hour (a deploy cut
+    /// it off, the server was down). With no record (the job's first start on this
+    /// schedule), the next scheduled hour: a midday deploy shouldn't start the
+    /// nightly scrape.
+    /// </summary>
+    internal static TimeSpan TimeUntilDailyDue(DateTimeOffset? lastCompleted, int runAtUtcHour, DateTimeOffset now)
+    {
+        var today = new DateTimeOffset(now.UtcDateTime.Date.AddHours(runAtUtcHour), TimeSpan.Zero);
+        var latestScheduled = now >= today ? today : today.AddDays(-1);
+        if (lastCompleted is not null && lastCompleted < latestScheduled)
+            return TimeSpan.Zero;
+
+        return latestScheduled.AddDays(1) - now;
+    }
+
+    /// <summary>
     /// Waits until the job is due, runs it, records the completion, and repeats
     /// until the host stops. <paramref name="run"/> is called with a fresh scope.
     /// </summary>
-    public static async Task RunAsync(
+    public static Task RunAsync(
         IServiceScopeFactory scopeFactory,
         string jobName,
         TimeSpan interval,
+        ILogger logger,
+        Func<IServiceProvider, CancellationToken, Task> run,
+        CancellationToken stoppingToken) =>
+        RunCoreAsync(scopeFactory, jobName, (last, now) => TimeUntilDue(last, interval, now), logger, run, stoppingToken);
+
+    /// <summary>Like <see cref="RunAsync"/>, but every day at a fixed hour (UTC).</summary>
+    public static Task RunDailyAsync(
+        IServiceScopeFactory scopeFactory,
+        string jobName,
+        int runAtUtcHour,
+        ILogger logger,
+        Func<IServiceProvider, CancellationToken, Task> run,
+        CancellationToken stoppingToken) =>
+        RunCoreAsync(scopeFactory, jobName, (last, now) => TimeUntilDailyDue(last, runAtUtcHour, now), logger, run, stoppingToken);
+
+    private static async Task RunCoreAsync(
+        IServiceScopeFactory scopeFactory,
+        string jobName,
+        Func<DateTimeOffset?, DateTimeOffset, TimeSpan> timeUntilDue,
         ILogger logger,
         Func<IServiceProvider, CancellationToken, Task> run,
         CancellationToken stoppingToken)
@@ -54,7 +96,7 @@ public static class PersistedSchedule
             try
             {
                 var lastCompleted = await ReadLastCompletedAsync(scopeFactory, jobName, stoppingToken);
-                var wait = TimeUntilDue(lastCompleted, interval, DateTimeOffset.UtcNow);
+                var wait = timeUntilDue(lastCompleted, DateTimeOffset.UtcNow);
                 if (wait > TimeSpan.Zero)
                 {
                     logger.LogInformation(

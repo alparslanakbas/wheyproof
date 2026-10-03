@@ -1,4 +1,5 @@
 using IndirimTakip.Core.Caching;
+using IndirimTakip.Core.Entities;
 using IndirimTakip.Infrastructure.Deals;
 using IndirimTakip.Core.Scraping;
 using Microsoft.Extensions.Configuration;
@@ -22,68 +23,37 @@ namespace IndirimTakip.Infrastructure.Scraping;
 /// 6 hours would mean thousands of requests a day to the other server and would
 /// seriously raise the risk of being blocked.
 ///
-/// <b>NOTE:</b> no US store is DailyOnly yet, so this service currently has
-/// nothing to run.
+/// Scheduled in the database (see PersistedSchedule.RunDailyAsync): a scrape cut
+/// off by a deploy runs again at the next start instead of waiting a day.
+/// Myprotein (UK) is the only daily source so far; the US site has none.
 /// </summary>
 public class DailyScrapingBackgroundService(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
     ILogger<DailyScrapingBackgroundService> logger) : BackgroundService
 {
-    // 21:00 UTC, inherited from the Turkish site, where it was midnight local time
-    // (Turkey is a fixed UTC+3 with no daylight saving). It is NOT midnight in the
-    // US market. When a daily source is added, move this to the market's time
-    // zone; a fixed UTC hour won't do there, because America/New_York observes
-    // daylight saving time.
+    // 21:00 UTC, inherited from the Turkish site, where it is midnight local time.
+    // The hour means nothing in the US or UK market; what matters is one scrape
+    // per UTC day, which is also the day unit of the usual-price rule
+    // (PriceSummaryRefresher). A local hour with daylight saving would break that.
     private const int RunAtUtcHour = 21;
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
+        configuration.GetValue("Scraping:Enabled", true)
+            ? PersistedSchedule.RunDailyAsync(
+                scopeFactory, BackgroundJobNames.DailyScrape, RunAtUtcHour, logger, RunAsync, stoppingToken)
+            : Task.CompletedTask;
+
+    private async Task RunAsync(IServiceProvider services, CancellationToken cancellationToken)
     {
-        if (!configuration.GetValue("Scraping:Enabled", true))
-            return;
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            var delay = NextRunDelay(DateTimeOffset.UtcNow);
-            logger.LogInformation(
-                "Daily scrape runs in {Delay} ({Hour}:00 UTC).",
-                delay, RunAtUtcHour);
-
-            try
-            {
-                await Task.Delay(delay, stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
-
-            await RunAsync(stoppingToken);
-        }
-    }
-
-    /// <summary>
-    /// Time left until the next 21:00 UTC. An exact hit moves to the next day;
-    /// otherwise the scrape could fire again with zero delay right after finishing.
-    /// </summary>
-    internal static TimeSpan NextRunDelay(DateTimeOffset now)
-    {
-        var todaysRun = new DateTimeOffset(now.Year, now.Month, now.Day, RunAtUtcHour, 0, 0, TimeSpan.Zero);
-        var target = now < todaysRun ? todaysRun : todaysRun.AddDays(1);
-        return target - now;
-    }
-
-    private async Task RunAsync(CancellationToken cancellationToken)
-    {
-        using var scope = scopeFactory.CreateScope();
-        var scrapers = scope.ServiceProvider.GetServices<IBrandScraper>()
+        var scrapers = services.GetServices<IBrandScraper>()
             .Where(s => s.DailyOnly)
             .ToList();
 
         if (scrapers.Count == 0)
             return;
 
-        var ingestion = scope.ServiceProvider.GetRequiredService<ScrapeIngestionService>();
+        var ingestion = services.GetRequiredService<ScrapeIngestionService>();
         logger.LogInformation("Daily scrape started ({Count} sources).", scrapers.Count);
 
         foreach (var scraper in scrapers)
@@ -102,10 +72,10 @@ public class DailyScrapingBackgroundService(
 
         // The price summary goes FIRST: cache warming reads those fields, and the
         // reverse order would cache the old summary.
-        await scope.ServiceProvider.GetRequiredService<PriceSummaryRefresher>()
+        await services.GetRequiredService<PriceSummaryRefresher>()
             .RefreshAsync(cancellationToken);
 
-        await scope.ServiceProvider.GetRequiredService<IPublicCacheRefresher>()
+        await services.GetRequiredService<IPublicCacheRefresher>()
             .RefreshAsync(cancellationToken);
 
         logger.LogInformation("Daily scrape finished.");
