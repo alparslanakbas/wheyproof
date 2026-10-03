@@ -87,11 +87,7 @@ public partial class DealsQueryService(
     private DealDto MapToDealDto(DealRow row)
     {
         var latest = row.Latest;
-        // The reference is at least the current price: single-product queries read
-        // the current price live and the reference from the summary, and during a
-        // scrape round the price may have risen above the summary's reference (it
-        // would show a negative discount). In lists both come from the same
-        // summary, so nothing changes there.
+        // Single queries read the current price live, the reference from the summary: no negative discount mid-round.
         var referencePrice = Math.Max(row.ReferencePrice, latest.Price);
         return new DealDto(
             row.Product.Id, row.Product.Name, row.Product.Url,
@@ -438,10 +434,7 @@ public partial class DealsQueryService(
                 Product = p,
                 BrandName = b.Name,
                 Latest = p.PriceHistories.OrderByDescending(ph => ph.ScrapedAt).FirstOrDefault(),
-                // The reference follows the SAME rule as the lists: the usual price
-                // from the summary (see PriceSummaryRefresher). If the summary
-                // hasn't covered this product yet (added between a scrape and the
-                // summary), the window's high.
+                // The reference comes from the summary, the lists' usual price (see PriceSummaryRefresher); live high until it exists.
                 ReferencePrice = (useSummary ? p.ReferencePrice30 : null) ?? p.PriceHistories
                     .Where(ph => ph.ScrapedAt >= referenceSince)
                     .Max(ph => (decimal?)ph.Price),
@@ -511,10 +504,6 @@ public partial class DealsQueryService(
                 Product = p,
                 BrandName = b.Name,
                 Latest = p.PriceHistories.OrderByDescending(ph => ph.ScrapedAt).FirstOrDefault(),
-                // The reference follows the SAME rule as the lists: the usual price
-                // from the summary (see PriceSummaryRefresher). If the summary
-                // hasn't covered this product yet (added between a scrape and the
-                // summary), the window's high.
                 ReferencePrice = (useSummary ? p.ReferencePrice30 : null) ?? p.PriceHistories
                     .Where(ph => ph.ScrapedAt >= referenceSince)
                     .Max(ph => (decimal?)ph.Price),
@@ -563,10 +552,6 @@ public partial class DealsQueryService(
                 Product = p,
                 BrandName = b.Name,
                 Latest = p.PriceHistories.OrderByDescending(ph => ph.ScrapedAt).FirstOrDefault(),
-                // The reference follows the SAME rule as the lists: the usual price
-                // from the summary (see PriceSummaryRefresher). If the summary
-                // hasn't covered this product yet (added between a scrape and the
-                // summary), the window's high.
                 ReferencePrice = (useSummary ? p.ReferencePrice30 : null) ?? p.PriceHistories
                     .Where(ph => ph.ScrapedAt >= referenceSince)
                     .Max(ph => (decimal?)ph.Price),

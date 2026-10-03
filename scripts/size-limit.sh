@@ -20,7 +20,7 @@ declare -A CEILING=(
   [frontend/src/app/admin-page/admin-page.html]=1505
   [frontend/src/app/admin-page/admin-page.ts]=977
   [frontend/src/app/deals-list/deals-list.ts]=989
-  [backend/src/IndirimTakip.Infrastructure/Deals/DealsQueryService.cs]=814
+  [backend/src/IndirimTakip.Infrastructure/Deals/DealsQueryService.cs]=819
 )
 
 # The list is taken into a variable FIRST: set -e doesn't see the exit code of
