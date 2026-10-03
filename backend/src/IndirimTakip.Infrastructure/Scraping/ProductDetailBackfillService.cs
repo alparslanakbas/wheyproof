@@ -18,8 +18,11 @@ public class ProductDetailBackfillService(
     IEnumerable<IBrandScraper> scrapers,
     ILogger<ProductDetailBackfillService> logger)
 {
-    // Courtesy delay between product requests so the store isn't hammered.
-    private static readonly TimeSpan DelayBetweenProducts = TimeSpan.FromMilliseconds(750);
+    // Courtesy delay between product requests so the store isn't hammered. It was
+    // 750 ms; since Shopify rate-limited the server's address platform-wide on
+    // 2026-10-03, both product-page readers spread their requests to 5 s (see
+    // ProductRatingRefreshService).
+    private static readonly TimeSpan DelayBetweenProducts = TimeSpan.FromSeconds(5);
 
     // At most this many products are tried in one run. Progressing gradually
     // instead of pulling every gap at once keeps a run reasonably short and

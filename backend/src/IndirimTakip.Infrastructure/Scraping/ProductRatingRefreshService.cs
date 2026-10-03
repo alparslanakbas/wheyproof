@@ -22,9 +22,12 @@ public class ProductRatingRefreshService(
     IHttpClientFactory httpClientFactory,
     ILogger<ProductRatingRefreshService> logger)
 {
-    // Courtesy delay between requests so store sites aren't hammered; the same
-    // value as ProductDetailBackfillService.
-    private static readonly TimeSpan DelayBetweenProducts = TimeSpan.FromMilliseconds(750);
+    // Courtesy delay between requests; the same value as ProductDetailBackfillService.
+    // It was 750 ms: on 2026-10-03 Shopify rate-limited the server's address across
+    // the whole platform (429 even from stores we never scrape), each time after
+    // 80-page rating bursts at about one request a second. Runs are now daily
+    // (RatingRefresh:IntervalHours 6 -> 24) and the requests spread out.
+    private static readonly TimeSpan DelayBetweenProducts = TimeSpan.FromSeconds(5);
 
     // Each run refreshes this many of the products checked longest ago. A full
     // pass over the catalog spreads across days; ratings don't change noticeably
