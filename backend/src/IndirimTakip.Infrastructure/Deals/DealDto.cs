@@ -29,11 +29,12 @@ public record DealDto(
     decimal? StoreOldPrice,
     decimal? StoreDiscountPercent,
     DateTimeOffset ScrapedAt,
-    // Whether the current price equals the low of the same 30-day reference
-    // window (the Min counterpart of ReferencePrice's Max) AND the window really
-    // has a price spread (ThirtyDayLowPrice < ReferencePrice). Without the second
-    // condition a product whose price never changed (Min=Max=Latest) would
-    // trivially count as "at its 30-day low"; see DealsQueryService.MapToDealDto.
+    // Whether the current price equals the low of the same 30-day window AND that
+    // low is below the reference, the usual price (ThirtyDayLowPrice <
+    // ReferencePrice). Without the second condition a product whose price never
+    // changed (Min=Max=Latest) would trivially count as "at its 30-day low";
+    // since 2026-10-03 a product back at its usual price after a few days' spike
+    // doesn't count either; see DealsQueryService.MapToDealDto.
     bool IsAtThirtyDayLow,
     // The two fields below are filled ONLY by GetProductByIdAsync (single product
     // page); lists already hide frozen records, so there they mean nothing and

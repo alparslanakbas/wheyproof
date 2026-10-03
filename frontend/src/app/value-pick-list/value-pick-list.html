@@ -69,7 +69,7 @@
                   @if (pick.isAtThirtyDayLow) {
                     <span class="pa-positive-badge whitespace-nowrap" title="The lowest price in our last 30 days of price history">Lowest in 30 days</span>
                   } @else if (pick.discountPercent > 0) {
-                    <span class="pa-positive-badge whitespace-nowrap" title="Against the highest price of the last 30 days, from our own price history">Real discount -{{ pick.discountPercent }}%</span>
+                    <span class="pa-positive-badge whitespace-nowrap" title="Against the highest price seen for at least a week in the last 30 days, from our own price history">Real discount -{{ pick.discountPercent }}%</span>
                   }
                 </div>
               </div>

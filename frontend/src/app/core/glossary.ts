@@ -285,7 +285,7 @@ export const GLOSSARY: GlossaryGroup[] = [
         term: `Real Price Drop (${SITE_NAME} definition)`,
         slug: 'real-price-drop',
         definition:
-          'A product whose current price is genuinely below its highest price in the last 30 days. It rests on ' +
+          'A product whose current price is genuinely below the highest price it held for at least a week in the last 30 days. It rests on ' +
           `the price history we collect, not on the store's own "was/now" claim; ${SITE_NAME} shows the two ` +
           'separately as "Real price drops" and "Store sales".',
       },

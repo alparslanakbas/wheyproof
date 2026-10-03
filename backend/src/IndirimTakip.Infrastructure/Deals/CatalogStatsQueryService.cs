@@ -60,6 +60,7 @@ public sealed class CatalogStatsQueryService(AppDbContext db)
     public async Task<HomepageStatsDto> GetHomepageStatsAsync(int referenceWindowDays = 30, CancellationToken cancellationToken = default)
     {
         var referenceSince = DateTimeOffset.UtcNow.AddDays(-referenceWindowDays);
+        var useSummary = referenceWindowDays == PriceSummaryRefresher.WindowDays;
         var staleSince = DateTimeOffset.UtcNow.Subtract(DealsQueryService.StaleThreshold);
 
         // Hide frozen/ghost products; see the comment on StaleThreshold.
@@ -80,7 +81,10 @@ public sealed class CatalogStatsQueryService(AppDbContext db)
         var statsQuery = activeProducts.Select(p => new
         {
             Latest = p.PriceHistories.OrderByDescending(ph => ph.ScrapedAt).Select(ph => (decimal?)ph.Price).FirstOrDefault(),
-            ReferencePrice = p.PriceHistories.Where(ph => ph.ScrapedAt >= referenceSince).Max(ph => (decimal?)ph.Price),
+            // The reference matches the lists: the summary's usual price, or the
+            // window's high when there's no summary yet (see PriceSummaryRefresher).
+            ReferencePrice = (useSummary ? p.ReferencePrice30 : null)
+                ?? p.PriceHistories.Where(ph => ph.ScrapedAt >= referenceSince).Max(ph => (decimal?)ph.Price),
             ThirtyDayLowPrice = p.PriceHistories.Where(ph => ph.ScrapedAt >= referenceSince).Min(ph => (decimal?)ph.Price),
         });
 
@@ -107,6 +111,7 @@ public sealed class CatalogStatsQueryService(AppDbContext db)
         string brandName, int referenceWindowDays = 30, string? category = null, CancellationToken cancellationToken = default)
     {
         var referenceSince = DateTimeOffset.UtcNow.AddDays(-referenceWindowDays);
+        var useSummary = referenceWindowDays == PriceSummaryRefresher.WindowDays;
         var staleSince = DateTimeOffset.UtcNow.Subtract(DealsQueryService.StaleThreshold);
 
         var activeProducts = (
@@ -122,7 +127,10 @@ public sealed class CatalogStatsQueryService(AppDbContext db)
         var statsQuery = activeProducts.Select(p => new
         {
             Latest = p.PriceHistories.OrderByDescending(ph => ph.ScrapedAt).Select(ph => (decimal?)ph.Price).FirstOrDefault(),
-            ReferencePrice = p.PriceHistories.Where(ph => ph.ScrapedAt >= referenceSince).Max(ph => (decimal?)ph.Price),
+            // The reference matches the lists: the summary's usual price, or the
+            // window's high when there's no summary yet (see PriceSummaryRefresher).
+            ReferencePrice = (useSummary ? p.ReferencePrice30 : null)
+                ?? p.PriceHistories.Where(ph => ph.ScrapedAt >= referenceSince).Max(ph => (decimal?)ph.Price),
             ThirtyDayLowPrice = p.PriceHistories.Where(ph => ph.ScrapedAt >= referenceSince).Min(ph => (decimal?)ph.Price),
         });
 

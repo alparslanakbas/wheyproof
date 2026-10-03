@@ -41,11 +41,11 @@ function priceParagraph(deal: Deal, discountEventCount?: number): string {
       `${name} is ${formatPrice(deal.currentPrice)} right now, the lowest price we measured in the last 30 days.`,
     );
     sentences.push(
-      `In the same period we also saw ${formatPrice(deal.referencePrice)}; today's price is ${deal.discountPercent}% below that.`,
+      `In the same period we saw ${formatPrice(deal.referencePrice)} for at least a week; today's price is ${deal.discountPercent}% below that.`,
     );
   } else if (deal.discountPercent > 0) {
     sentences.push(
-      `${name} is ${formatPrice(deal.currentPrice)} right now. The highest price we measured in the last 30 days was ${formatPrice(deal.referencePrice)}, so this is ${deal.discountPercent}% below the reference.`,
+      `${name} is ${formatPrice(deal.currentPrice)} right now. In the last 30 days we saw ${formatPrice(deal.referencePrice)} for at least a week, so this is ${deal.discountPercent}% below the reference.`,
     );
   } else {
     sentences.push(

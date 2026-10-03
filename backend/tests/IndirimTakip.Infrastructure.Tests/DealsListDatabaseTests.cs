@@ -100,24 +100,36 @@ public sealed class DealsListDatabase : IAsyncLifetime
             return product;
         }
 
+        // A real discount: the earlier price held for at least a week (the usual
+        // price), then a drop.
+        static decimal[] Week(decimal earlier, decimal latest) =>
+            [.. Enumerable.Repeat(earlier, PriceSummaryRefresher.UsualPriceDays), latest];
+
         // Visible products. Deliberately tricky: the same name on two sellers
         // (without a tie-breaker the order shifts between pages), mixed case.
         for (var i = 1; i <= 8; i++)
-            Add(naked, $"Naked Whey {i} lb", "protein-powder", null, 60m + i, 50m + i);
+            Add(naked, $"Naked Whey {i} lb", "protein-powder", null, Week(60m + i, 50m + i));
         for (var i = 1; i <= 5; i++)
             Add(naked, $"Naked Creatine {i}", "creatine", null, 30m);
-        Add(naked, "VITAMIN D3 5000 IU", "vitamins", null, 20m, 15m);
+        Add(naked, "VITAMIN D3 5000 IU", "vitamins", null, Week(20m, 15m));
         Add(naked, "Vitamin C", "vitamins", null, 12m);
         Add(naked, "Naked EAA", "amino-acids", null, 25m, 28m);
+
+        // Visible but NOT discounted (the 2026-10-03 rule): the earlier price
+        // was seen for less than a week. The old calculation (the 30-day high)
+        // counted both as discounted; the spiked one would have shown 75%.
+        Add(naked, "Short History Drop", "creatine", null, 30m, 25m);
+        Add(naked, "Spiked Creatine", "creatine", null,
+            [.. Enumerable.Repeat(50m, 8), 200m, 200m, 50m]);
 
         // Same name, same price, two retailers: the sort keys are identical.
         for (var i = 0; i < 4; i++)
         {
-            Add(optimum, "Gold Standard 100% Whey 5 lb", "protein-powder", "amazon.com", 80m, 75m);
-            Add(optimum, "Gold Standard 100% Whey 5 lb", "protein-powder", "bodybuilding.com", 80m, 75m);
+            Add(optimum, "Gold Standard 100% Whey 5 lb", "protein-powder", "amazon.com", Week(80m, 75m));
+            Add(optimum, "Gold Standard 100% Whey 5 lb", "protein-powder", "bodybuilding.com", Week(80m, 75m));
         }
         Add(vivo, "Vivo Life Perform", null, null, 55m);
-        Add(vivo, "Vivo Life Magnesium", "vitamins", "vivolife.com", 18m, 14m);
+        Add(vivo, "Vivo Life Magnesium", "vitamins", "vivolife.com", Week(18m, 14m));
 
         VisibleProducts = n;
         DiscountedProducts = 8 + 1 + 8 + 1; // wheys, D3, Gold Standards, magnesium
@@ -216,6 +228,51 @@ public class DealsListDatabaseTests(DealsListDatabase data) : IClassFixture<Deal
 
         Assert.Equal(data.DiscountedProducts, result.TotalCount);
         Assert.All(result.Items, d => Assert.True(d.DiscountPercent > 0, d.ProductName));
+        Assert.DoesNotContain(result.Items, d => d.ProductName is "Short History Drop" or "Spiked Creatine");
+    }
+
+    // A product with no usual price stays in the list with a 0 discount: the
+    // reference is the current price. A NULL reference would have made the list
+    // query drop the product entirely.
+    [DatabaseFact]
+    public async Task Short_history_product_stays_listed_with_zero_discount()
+    {
+        await using var db = data.Context();
+
+        var result = await Get(Service(db), null, null, null, false, 1, 100);
+
+        var shortHistory = Assert.Single(result.Items, d => d.ProductName == "Short History Drop");
+        Assert.Equal(0m, shortHistory.DiscountPercent);
+        Assert.Equal(shortHistory.CurrentPrice, shortHistory.ReferencePrice);
+        var spiked = Assert.Single(result.Items, d => d.ProductName == "Spiked Creatine");
+        Assert.Equal(50m, spiked.ReferencePrice);
+    }
+
+    // The product page, favorites and stats computed the reference themselves
+    // (the window's high): on the Turkish site the first version moved only the
+    // lists to the usual price and the product page kept showing the spiked
+    // product's old percentage. The same product must show the same reference
+    // everywhere.
+    [DatabaseFact]
+    public async Task Product_page_favorites_and_stats_use_the_list_reference()
+    {
+        await using var db = data.Context();
+        var service = Service(db);
+        var spiked = await db.Products.Where(p => p.Name == "Spiked Creatine").Select(p => p.Id).SingleAsync();
+        var shortHistory = await db.Products.Where(p => p.Name == "Short History Drop").Select(p => p.Id).SingleAsync();
+
+        var product = await service.GetProductByIdAsync(spiked);
+        Assert.NotNull(product);
+        Assert.Equal(50m, product.ReferencePrice);
+        Assert.Equal(0m, product.DiscountPercent);
+
+        var favorites = await service.GetDealsByIdsAsync([spiked, shortHistory]);
+        Assert.Equal(2, favorites.Count);
+        Assert.All(favorites, d => Assert.Equal(0m, d.DiscountPercent));
+
+        var catalog = new CatalogStatsQueryService(db);
+        Assert.Equal(data.DiscountedProducts, (await catalog.GetHomepageStatsAsync()).DiscountCount);
+        Assert.Equal(8 + 1, (await catalog.GetBrandStatsAsync("Naked Nutrition")).DiscountCount); // wheys, D3
     }
 
     [DatabaseFact]

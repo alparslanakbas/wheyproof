@@ -80,7 +80,7 @@ const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: 'What is the difference between "Real price drops" and "Store sales"?',
     answer:
-      '"Real price drops" are based on the price history we collect: a product is listed when its current price is below its highest price in the last 30 days. "Store sales" show the old and new prices a store displays on its own site, which we have not verified yet.',
+      '"Real price drops" are based on the price history we collect: a product is listed when its current price is below the highest price we saw for at least a week in the last 30 days. "Store sales" show the old and new prices a store displays on its own site, which we have not verified yet.',
   },
   {
     question: 'How often are prices updated?',

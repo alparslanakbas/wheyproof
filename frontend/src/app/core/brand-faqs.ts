@@ -107,7 +107,7 @@ export function buildBrandFaqs(input: BrandFaqInput): FaqItem[] {
     {
       question: 'Are the discounts here the brand\'s own sales?',
       answer:
-        'The "Real price drops" figures come from the price history we collect: a product counts as discounted when its current price is below the highest price we saw in the last 30 days. "Store sales" show the old and new prices the store displays on its own site; we don\'t verify those and label them separately. We keep the two apart on purpose.',
+        'The "Real price drops" figures come from the price history we collect: a product counts as discounted when its current price is below the highest price we saw for at least a week in the last 30 days, so a price spike that lasts only a few days doesn't create a discount. "Store sales" show the old and new prices the store displays on its own site; we don\'t verify those and label them separately. We keep the two apart on purpose.',
     },
     {
       question: `How often are ${brandName} prices updated?`,
