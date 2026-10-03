@@ -46,6 +46,7 @@ const BRANDS_WITH_LOCAL_LOGO: ReadonlySet<string> = new Set<string>([
   'momentous',
   'musclepharm',
   'muscletech',
+  'myprotein',
   'naked-nutrition',
   'nutricost',
   'optimum-nutrition',
