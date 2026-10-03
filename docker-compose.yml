@@ -238,6 +238,10 @@ services:
       # links until then; the template is the ON UK one with the programme ID swapped.
       - Affiliate__Rules__4__Host=33fuel.com
       - Affiliate__Rules__4__Link=${AFFILIATE_UK_33FUEL:-}
+      # Joined by 2026-10-03 (Awin 3196); its products arrive with the Myprotein
+      # scraper in the same change. Same template, programme ID swapped.
+      - Affiliate__Rules__5__Host=myprotein.com
+      - Affiliate__Rules__5__Link=${AFFILIATE_UK_MYPROTEIN:-}
       - PublicBaseUrl=https://uk-api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com/uk
       - ProductImages__Enabled=true

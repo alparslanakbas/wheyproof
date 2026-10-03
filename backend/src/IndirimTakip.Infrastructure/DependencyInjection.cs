@@ -123,6 +123,28 @@ public static class DependencyInjection
                 sp.GetRequiredService<ILogger<Scraping.PrestaShop.PrestaShopStoreScraper>>()));
         }
 
+        // Myprotein (UK only): THG's own platform, one page per product, read once a
+        // day (see MyproteinScraper). Still the public-network handler, with
+        // compression on: a page is about 1 MB unpacked and 120 kB packed. Redirects
+        // stay on, because listings link older slugs that redirect to the product's
+        // canonical address.
+        if (market == SiteMarket.Uk)
+        {
+            services.AddHttpClient(Scraping.Myprotein.MyproteinScraper.HttpClientName, client =>
+            {
+                client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+                client.Timeout = TimeSpan.FromSeconds(60);
+            }).ConfigurePrimaryHttpMessageHandler(() =>
+            {
+                var handler = PublicNetworkConnection.CreateHandler();
+                handler.AutomaticDecompression = System.Net.DecompressionMethods.All;
+                return handler;
+            });
+            services.AddScoped<IBrandScraper>(sp => new Scraping.Myprotein.MyproteinScraper(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient(Scraping.Myprotein.MyproteinScraper.HttpClientName),
+                sp.GetRequiredService<ILogger<Scraping.Myprotein.MyproteinScraper>>()));
+        }
+
         // Notifies search engines of page changes (IndexNow: Bing and others).
         services.AddHttpClient<IndexNowClient>(client =>
         {
