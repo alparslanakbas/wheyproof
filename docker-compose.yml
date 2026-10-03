@@ -234,6 +234,10 @@ services:
       # is not live in the US"). Only UK products are on bulk.com (/uk/products/).
       - Affiliate__Rules__3__Host=bulk.com
       - Affiliate__Rules__3__Link=${AFFILIATE_UK_BULK:-}
+      # Joined by 2026-10-03 (Awin 29527). Its 27 products were listed with plain
+      # links until then; the template is the ON UK one with the programme ID swapped.
+      - Affiliate__Rules__4__Host=33fuel.com
+      - Affiliate__Rules__4__Link=${AFFILIATE_UK_33FUEL:-}
       - PublicBaseUrl=https://uk-api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com/uk
       - ProductImages__Enabled=true
