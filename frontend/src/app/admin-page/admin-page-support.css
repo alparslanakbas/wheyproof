@@ -623,6 +623,11 @@
   background: var(--noc-accent);
   color: var(--noc-bg);
 }
+/* An action that can't be undone, such as a permanent delete. */
+.row-action.danger {
+  border-color: var(--pa-negative);
+  color: var(--pa-negative);
+}
 .row-action:disabled {
   opacity: 0.55;
 }

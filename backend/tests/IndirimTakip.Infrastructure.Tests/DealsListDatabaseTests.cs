@@ -1,7 +1,9 @@
 using IndirimTakip.Core.Entities;
 using IndirimTakip.Infrastructure.Deals;
 using IndirimTakip.Infrastructure.Images;
+using IndirimTakip.Infrastructure.Subscribers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -299,5 +301,90 @@ public class DealsListDatabaseTests(DealsListDatabase data) : IClassFixture<Deal
         Assert.All(retailers.Items, d => Assert.NotNull(d.Seller));
         Assert.All(own.Items, d => Assert.Null(d.Seller));
         Assert.Equal(data.VisibleProducts, retailers.TotalCount + own.TotalCount);
+    }
+
+    // The admin subscriber list (2026-10-04): page, status filter and email search run
+    // in the query. The test adds its own subscribers with a "list-" prefix so other
+    // tests' rows don't change the counts.
+    [DatabaseFact]
+    public async Task Subscriber_list_pages_filters_and_searches()
+    {
+        await using var db = data.Context();
+        var now = DateTimeOffset.UtcNow;
+        for (var i = 1; i <= 12; i++)
+        {
+            // i % 3: 0 active, 1 pending, 2 unsubscribed; four of each.
+            db.Subscribers.Add(new Subscriber
+            {
+                Email = $"list-{i:00}@example.test",
+                Token = Guid.NewGuid().ToString("N"),
+                IsConfirmed = i % 3 == 0,
+                SubscribedAt = now.AddMinutes(-i),
+                UnsubscribedAt = i % 3 == 2 ? now : null,
+            });
+        }
+        await db.SaveChangesAsync();
+        var service = Subscribers(db);
+
+        var first = await service.ListForAdminAsync("list-", null, 1, 10);
+        var second = await service.ListForAdminAsync("list-", null, 2, 10);
+        Assert.Equal(12, first.Total);
+        Assert.Equal(10, first.Subscribers.Count);
+        Assert.Equal(2, second.Subscribers.Count);
+        Assert.Equal("list-01@example.test", first.Subscribers[0].Email); // newest first
+        Assert.Equal(12, first.Subscribers.Concat(second.Subscribers).Select(s => s.Id).Distinct().Count());
+
+        foreach (var status in new[] { SubscriberStatus.Active, SubscriberStatus.Pending, SubscriberStatus.Unsubscribed })
+        {
+            var filtered = await service.ListForAdminAsync("list-", status, 1, 50);
+            Assert.Equal(4, filtered.Total);
+            Assert.All(filtered.Subscribers, s => Assert.Equal(status, s.Status));
+        }
+
+        // An uppercase search must match too.
+        var single = await service.ListForAdminAsync("LIST-07", null, 1, 50);
+        Assert.Equal("list-07@example.test", Assert.Single(single.Subscribers).Email);
+    }
+
+    // Permanent delete: the watchlist and favorites go through the cascade, another
+    // subscriber's rows stay. The constraint lives in the database (migration), not in code.
+    [DatabaseFact]
+    public async Task Deleting_a_subscriber_removes_their_watches_and_favorites()
+    {
+        await using var db = data.Context();
+        var product = await db.Products.OrderBy(p => p.Id).FirstAsync();
+        Subscriber New(string email) => new()
+        {
+            Email = email, Token = Guid.NewGuid().ToString("N"), IsConfirmed = true, SubscribedAt = DateTimeOffset.UtcNow,
+        };
+        var troll = New("delete-troll@example.test");
+        var real = New("delete-real@example.test");
+        db.Subscribers.AddRange(troll, real);
+        await db.SaveChangesAsync();
+        db.ProductWatches.AddRange(
+            new ProductWatch { SubscriberId = troll.Id, ProductId = product.Id, CreatedAt = DateTimeOffset.UtcNow },
+            new ProductWatch { SubscriberId = real.Id, ProductId = product.Id, CreatedAt = DateTimeOffset.UtcNow });
+        db.ProductFavorites.Add(new ProductFavorite { SubscriberId = troll.Id, ProductId = product.Id, CreatedAt = DateTimeOffset.UtcNow });
+        await db.SaveChangesAsync();
+
+        var service = Subscribers(db);
+        Assert.True(await service.DeleteAsync(troll.Id));
+        Assert.False(await service.DeleteAsync(troll.Id)); // the second time: gone
+
+        await using var check = data.Context();
+        Assert.False(await check.Subscribers.AnyAsync(s => s.Id == troll.Id));
+        Assert.False(await check.ProductWatches.IgnoreQueryFilters().AnyAsync(w => w.SubscriberId == troll.Id));
+        Assert.False(await check.ProductFavorites.IgnoreQueryFilters().AnyAsync(f => f.SubscriberId == troll.Id));
+        Assert.True(await check.ProductWatches.IgnoreQueryFilters().AnyAsync(w => w.SubscriberId == real.Id));
+    }
+
+    private static SubscriberService Subscribers(AppDbContext db) =>
+        new(db, new NoEmail(), new ConfigurationBuilder().Build(), NullLogger<SubscriberService>.Instance);
+
+    // Listing and deleting send no email; if they do, the test should catch it.
+    private sealed class NoEmail : IEmailSender
+    {
+        public Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("This test must not send email.");
     }
 }

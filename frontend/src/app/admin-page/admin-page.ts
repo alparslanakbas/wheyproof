@@ -1,8 +1,10 @@
-import { isPlatformBrowser } from '@angular/common';
+import { NgTemplateOutlet, isPlatformBrowser } from '@angular/common';
 import { Component, OnInit, PLATFORM_ID, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AdminEditorFocus } from './admin-editor-focus';
 import { AdminFailureReason } from './admin-failure-reason';
+import { Pagination, visiblePages } from './pagination';
+import { SubscriberAdmin } from './subscriber-admin';
 import {
   DataDrafts,
   NutritionField,
@@ -31,15 +33,11 @@ import {
   AdminProduct,
   AdminService,
   AdminStatus,
-  AdminSubscriber,
   Coupon,
   SecurityEventsResponse,
-  SubscriberStatus,
-  SubscribersResponse,
 } from './admin.service';
 
 type Tab = 'status' | 'events' | 'coupons' | 'visibility' | 'subscribers';
-type SubscriberFilter = 'all' | SubscriberStatus;
 type VisibilityView = 'brands' | 'products';
 type BrandFilter = 'all' | 'visible' | 'hidden';
 
@@ -60,7 +58,7 @@ const BRAND_PAGE_SIZE = 5;
  */
 @Component({
   selector: 'app-admin-page',
-  imports: [FormsModule, AdminEditorFocus, AdminFailureReason],
+  imports: [FormsModule, NgTemplateOutlet, AdminEditorFocus, AdminFailureReason],
   templateUrl: './admin-page.html',
   styleUrls: [
     './admin-page.css',
@@ -141,11 +139,14 @@ export class AdminPage implements OnInit {
   readonly productPageCount = computed(() =>
     Math.max(1, Math.ceil(this.productTotal() / Math.max(1, this.productPageSize()))),
   );
-  readonly visibleProductPages = computed(() => {
-    const total = this.productPageCount();
-    const start = Math.min(Math.max(1, this.productPage() - 2), Math.max(1, total - 4));
-    return Array.from({ length: Math.min(5, total) }, (_, index) => start + index);
-  });
+  readonly productPagination = computed<Pagination>(() => ({
+    summary: `${this.productRangeStart()}–${this.productRangeEnd()} of ${this.productTotal()} rows`,
+    page: this.productPage(),
+    pageCount: this.productPageCount(),
+    pages: visiblePages(this.productPage(), this.productPageCount()),
+    busy: this.productsLoading(),
+    goTo: (page) => this.goToProductPage(page),
+  }));
   readonly productRangeStart = computed(
     () => (this.productPage() - 1) * this.productPageSize() + 1,
   );
@@ -179,22 +180,8 @@ export class AdminPage implements OnInit {
   readonly pendingChange = signal<PendingVisibilityChange | null>(null);
   readonly changeInProgress = signal(false);
 
-  readonly subscriberData = signal<SubscribersResponse | null>(null);
-  readonly subscribersLoading = signal(false);
-  readonly subscriberSearch = signal('');
-  readonly subscriberFilter = signal<SubscriberFilter>('all');
-  readonly subscriberMessage = signal<string | null>(null);
-  readonly pendingDeactivation = signal<AdminSubscriber | null>(null);
-  /** Id of the row whose request is running, so only that row's buttons disable. */
-  readonly subscriberBusyId = signal<number | null>(null);
-
-  readonly filteredSubscribers = computed(() => {
-    const query = this.subscriberSearch().trim().toLowerCase();
-    const filter = this.subscriberFilter();
-    return (this.subscriberData()?.subscribers ?? []).filter(
-      (s) => (filter === 'all' || s.status === filter) && (!query || s.email.includes(query)),
-    );
-  });
+  /** The Subscribers tab (paging, deactivate, permanent delete): see subscriber-admin.ts. */
+  readonly subscribers = new SubscriberAdmin(this.api, (e, fallback) => this.errorText(e, fallback));
 
   readonly filteredBrands = computed(() => {
     const query = normalizeSearchText(this.brandSearch());
@@ -216,12 +203,14 @@ export class AdminPage implements OnInit {
     return this.filteredBrands().slice(start, start + BRAND_PAGE_SIZE);
   });
 
-  readonly visibleBrandPages = computed(() => {
-    const total = this.brandPageCount();
-    const current = this.brandPage();
-    const start = Math.min(Math.max(1, current - 2), Math.max(1, total - 4));
-    return Array.from({ length: Math.min(5, total) }, (_, index) => start + index);
-  });
+  readonly brandPagination = computed<Pagination>(() => ({
+    summary: `${this.brandRangeStart()}–${this.brandRangeEnd()} of ${this.filteredBrands().length} brands`,
+    page: this.brandPage(),
+    pageCount: this.brandPageCount(),
+    pages: visiblePages(this.brandPage(), this.brandPageCount()),
+    busy: false,
+    goTo: (page) => this.goToBrandPage(page),
+  }));
 
   readonly brandRangeStart = computed(() => (this.brandPage() - 1) * BRAND_PAGE_SIZE + 1);
   readonly brandRangeEnd = computed(() =>
@@ -312,7 +301,7 @@ export class AdminPage implements OnInit {
         this.editingCoupon.set(null);
         this.brands.set([]);
         this.products.set([]);
-        this.subscriberData.set(null);
+        this.subscribers.data.set(null);
         this.brandsLoadedOnce = false;
         leaveAccess();
       },
@@ -332,90 +321,7 @@ export class AdminPage implements OnInit {
     }
     // Loaded on every visit, not once: a subscription can be confirmed from
     // an inbox while the panel is open.
-    if (tab === 'subscribers') this.loadSubscribers();
-  }
-
-  loadSubscribers(): void {
-    this.subscribersLoading.set(true);
-    this.api.subscribers().subscribe({
-      next: (data) => {
-        this.subscriberData.set(data);
-        this.subscribersLoading.set(false);
-      },
-      error: (e) => {
-        this.subscribersLoading.set(false);
-        this.subscriberMessage.set(this.errorText(e, "Couldn't load subscribers."));
-      },
-    });
-  }
-
-  /** Deactivating stops someone's email; it asks first, like hiding a brand. */
-  requestDeactivation(subscriber: AdminSubscriber): void {
-    this.subscriberMessage.set(null);
-    this.pendingDeactivation.set(subscriber);
-  }
-
-  cancelDeactivation(): void {
-    if (this.subscriberBusyId() !== null) return;
-    this.pendingDeactivation.set(null);
-  }
-
-  confirmDeactivation(): void {
-    const subscriber = this.pendingDeactivation();
-    if (!subscriber) return;
-
-    this.subscriberBusyId.set(subscriber.id);
-    this.api.deactivateSubscriber(subscriber.id).subscribe({
-      next: () => {
-        this.subscriberBusyId.set(null);
-        this.pendingDeactivation.set(null);
-        this.subscriberMessage.set(`${subscriber.email} is no longer subscribed.`);
-        this.loadSubscribers();
-      },
-      error: (e) => {
-        this.subscriberBusyId.set(null);
-        this.pendingDeactivation.set(null);
-        this.subscriberMessage.set(this.errorText(e, "Couldn't deactivate the subscriber."));
-      },
-    });
-  }
-
-  sendConfirmation(subscriber: AdminSubscriber): void {
-    this.subscriberMessage.set(null);
-    this.subscriberBusyId.set(subscriber.id);
-    this.api.sendSubscriberConfirmation(subscriber.id).subscribe({
-      next: () => {
-        this.subscriberBusyId.set(null);
-        this.subscriberMessage.set(`Confirmation email sent to ${subscriber.email}.`);
-        this.loadSubscribers();
-      },
-      error: (e) => {
-        this.subscriberBusyId.set(null);
-        // The backend explains the cooldown and provider failures in its own
-        // words; a generic "failed" would hide which one happened.
-        const body = (e as { error?: unknown } | null)?.error;
-        const message =
-          typeof body === 'string' ? body : (body as { message?: string } | null)?.message;
-        this.subscriberMessage.set(
-          message?.trim() || this.errorText(e, "Couldn't send the confirmation email."),
-        );
-      },
-    });
-  }
-
-  selectSubscriberFilter(filter: SubscriberFilter): void {
-    this.subscriberFilter.set(filter);
-  }
-
-  subscriberStatusLabel(status: SubscriberStatus): string {
-    switch (status) {
-      case 'active':
-        return 'Active';
-      case 'pending':
-        return 'Awaiting confirmation';
-      default:
-        return 'Unsubscribed';
-    }
+    if (tab === 'subscribers') this.subscribers.load();
   }
 
   loadStatus(): void {

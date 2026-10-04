@@ -13,8 +13,17 @@ describe('AdminPage visibility safety', () => {
     setProductActive: vi.fn(() => of({ id: 34, name: 'Sample product', isActive: false })),
     brands: vi.fn(() => of([])),
     products: vi.fn((..._args: unknown[]) => of({ items: [] as unknown[], total: 0, page: 1, pageSize: 50 })),
-    subscribers: vi.fn(() => of({ subscribers: [], summary: { total: 0, active: 0, pending: 0, unsubscribed: 0 } })),
+    subscribers: vi.fn((..._args: unknown[]) =>
+      of({
+        subscribers: [] as unknown[],
+        total: 0,
+        page: 1,
+        pageSize: 50,
+        summary: { total: 0, active: 0, pending: 0, unsubscribed: 0 },
+      }),
+    ),
     deactivateSubscriber: vi.fn(() => of({})),
+    deleteSubscriber: vi.fn(() => of({})),
     sendSubscriberConfirmation: vi.fn(() => of({ message: 'sent' })),
     setProductNutrition: vi.fn(() => of({ rowsUpdated: 3 })),
     setProductCategory: vi.fn(() => of({ rowsUpdated: 3 })),
@@ -84,16 +93,68 @@ describe('AdminPage visibility safety', () => {
   });
 
   it('asks before deactivating a subscriber, and deactivates only after it', () => {
-    page.requestDeactivation(subscriber);
+    page.subscribers.requestAction(subscriber, 'deactivate');
 
-    expect(page.pendingDeactivation()).toEqual(subscriber);
+    expect(page.subscribers.pendingAction()).toEqual({ subscriber, kind: 'deactivate' });
     expect(api.deactivateSubscriber).not.toHaveBeenCalled();
 
-    page.confirmDeactivation();
+    page.subscribers.confirmAction();
 
     expect(api.deactivateSubscriber).toHaveBeenCalledWith(7);
-    expect(page.pendingDeactivation()).toBeNull();
+    expect(api.deleteSubscriber).not.toHaveBeenCalled();
+    expect(page.subscribers.pendingAction()).toBeNull();
     expect(api.subscribers).toHaveBeenCalled();
+  });
+
+  it('asks before deleting a subscriber permanently, then deletes and reloads', () => {
+    page.subscribers.requestAction(subscriber, 'delete');
+
+    expect(page.subscribers.pendingAction()).toEqual({ subscriber, kind: 'delete' });
+    expect(api.deleteSubscriber).not.toHaveBeenCalled();
+
+    page.subscribers.confirmAction();
+
+    expect(api.deleteSubscriber).toHaveBeenCalledWith(7);
+    expect(api.deactivateSubscriber).not.toHaveBeenCalled();
+    expect(page.subscribers.pendingAction()).toBeNull();
+    expect(page.subscribers.message()).toBe(`${subscriber.email} was deleted permanently.`);
+    expect(api.subscribers).toHaveBeenCalled();
+  });
+
+  // Deleting the page's only row leaves that page empty; the previous page is asked for.
+  it("asks for the previous page after deleting a page's last subscriber", () => {
+    api.subscribers.mockReturnValueOnce(
+      of({
+        subscribers: [subscriber],
+        total: 51,
+        page: 2,
+        pageSize: 50,
+        summary: { total: 51, active: 51, pending: 0, unsubscribed: 0 },
+      }),
+    );
+    page.subscribers.load(2);
+    expect(page.subscribers.pagination().summary).toBe('51–51 of 51 subscribers');
+
+    page.subscribers.requestAction(subscriber, 'delete');
+    page.subscribers.confirmAction();
+
+    expect(api.subscribers).toHaveBeenLastCalledWith({ search: '', status: 'all', page: 1 });
+  });
+
+  it('waits for typing to stop and searches subscribers from the first page', () => {
+    vi.useFakeTimers();
+    try {
+      page.subscribers.searchChanged('tr');
+      page.subscribers.searchChanged('troll');
+      expect(api.subscribers).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(300);
+
+      expect(api.subscribers).toHaveBeenCalledTimes(1);
+      expect(api.subscribers).toHaveBeenCalledWith({ search: 'troll', status: 'all', page: 1 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('prefills the editor from the stored table and sends numbers, blank as null', () => {
@@ -427,9 +488,9 @@ describe('AdminPage visibility safety', () => {
       throwError(() => ({ status: 429, error: { message: 'A confirmation email went out less than 5 minutes ago.' } })),
     );
 
-    page.sendConfirmation({ ...subscriber, status: 'pending', confirmedAt: null });
+    page.subscribers.sendConfirmation({ ...subscriber, status: 'pending', confirmedAt: null });
 
-    expect(page.subscriberMessage()).toBe('A confirmation email went out less than 5 minutes ago.');
-    expect(page.subscriberBusyId()).toBeNull();
+    expect(page.subscribers.message()).toBe('A confirmation email went out less than 5 minutes ago.');
+    expect(page.subscribers.busyId()).toBeNull();
   });
 });

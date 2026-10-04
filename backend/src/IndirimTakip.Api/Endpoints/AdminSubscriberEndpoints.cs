@@ -51,44 +51,34 @@ internal static class AdminSubscriberEndpoints
 
         // --- Newsletter subscribers (admin panel) ---
         //
-        // THE SUMMARY IS COUNTED SEPARATELY FROM THE LIST, as with security
-        // events: the list is capped, and counting a capped list would
-        // understate the total.
-        app.MapGet("/api/dev/subscribers", async (AppDbContext db, CancellationToken ct) =>
+        // Paged (2026-10-04; the search and the status filter run in the query, see
+        // SubscriberService.ListForAdminAsync). THE SUMMARY IS COUNTED SEPARATELY:
+        // counting the rows of one page would understate the total.
+        app.MapGet("/api/dev/subscribers", async (
+            AppDbContext db, SubscriberService subscriberService, string? search, string? status,
+            int? page, int? pageSize, CancellationToken ct) =>
         {
-            var rows = await db.Subscribers
-                .AsNoTracking()
-                .OrderByDescending(s => s.SubscribedAt)
-                .Take(1000)
-                .Select(s => new
-                {
-                    s.Id,
-                    s.Email,
-                    s.IsConfirmed,
-                    s.SubscribedAt,
-                    s.ConfirmedAt,
-                    s.UnsubscribedAt,
-                    s.LastConfirmationEmailSentAt,
-                    s.LastDigestSentAt,
-                    // The same table backs price alerts and the watchlist; these
-                    // counts show what a deactivation would also affect.
-                    watchCount = db.ProductWatches.Count(w => w.SubscriberId == s.Id),
-                    favoriteCount = db.ProductFavorites.Count(f => f.SubscriberId == s.Id),
-                })
-                .ToListAsync(ct);
+            SubscriberStatus? statusFilter = status switch
+            {
+                "active" => SubscriberStatus.Active,
+                "pending" => SubscriberStatus.Pending,
+                "unsubscribed" => SubscriberStatus.Unsubscribed,
+                _ => null,
+            };
+            var result = await subscriberService.ListForAdminAsync(search, statusFilter, page ?? 1, pageSize ?? 50, ct);
 
-            var subscribers = rows.Select(s => new
+            var subscribers = result.Subscribers.Select(s => new
             {
                 s.Id,
                 s.Email,
-                status = SubscriberService.StatusOf(s.IsConfirmed, s.UnsubscribedAt).ToString().ToLowerInvariant(),
+                status = s.Status.ToString().ToLowerInvariant(),
                 s.SubscribedAt,
                 s.ConfirmedAt,
                 s.UnsubscribedAt,
                 s.LastConfirmationEmailSentAt,
                 s.LastDigestSentAt,
-                s.watchCount,
-                s.favoriteCount,
+                s.WatchCount,
+                s.FavoriteCount,
             });
 
             var summary = await db.Subscribers
@@ -105,6 +95,9 @@ internal static class AdminSubscriberEndpoints
             return Results.Ok(new
             {
                 subscribers,
+                total = result.Total,
+                page = result.Page,
+                pageSize = result.PageSize,
                 summary = summary ?? new { total = 0, active = 0, pending = 0, unsubscribed = 0 },
             });
         }).RequireAdminKey(adminApiKey);
@@ -112,6 +105,13 @@ internal static class AdminSubscriberEndpoints
         app.MapPost("/api/dev/subscribers/{id:int}/deactivate", async (int id, SubscriberService subscribers, CancellationToken ct) =>
             await subscribers.DeactivateAsync(id, ct)
                 ? Results.Ok(new { id, status = "unsubscribed" })
+                : Results.NotFound($"Subscriber {id} not found.")).RequireAdminKey(adminApiKey);
+
+        // PERMANENT delete (troll/fake signups, deletion requests). The watchlist and
+        // favorites go too; it can't be undone, so the panel asks first.
+        app.MapDelete("/api/dev/subscribers/{id:int}", async (int id, SubscriberService subscribers, CancellationToken ct) =>
+            await subscribers.DeleteAsync(id, ct)
+                ? Results.Ok(new { id, deleted = true })
                 : Results.NotFound($"Subscriber {id} not found.")).RequireAdminKey(adminApiKey);
 
         app.MapPost("/api/dev/subscribers/{id:int}/send-confirmation", async (

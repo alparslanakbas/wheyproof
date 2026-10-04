@@ -199,6 +199,67 @@ public class SubscriberService(
         return subscriber is not null && await MarkUnsubscribedAsync(subscriber, cancellationToken);
     }
 
+    // Admin panel: PERMANENT delete (2026-10-04). Unlike deactivation nothing is
+    // left behind: for troll/fake signups and deletion requests. The watchlist and
+    // favorites go with it through the database's cascade constraint
+    // (ProductWatches/ProductFavorites -> Subscribers, ON DELETE CASCADE). It can't
+    // be undone; the same address can subscribe again (double opt-in). The log gets
+    // the id, not the email: an address is personal data.
+    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var deleted = await db.Subscribers.Where(s => s.Id == id).ExecuteDeleteAsync(cancellationToken);
+        if (deleted > 0)
+            logger.LogInformation("Subscriber permanently deleted: {Id}.", id);
+        return deleted > 0;
+    }
+
+    // Admin panel list: page by page, with an email search and a status filter
+    // (the same pattern as the product list). It used to load the newest 1000 rows
+    // at once and search in the browser; a subscriber past 1000 never showed up.
+    // The status conditions are EXACTLY those of StatusOf.
+    public async Task<AdminSubscriberPage> ListForAdminAsync(
+        string? search, SubscriberStatus? status, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var size = Math.Clamp(pageSize, 10, 100);
+        var currentPage = Math.Max(1, page);
+        var query = db.Subscribers.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var pattern = "%" + search.Trim() + "%";
+            query = query.Where(s => EF.Functions.ILike(s.Email, pattern));
+        }
+        query = status switch
+        {
+            SubscriberStatus.Active => query.Where(s => s.UnsubscribedAt == null && s.IsConfirmed),
+            SubscriberStatus.Pending => query.Where(s => s.UnsubscribedAt == null && !s.IsConfirmed),
+            SubscriberStatus.Unsubscribed => query.Where(s => s.UnsubscribedAt != null),
+            _ => query,
+        };
+
+        var total = await query.CountAsync(cancellationToken);
+        var rows = await query
+            .OrderByDescending(s => s.SubscribedAt)
+            .ThenByDescending(s => s.Id)
+            .Skip((currentPage - 1) * size)
+            .Take(size)
+            .Select(s => new
+            {
+                s.Id, s.Email, s.IsConfirmed, s.SubscribedAt, s.ConfirmedAt, s.UnsubscribedAt,
+                s.LastConfirmationEmailSentAt, s.LastDigestSentAt,
+                // The same table backs price alerts and the watchlist; these counts
+                // show what a deactivation or a deletion would also affect.
+                Watches = db.ProductWatches.Count(w => w.SubscriberId == s.Id),
+                Favorites = db.ProductFavorites.Count(f => f.SubscriberId == s.Id),
+            })
+            .ToListAsync(cancellationToken);
+
+        var subscribers = rows.Select(s => new AdminSubscriber(
+            s.Id, s.Email, StatusOf(s.IsConfirmed, s.UnsubscribedAt), s.SubscribedAt, s.ConfirmedAt,
+            s.UnsubscribedAt, s.LastConfirmationEmailSentAt, s.LastDigestSentAt, s.Watches, s.Favorites)).ToList();
+        return new AdminSubscriberPage(subscribers, total, currentPage, size);
+    }
+
     // THERE IS NO ADMIN "ACTIVATE". Double opt-in means only the person can turn
     // a subscription on, by pressing the button in their own inbox; a panel
     // switch would mail someone who never confirmed (or who unsubscribed). What
@@ -244,3 +305,10 @@ public class SubscriberService(
 public enum SubscriberStatus { Active, Pending, Unsubscribed }
 
 public enum AdminConfirmationResult { NotFound, AlreadyActive, CoolingDown, Sent, Failed }
+
+public sealed record AdminSubscriber(
+    int Id, string Email, SubscriberStatus Status, DateTimeOffset SubscribedAt, DateTimeOffset? ConfirmedAt,
+    DateTimeOffset? UnsubscribedAt, DateTimeOffset? LastConfirmationEmailSentAt, DateTimeOffset? LastDigestSentAt,
+    int WatchCount, int FavoriteCount);
+
+public sealed record AdminSubscriberPage(IReadOnlyList<AdminSubscriber> Subscribers, int Total, int Page, int PageSize);

@@ -759,38 +759,9 @@
 
                 @if (filteredBrands().length > 0) {
                   <div class="pagination">
-                    <span
-                      >{{ brandRangeStart() }}–{{ brandRangeEnd() }} of
-                      {{ filteredBrands().length }} brands</span
-                    >
-                    <div>
-                      <button
-                        type="button"
-                        [disabled]="brandPage() === 1"
-                        (click)="goToBrandPage(brandPage() - 1)"
-                        aria-label="Previous page"
-                      >
-                        <i class="ph ph-caret-left" aria-hidden="true"></i>
-                      </button>
-                      @for (p of visibleBrandPages(); track p) {
-                        <button
-                          type="button"
-                          [class.active]="p === brandPage()"
-                          [attr.aria-current]="p === brandPage() ? 'page' : null"
-                          (click)="goToBrandPage(p)"
-                        >
-                          {{ p }}
-                        </button>
-                      }
-                      <button
-                        type="button"
-                        [disabled]="brandPage() === brandPageCount()"
-                        (click)="goToBrandPage(brandPage() + 1)"
-                        aria-label="Next page"
-                      >
-                        <i class="ph ph-caret-right" aria-hidden="true"></i>
-                      </button>
-                    </div>
+                    <ng-container
+                      *ngTemplateOutlet="pagination; context: { $implicit: brandPagination() }"
+                    />
                   </div>
                 }
 
@@ -882,41 +853,9 @@
                 </div>
               } @else {
                 <div class="pagination product-pagination-top" aria-label="Product pagination">
-                  <span
-                    >{{ productRangeStart() }}–{{ productRangeEnd() }} of
-                    {{ productTotal() }} rows</span
-                  >
-                  @if (productPageCount() > 1) {
-                    <div>
-                      <button
-                        type="button"
-                        [disabled]="productPage() === 1 || productsLoading()"
-                        (click)="goToProductPage(productPage() - 1)"
-                        aria-label="Previous page"
-                      >
-                        <i class="ph ph-caret-left" aria-hidden="true"></i>
-                      </button>
-                      @for (p of visibleProductPages(); track p) {
-                        <button
-                          type="button"
-                          [class.active]="p === productPage()"
-                          [attr.aria-current]="p === productPage() ? 'page' : null"
-                          [disabled]="productsLoading()"
-                          (click)="goToProductPage(p)"
-                        >
-                          {{ p }}
-                        </button>
-                      }
-                      <button
-                        type="button"
-                        [disabled]="productPage() === productPageCount() || productsLoading()"
-                        (click)="goToProductPage(productPage() + 1)"
-                        aria-label="Next page"
-                      >
-                        <i class="ph ph-caret-right" aria-hidden="true"></i>
-                      </button>
-                    </div>
-                  }
+                  <ng-container
+                    *ngTemplateOutlet="pagination; context: { $implicit: productPagination() }"
+                  />
                 </div>
                 <div class="table-shell visibility-table product-table">
                   <table>
@@ -1000,41 +939,9 @@
                   </table>
                 </div>
                 <div class="pagination">
-                  <span
-                    >{{ productRangeStart() }}–{{ productRangeEnd() }} of
-                    {{ productTotal() }} rows</span
-                  >
-                  @if (productPageCount() > 1) {
-                    <div>
-                      <button
-                        type="button"
-                        [disabled]="productPage() === 1 || productsLoading()"
-                        (click)="goToProductPage(productPage() - 1)"
-                        aria-label="Previous page"
-                      >
-                        <i class="ph ph-caret-left" aria-hidden="true"></i>
-                      </button>
-                      @for (p of visibleProductPages(); track p) {
-                        <button
-                          type="button"
-                          [class.active]="p === productPage()"
-                          [attr.aria-current]="p === productPage() ? 'page' : null"
-                          [disabled]="productsLoading()"
-                          (click)="goToProductPage(p)"
-                        >
-                          {{ p }}
-                        </button>
-                      }
-                      <button
-                        type="button"
-                        [disabled]="productPage() === productPageCount() || productsLoading()"
-                        (click)="goToProductPage(productPage() + 1)"
-                        aria-label="Next page"
-                      >
-                        <i class="ph ph-caret-right" aria-hidden="true"></i>
-                      </button>
-                    </div>
-                  }
+                  <ng-container
+                    *ngTemplateOutlet="pagination; context: { $implicit: productPagination() }"
+                  />
                 </div>
                 <p class="impact-note">
                   <i class="ph ph-info" aria-hidden="true"></i>Each size is its own row. Hiding
@@ -1096,7 +1003,7 @@
           </div>
         </section>
 
-        @if (subscriberData(); as data) {
+        @if (subscribers.data(); as data) {
           <section class="cards subscriber-cards" aria-label="Subscriber figures">
             <article class="card">
               <span class="card-icon"><i class="ph ph-check-circle" aria-hidden="true"></i></span>
@@ -1129,30 +1036,35 @@
               <input
                 type="search"
                 placeholder="Search email…"
-                [ngModel]="subscriberSearch()"
-                (ngModelChange)="subscriberSearch.set($event)"
+                [ngModel]="subscribers.search()"
+                (ngModelChange)="subscribers.searchChanged($event)"
               />
             </label>
             <div class="status-filters" aria-label="Subscriber status">
               @for (f of ['all', 'active', 'pending', 'unsubscribed']; track f) {
                 <button
                   type="button"
-                  [class.active]="subscriberFilter() === f"
-                  (click)="selectSubscriberFilter($any(f))"
+                  [class.active]="subscribers.filter() === f"
+                  (click)="subscribers.selectFilter($any(f))"
                 >
-                  {{ f === 'all' ? 'All' : subscriberStatusLabel($any(f)) }}
+                  {{ subscribers.statusLabel($any(f)) }}
                 </button>
               }
             </div>
           </div>
 
-          @if (subscriberMessage()) {
-            <p class="info" role="status">{{ subscriberMessage() }}</p>
+          @if (subscribers.message()) {
+            <p class="info" role="status">{{ subscribers.message() }}</p>
           }
 
-          @if (subscribersLoading() && !subscriberData()) {
+          @if (subscribers.loading() && !subscribers.data()) {
             <p class="empty-state">Loading subscribers…</p>
           } @else {
+            <div class="pagination" aria-label="Subscriber pagination">
+              <ng-container
+                *ngTemplateOutlet="pagination; context: { $implicit: subscribers.pagination() }"
+              />
+            </div>
             <div class="table-shell subscriber-table">
               <table>
                 <thead>
@@ -1166,12 +1078,12 @@
                   </tr>
                 </thead>
                 <tbody>
-                  @for (s of filteredSubscribers(); track s.id) {
+                  @for (s of subscribers.data()?.subscribers ?? []; track s.id) {
                     <tr [class.inactive]="s.status !== 'active'">
                       <td class="subscriber-email">{{ s.email }}</td>
                       <td data-label="Status">
                         <span class="row-status" [class.is-hidden]="s.status !== 'active'"
-                          ><span></span>{{ subscriberStatusLabel(s.status) }}</span
+                          ><span></span>{{ subscribers.statusLabel(s.status) }}</span
                         >
                       </td>
                       <td data-label="Signup / Confirmation">
@@ -1194,8 +1106,8 @@
                             <button
                               type="button"
                               class="row-action"
-                              [disabled]="subscriberBusyId() === s.id"
-                              (click)="requestDeactivation(s)"
+                              [disabled]="subscribers.busyId() === s.id"
+                              (click)="subscribers.requestAction(s, 'deactivate')"
                             >
                               Deactivate
                             </button>
@@ -1203,12 +1115,20 @@
                             <button
                               type="button"
                               class="row-action primary"
-                              [disabled]="subscriberBusyId() === s.id"
-                              (click)="sendConfirmation(s)"
+                              [disabled]="subscribers.busyId() === s.id"
+                              (click)="subscribers.sendConfirmation(s)"
                             >
-                              {{ subscriberBusyId() === s.id ? 'Sending…' : 'Send confirmation' }}
+                              {{ subscribers.busyId() === s.id ? 'Sending…' : 'Send confirmation' }}
                             </button>
                           }
+                          <button
+                            type="button"
+                            class="row-action danger"
+                            [disabled]="subscribers.busyId() === s.id"
+                            (click)="subscribers.requestAction(s, 'delete')"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1223,7 +1143,8 @@
             <p class="impact-note">
               <i class="ph ph-info" aria-hidden="true"></i>A subscription only turns on when the
               person confirms it from their inbox, so there's no activate switch here. "Send
-              confirmation" mails them the button again.
+              confirmation" mails them the button again. "Delete" removes the record with its
+              alerts and favorites for good.
             </p>
           }
         </section>
@@ -1425,8 +1346,8 @@
       </div>
     }
 
-    @if (pendingDeactivation(); as sub) {
-      <div class="confirm-backdrop" (click)="cancelDeactivation()">
+    @if (subscribers.pendingAction(); as action) {
+      <div class="confirm-backdrop" (click)="subscribers.cancelAction()">
         <section
           class="confirm-dialog"
           role="alertdialog"
@@ -1436,28 +1357,45 @@
         >
           <span class="confirm-icon"><i class="ph ph-warning-circle" aria-hidden="true"></i></span>
           <p class="eyebrow">Subscriber</p>
-          <h2 id="deactivate-title">Deactivate {{ sub.email }}?</h2>
-          <p>
-            They stop getting the digest{{
-              sub.watchCount > 0 ? ' and their ' + sub.watchCount + ' price alerts' : ''
-            }}. Coming back needs a new confirmation from their own inbox.
-          </p>
+          @if (action.kind === 'delete') {
+            <h2 id="deactivate-title">Delete {{ action.subscriber.email }} permanently?</h2>
+            <p>
+              The record goes with its {{ action.subscriber.watchCount }} price alerts and
+              {{ action.subscriber.favoriteCount }} favorites. This can't be undone; they can
+              subscribe again if they want.
+            </p>
+          } @else {
+            <h2 id="deactivate-title">Deactivate {{ action.subscriber.email }}?</h2>
+            <p>
+              They stop getting the digest{{
+                action.subscriber.watchCount > 0
+                  ? ' and their ' + action.subscriber.watchCount + ' price alerts'
+                  : ''
+              }}. Coming back needs a new confirmation from their own inbox.
+            </p>
+          }
           <div class="confirm-actions">
             <button
               type="button"
               class="cancel"
-              [disabled]="subscriberBusyId() !== null"
-              (click)="cancelDeactivation()"
+              [disabled]="subscribers.busyId() !== null"
+              (click)="subscribers.cancelAction()"
             >
               Cancel
             </button>
             <button
               type="button"
               class="confirm-hide"
-              [disabled]="subscriberBusyId() !== null"
-              (click)="confirmDeactivation()"
+              [disabled]="subscribers.busyId() !== null"
+              (click)="subscribers.confirmAction()"
             >
-              {{ subscriberBusyId() !== null ? 'Saving…' : 'Deactivate' }}
+              {{
+                subscribers.busyId() !== null
+                  ? 'Saving…'
+                  : action.kind === 'delete'
+                    ? 'Delete permanently'
+                    : 'Deactivate'
+              }}
             </button>
           </div>
         </section>
@@ -1503,3 +1441,38 @@
     }
   }
 </div>
+
+<ng-template #pagination let-p>
+  <span>{{ p.summary }}</span>
+  @if (p.pageCount > 1) {
+    <div>
+      <button
+        type="button"
+        [disabled]="p.page === 1 || p.busy"
+        (click)="p.goTo(p.page - 1)"
+        aria-label="Previous page"
+      >
+        <i class="ph ph-caret-left" aria-hidden="true"></i>
+      </button>
+      @for (page of p.pages; track page) {
+        <button
+          type="button"
+          [class.active]="page === p.page"
+          [attr.aria-current]="page === p.page ? 'page' : null"
+          [disabled]="p.busy"
+          (click)="p.goTo(page)"
+        >
+          {{ page }}
+        </button>
+      }
+      <button
+        type="button"
+        [disabled]="p.page === p.pageCount || p.busy"
+        (click)="p.goTo(p.page + 1)"
+        aria-label="Next page"
+      >
+        <i class="ph ph-caret-right" aria-hidden="true"></i>
+      </button>
+    </div>
+  }
+</ng-template>

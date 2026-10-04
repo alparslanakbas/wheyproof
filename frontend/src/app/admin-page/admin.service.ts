@@ -104,8 +104,20 @@ export class AdminService {
     return this.http.delete<ManualEditResponse>(`${this.base}/products/${id}/nutrition`);
   }
 
-  subscribers(): Observable<SubscribersResponse> {
-    return this.http.get<SubscribersResponse>(`${this.base}/subscribers`);
+  /** Paged and filtered on the server (the product list's pattern). */
+  subscribers(options: SubscriberSearchOptions = {}): Observable<SubscribersResponse> {
+    const { search = '', status = 'all', page = 1 } = options;
+    const params = new URLSearchParams();
+    if (search.trim()) params.set('search', search.trim());
+    if (status !== 'all') params.set('status', status);
+    if (page > 1) params.set('page', String(page));
+    const query = params.toString();
+    return this.http.get<SubscribersResponse>(`${this.base}/subscribers${query ? `?${query}` : ''}`);
+  }
+
+  /** PERMANENT: the watchlist and favorites go too; it can't be undone. */
+  deleteSubscriber(id: number): Observable<unknown> {
+    return this.http.delete(`${this.base}/subscribers/${id}`);
   }
 
   deactivateSubscriber(id: number): Observable<unknown> {
@@ -122,6 +134,13 @@ export class AdminService {
 }
 
 export type SubscriberStatus = 'active' | 'pending' | 'unsubscribed';
+export type SubscriberFilter = 'all' | SubscriberStatus;
+
+export interface SubscriberSearchOptions {
+  search?: string;
+  status?: SubscriberFilter;
+  page?: number;
+}
 
 export interface AdminSubscriber {
   id: number;
@@ -138,6 +157,10 @@ export interface AdminSubscriber {
 
 export interface SubscribersResponse {
   subscribers: AdminSubscriber[];
+  /** Rows matching the filter; the summary's total counts every subscriber. */
+  total: number;
+  page: number;
+  pageSize: number;
   summary: { total: number; active: number; pending: number; unsubscribed: number };
 }
 
