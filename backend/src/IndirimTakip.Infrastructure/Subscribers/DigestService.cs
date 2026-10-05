@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IndirimTakip.Infrastructure.Subscribers;
 
-public record DigestResult(int DealCount, int SubscriberCount, int PendingCount = 0, string? SkippedReason = null);
+public record DigestResult(int DealCount, int SubscriberCount, int PendingCount = 0);
 
 // NOT a personal product alert: a general summary of the biggest discounts the
 // scheduled scrapes found, sent with the same content to every confirmed
@@ -43,17 +43,15 @@ public class DigestService(
 
     public async Task<DigestResult> SendDigestAsync(string unsubscribeBaseUrl, CancellationToken cancellationToken = default)
     {
-        // CAN-SPAM: every commercial email must carry the sender's valid physical
-        // postal address. Without one nothing goes out, whichever path called:
-        // the scheduled job or the manual admin endpoint. Checked before any
-        // query, so a missing address can't half-send a round.
+        // The footer prints the sender's postal address when one is set
+        // (Newsletter:PostalAddress), but it is no longer required. Until
+        // 2026-10-05 the digest refused to send without one, because CAN-SPAM asks
+        // US commercial email for a physical address. That day the site owner,
+        // told the rule and its risk, chose to send like the Turkish site does,
+        // without one, and to revisit if the mail ever starts to read as spam.
+        // UK rules (PECR) don't require an address in each email. Setting the
+        // address later needs no code change.
         var postalAddress = PostalAddressFrom(configuration);
-        if (postalAddress is null)
-        {
-            const string reason = "no postal address configured (Newsletter:PostalAddress)";
-            logger.LogWarning("Digest not sent: {Reason}.", reason);
-            return new DigestResult(0, 0, SkippedReason: reason);
-        }
 
         var intervalDays = configuration.GetValue("Digest:IntervalDays", 7);
         var dailyQuota = configuration.GetValue("Digest:DailyQuota", DefaultDailyQuota);
@@ -111,9 +109,11 @@ public class DigestService(
                 subscriber.LastDigestSentAt = now;
                 sentCount++;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Keep looping even if one subscriber's send fails.
+                // Keep looping even if one subscriber's send fails. The id, not the
+                // address, goes to the log, so a failing provider is visible.
+                logger.LogWarning(ex, "Digest send failed for subscriber {SubscriberId}; it is retried next round.", subscriber.Id);
             }
         }
 
@@ -136,16 +136,8 @@ public class DigestService(
 
         var frontendBaseUrl = configuration["FrontendBaseUrl"] ?? EmailTemplate.ProductionFrontendUrl;
         return BuildDigestHtml(
-            BuildDealGridHtml(deals, frontendBaseUrl), deals.Count, "#preview-unsubscribe", frontendBaseUrl, PreviewPostalAddress(configuration));
+            BuildDealGridHtml(deals, frontendBaseUrl), deals.Count, "#preview-unsubscribe", frontendBaseUrl, PostalAddressFrom(configuration));
     }
-
-    /// <summary>
-    /// The real footer address, or a visible notice in its place: a preview must
-    /// not look ready to send while sending is blocked.
-    /// </summary>
-    public static string PreviewPostalAddress(IConfiguration configuration) =>
-        PostalAddressFrom(configuration)
-        ?? "POSTAL ADDRESS NOT SET (sending is blocked until Newsletter:PostalAddress is configured)";
 
     // One query for both the send and the preview, so the preview can't drift
     // from what subscribers receive.
@@ -220,9 +212,10 @@ public class DigestService(
     // price drops" as fixed text; the first preview showed 4 cards under it,
     // because only 4 products had a real discount that week. A number the email
     // doesn't back up is exactly the kind of claim this site exists to expose.
-    internal static string BuildDigestHtml(string dealsHtml, int dealCount, string unsubscribeUrl, string frontendBaseUrl, string postalAddress)
+    internal static string BuildDigestHtml(string dealsHtml, int dealCount, string unsubscribeUrl, string frontendBaseUrl, string? postalAddress)
     {
         var dropsText = dealCount == 1 ? "1 real price drop" : $"{dealCount} real price drops";
+        var sender = postalAddress is null ? "WheyProof" : $"WheyProof &middot; {EmailTemplate.Encode(postalAddress)}";
         var tagImageUrl = EmailTemplate.AssetUrl(frontendBaseUrl, "weekly-price-tag.png");
         var shieldIconUrl = EmailTemplate.AssetUrl(frontendBaseUrl, "trust-shield.png");
 
@@ -270,7 +263,7 @@ public class DigestService(
                     <tr>
                       <td align="center" style="padding-top:18px;border-top:1px solid #e5e0ff;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:17px;color:#60667a;">
                         You're receiving this because you subscribed at wheyproof.com.<br>
-                        WheyProof &middot; {EmailTemplate.Encode(postalAddress)}<br>
+                        {sender}<br>
                         <a href="{EmailTemplate.Encode(unsubscribeUrl)}" style="color:#6556e8;text-decoration:underline;">Unsubscribe</a>
                       </td>
                     </tr>

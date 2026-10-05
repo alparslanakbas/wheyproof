@@ -125,14 +125,12 @@ services:
       - Cors__AllowedOrigins__0=https://wheyproof.com
       - Cors__AllowedOrigins__1=https://www.wheyproof.com
       - Scraping__Enabled=true
-      # DIGEST IS OFF until the newsletter footer has a physical postal address:
-      # CAN-SPAM requires one in every commercial email. Subscription
-      # confirmations and price alerts still send; flip this to true once the
-      # address is in place.
-      - Digest__Enabled=false
-      # The postal address the footer prints. The digest also refuses to send
-      # while this is empty (DigestService), so switching Digest__Enabled on
-      # without an address can't break CAN-SPAM. Value lives in .env.
+      # Weekly digest ON (2026-10-05). It sends like the Turkish site, without a
+      # postal address: the site owner chose that knowing CAN-SPAM asks US
+      # commercial email for one (see DigestService).
+      - Digest__Enabled=true
+      # The postal address the footer prints when set; empty prints none. Value
+      # lives in .env.
       - Newsletter__PostalAddress=${NEWSLETTER_POSTAL_ADDRESS:-}
       # Nutrition facts read from the stores' label images. Engine "tesseract"
       # is free OCR inside this container (calorie-checked Nutrition Facts only);
@@ -251,7 +249,7 @@ services:
       - Cors__AllowedOrigins__0=https://wheyproof.com
       - Cors__AllowedOrigins__1=https://www.wheyproof.com
       - Scraping__Enabled=true
-      - Digest__Enabled=false
+      - Digest__Enabled=true
       - Newsletter__PostalAddress=${NEWSLETTER_POSTAL_ADDRESS:-}
       # The label OCR reads US "Nutrition Facts" panels; UK labels are per-100g
       # tables in a different layout, so it stays off here until measured.

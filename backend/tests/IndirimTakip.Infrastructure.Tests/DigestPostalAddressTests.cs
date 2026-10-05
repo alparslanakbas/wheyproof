@@ -1,11 +1,11 @@
 using IndirimTakip.Infrastructure.Subscribers;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IndirimTakip.Infrastructure.Tests;
 
-// CAN-SPAM requires a physical postal address in every commercial email, so the
-// digest must not go out without one, and nothing may stand in for it.
+// The footer's postal address is optional since 2026-10-05: the owner chose to
+// send like the Turkish site, without one (see DigestService). When it is set it
+// is printed, encoded; when it is not, nothing stands in for it.
 public class DigestPostalAddressTests
 {
     private static IConfiguration Config(string? address) =>
@@ -17,16 +17,8 @@ public class DigestPostalAddressTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task Without_an_address_nothing_is_sent(string? address)
-    {
-        // The database, deals and sender are never touched: the guard runs first.
-        var service = new DigestService(null!, null!, null!, Config(address), NullLogger<DigestService>.Instance);
-
-        var result = await service.SendDigestAsync("https://api.example.com");
-
-        Assert.Equal(0, result.SubscriberCount);
-        Assert.NotNull(result.SkippedReason);
-    }
+    public void A_blank_setting_means_no_address(string? address) =>
+        Assert.Null(DigestService.PostalAddressFrom(Config(address)));
 
     [Fact]
     public void A_multi_line_address_becomes_one_line() =>
@@ -35,11 +27,21 @@ public class DigestPostalAddressTests
             DigestService.PostalAddressFrom(Config("WheyProof\n PO Box 100 \r\nAustin, TX 78701")));
 
     [Fact]
+    public void Without_an_address_the_footer_names_only_the_sender()
+    {
+        var html = DigestService.BuildDigestHtml("", 4, "https://api.example.com/u/t", "https://www.wheyproof.com", null);
+
+        Assert.Contains("WheyProof<br>", html);
+        Assert.DoesNotContain("&middot;", html);
+        Assert.Contains("Unsubscribe", html);
+    }
+
+    [Fact]
     public void The_address_appears_in_the_footer_encoded()
     {
         var html = DigestService.BuildDigestHtml("", 4, "https://api.example.com/u/t", "https://www.wheyproof.com", "PO Box 100 <Suite 5>");
 
-        Assert.Contains("PO Box 100 &lt;Suite 5&gt;", html);
+        Assert.Contains("WheyProof &middot; PO Box 100 &lt;Suite 5&gt;", html);
         Assert.Contains("Unsubscribe", html);
     }
 
@@ -49,18 +51,9 @@ public class DigestPostalAddressTests
     [InlineData(1, "1 real price drop ")]
     public void The_headline_count_is_the_number_of_deals_shown(int count, string expected)
     {
-        var html = DigestService.BuildDigestHtml("", count, "https://api.example.com/u/t", "https://www.wheyproof.com", "PO Box 100");
+        var html = DigestService.BuildDigestHtml("", count, "https://api.example.com/u/t", "https://www.wheyproof.com", null);
 
         Assert.Contains(expected, html);
         Assert.DoesNotContain("6 real price drops", html);
     }
-
-    // The preview must not look ready to send while sending is blocked.
-    [Fact]
-    public void Preview_without_an_address_says_sending_is_blocked() =>
-        Assert.Contains("NOT SET", DigestService.PreviewPostalAddress(Config(null)));
-
-    [Fact]
-    public void Preview_uses_the_real_address_once_set() =>
-        Assert.Equal("PO Box 100, Austin, TX 78701", DigestService.PreviewPostalAddress(Config("PO Box 100\nAustin, TX 78701")));
 }
