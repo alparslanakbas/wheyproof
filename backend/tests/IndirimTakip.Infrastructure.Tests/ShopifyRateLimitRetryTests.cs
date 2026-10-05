@@ -32,8 +32,10 @@ public class ShopifyRateLimitRetryTests
 
             CatalogRequests++;
             var status = next < catalogAnswers.Length ? catalogAnswers[next++] : HttpStatusCode.OK;
+            // One product on the first page, then the empty page that ends the catalog.
+            var body = request.RequestUri.Query.Contains("&page=1&") ? OneProductPage : """{"products":[]}""";
             return Task.FromResult(status == HttpStatusCode.OK
-                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(OneProductPage, Encoding.UTF8, "application/json") }
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") }
                 : new HttpResponseMessage(status));
         }
     }
@@ -43,7 +45,7 @@ public class ShopifyRateLimitRetryTests
         var handler = new ScriptedHandler(answers);
         var scraper = new ShopifyStoreScraper(
             new HttpClient(handler), new ShopifyStore("Kaged", "https://www.kaged.com"),
-            NullLogger<ShopifyStoreScraper>.Instance, rateLimitRetryDelay: TimeSpan.Zero);
+            NullLogger<ShopifyStoreScraper>.Instance, rateLimitRetryDelay: TimeSpan.Zero, pageDelay: TimeSpan.Zero);
         return (scraper, handler);
     }
 
@@ -55,7 +57,8 @@ public class ShopifyRateLimitRetryTests
         var items = await scraper.ScrapeAsync();
 
         Assert.Single(items);
-        Assert.Equal(2, handler.CatalogRequests);
+        // Page 1 twice (429, then the retry), then the empty page 2 that ends the crawl.
+        Assert.Equal(3, handler.CatalogRequests);
     }
 
     // Only once: a store that keeps refusing us isn't pressed harder, and the

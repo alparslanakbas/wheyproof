@@ -41,7 +41,8 @@ public class ShopifyCatalogHostTests
             var body = uri.AbsolutePath switch
             {
                 "/meta.json" => $$"""{"name":"Huel","currency":"{{shopCurrency}}"}""",
-                "/products.json" => Catalog,
+                // The fixture is the first page; the empty second one ends the crawl.
+                "/products.json" => uri.Query.Contains("&page=1&") ? Catalog : """{"products":[]}""",
                 _ => "",
             };
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
@@ -59,7 +60,7 @@ public class ShopifyCatalogHostTests
     public async Task Catalog_is_read_from_the_backend_but_links_point_at_the_public_site()
     {
         var handler = new Handler("USD");
-        var scraper = new ShopifyStoreScraper(new HttpClient(handler), Huel, NullLogger<ShopifyStoreScraper>.Instance);
+        var scraper = new ShopifyStoreScraper(new HttpClient(handler), Huel, NullLogger<ShopifyStoreScraper>.Instance, pageDelay: TimeSpan.Zero);
 
         var products = await scraper.ScrapeAsync();
 
@@ -74,7 +75,7 @@ public class ShopifyCatalogHostTests
     [Fact]
     public async Task Only_products_with_a_public_page_are_listed()
     {
-        var scraper = new ShopifyStoreScraper(new HttpClient(new Handler("USD")), Huel, NullLogger<ShopifyStoreScraper>.Instance);
+        var scraper = new ShopifyStoreScraper(new HttpClient(new Handler("USD")), Huel, NullLogger<ShopifyStoreScraper>.Instance, pageDelay: TimeSpan.Zero);
 
         var products = await scraper.ScrapeAsync();
 
@@ -86,7 +87,7 @@ public class ShopifyCatalogHostTests
     [Fact]
     public async Task Wrong_shop_currency_stops_the_scrape()
     {
-        var scraper = new ShopifyStoreScraper(new HttpClient(new Handler("EUR")), Huel, NullLogger<ShopifyStoreScraper>.Instance);
+        var scraper = new ShopifyStoreScraper(new HttpClient(new Handler("EUR")), Huel, NullLogger<ShopifyStoreScraper>.Instance, pageDelay: TimeSpan.Zero);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => scraper.ScrapeAsync());
     }
@@ -103,7 +104,7 @@ public class ShopifyCatalogHostTests
         var siteMarket = market == "UK" ? SiteMarket.Uk : SiteMarket.Us;
         var store = ShopifyStores.All.Single(s => s.BrandName == "Huel" && s.StoreMarket == siteMarket);
         var handler = new Handler(siteMarket.Currency);
-        var scraper = new ShopifyStoreScraper(new HttpClient(handler), store, NullLogger<ShopifyStoreScraper>.Instance);
+        var scraper = new ShopifyStoreScraper(new HttpClient(handler), store, NullLogger<ShopifyStoreScraper>.Instance, pageDelay: TimeSpan.Zero);
 
         await scraper.ScrapeAsync();
 

@@ -40,10 +40,19 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 /// cycle, and 200 to a single request right after; giving up at once left it
 /// with no prices for the cycle. Only once, so a store that keeps refusing us
 /// isn't pressed harder.
+///
+/// <b>An empty page ends the crawl, not a short one.</b> Shopify pages the
+/// whole catalog first and drops the products the requested market doesn't
+/// sell after, so a page can hold far fewer than 250 products with more on the
+/// next. Optimum Nutrition /en-gb answered 49, then 23, then none; stopping at
+/// the short first page had kept those 23 off the site since the store was
+/// added (measured 2026-10-05). The price is one more request per store.
 /// </remarks>
 /// <param name="rateLimitRetryDelay">Wait before the one retry; tests pass zero.</param>
+/// <param name="pageDelay">Gap between catalog pages; tests pass zero.</param>
 public sealed partial class ShopifyStoreScraper(
-    HttpClient httpClient, ShopifyStore store, ILogger<ShopifyStoreScraper> logger, TimeSpan? rateLimitRetryDelay = null)
+    HttpClient httpClient, ShopifyStore store, ILogger<ShopifyStoreScraper> logger,
+    TimeSpan? rateLimitRetryDelay = null, TimeSpan? pageDelay = null)
     : IBrandScraper, IProductDetailFetcher
 {
     // Only stores that print the nutrition panel as text on the product page
@@ -84,7 +93,7 @@ public sealed partial class ShopifyStoreScraper(
 
     // Polite gap between catalog pages. One store (Ghost) answered 429 to a
     // handful of quick requests during the survey.
-    private static readonly TimeSpan PageDelay = TimeSpan.FromSeconds(1);
+    private readonly TimeSpan pageGap = pageDelay ?? TimeSpan.FromSeconds(1);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -161,10 +170,9 @@ public sealed partial class ShopifyStoreScraper(
             foreach (var product in response.Products)
                 result.AddRange(ToScrapedProducts(product, store, seller));
 
-            if (response.Products.Count < PageSize)
-                break;
-
-            await Task.Delay(PageDelay, cancellationToken);
+            // No "short page = last page" shortcut: the market filter runs after
+            // paging (see the remarks), so only an empty page ends the crawl.
+            await Task.Delay(pageGap, cancellationToken);
         }
 
         return result;
