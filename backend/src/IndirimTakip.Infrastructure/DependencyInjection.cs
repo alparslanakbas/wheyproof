@@ -56,11 +56,16 @@ public static class DependencyInjection
         // and exposes the same public products.json endpoint, so one
         // configurable scraper replaces a class per brand. The store list
         // lives in ShopifyStores.All.
+        // Shopify answers the server's address with 429 at certain hours; then the request is
+        // repeated through the home tunnel (see ShopifyTunnel). Empty setting = tunnel off. Only
+        // this client carries it: other sources' 429s are real rate limits, not to be bypassed.
+        services.AddSingleton(_ => ShopifyTunnel.Create(configuration["Shopify:Tunnel"], TimeProvider.System));
+        services.AddTransient<ShopifyTunnelHandler>();
         services.AddHttpClient(ShopifyStoreScraper.HttpClientName, client =>
         {
             client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
             client.Timeout = TimeSpan.FromSeconds(30);
-        });
+        }).AddHttpMessageHandler<ShopifyTunnelHandler>();
         foreach (var store in ShopifyStores.ForMarket(market))
         {
             services.AddScoped<IBrandScraper>(sp => new ShopifyStoreScraper(
