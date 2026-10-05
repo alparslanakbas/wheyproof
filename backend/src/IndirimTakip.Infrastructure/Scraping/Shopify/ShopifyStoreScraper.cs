@@ -500,13 +500,22 @@ public sealed partial class ShopifyStoreScraper(
 
     private static string SizeKey(ShopifyVariant variant, List<int> positions)
     {
+        // Runs of spaces collapse to one: Optimum Nutrition UK writes one size as
+        // "2.73  kg (8 servings)", "2.73 kg  (8 servings)" and "2.73 kg (8 servings)",
+        // and compared as written that one size became three rows at the same price
+        // (six sizes, 13 rows, measured 2026-10-05). The merged group keeps the
+        // lowest variant id, so the row that already existed keeps its identity and
+        // the extra rows go stale on their own.
         var values = positions
             .Select(p => p switch { 1 => variant.Option1, 2 => variant.Option2, 3 => variant.Option3, _ => null })
             .Where(v => !string.IsNullOrWhiteSpace(v) && !v.Equals("Default Title", StringComparison.OrdinalIgnoreCase))
-            .Select(v => PerUnitPriceNoteRegex().Replace(v!, "").Trim());
+            .Select(v => SpaceRunRegex().Replace(PerUnitPriceNoteRegex().Replace(v!, ""), " ").Trim());
 
         return string.Join(" / ", values);
     }
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex SpaceRunRegex();
 
     // A price note a store writes into an option label: Auri's "3-Pack ($34.99
     // ea)" is its subscription price per bag, while the one-time 3-pack costs

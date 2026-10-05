@@ -107,6 +107,24 @@ public class ShopifyStoreScraperTests
         Assert.Equal(89.97m, second.Price);
     }
 
+    // Optimum Nutrition UK writes one size three ways; compared as written they
+    // became three rows at the same price (2026-10-05).
+    [Fact]
+    public void A_size_written_with_stray_spaces_is_one_product()
+    {
+        var p = Product("Serious Mass Weight Gainer Protein Powder", null, ["Flavour", "Size"],
+            (300, "Chocolate", "2.73  kg (8 servings)", 50m, true),
+            (200, "Vanilla", "2.73 kg  (8 servings)", 50m, true),
+            (100, "Banana", "2.73 kg (8 servings)", 52m, true));
+
+        var item = Assert.Single(ShopifyStoreScraper.ToScrapedProducts(p, Brand, null));
+
+        Assert.Equal("Serious Mass Weight Gainer Protein Powder - 2.73 kg (8 servings)", item.Name);
+        // The lowest variant id: the row that already existed keeps its identity.
+        Assert.EndsWith("?variant=100", item.Url);
+        Assert.Equal(50m, item.Price);
+    }
+
     [Fact]
     public void Product_without_options_keeps_a_plain_url()
     {

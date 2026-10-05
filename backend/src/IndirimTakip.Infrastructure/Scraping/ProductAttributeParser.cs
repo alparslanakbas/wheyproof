@@ -56,6 +56,11 @@ public static partial class ProductAttributeParser
         // "mineral salts" are electrolyte capsules/drinks (226ERS, Gold Nutrition);
         // without it "mineral" filed half of them under vitamins (2026-09-26).
         ("hydration", ["electrolyte", "hydration", "hydrate", "mineral salt"]),
+        // Optimum Nutrition spells its amino line "AMIN.O."; the dots defeat "amino"
+        // above, so seven of its powders had no category (2026-10-05). Placed AFTER
+        // hydration on purpose: the line's "+ Electrolytes" and "Hydration + Focus"
+        // drinks are sold as hydration products and already sit there.
+        ("amino-acids", ["amin.o"]),
         ("fat-burners", ["fat burner", "burner", "thermogenic", "l-carnitine", "carnitine", "cla", "fat loss", "weight loss"]),
         ("mass-gainers", ["gainer", "mass", "creamy rice", "cream of rice", "carb", "carbohydrate", "maltodextrin", "dextrose", "cyclic dextrin", "highly branched"]),
         ("protein-powder", ["protein", "whey", "isolate", "casein", "collagen"]),
