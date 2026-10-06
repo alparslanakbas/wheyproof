@@ -433,7 +433,6 @@ public partial class DealsQueryService(
             {
                 Product = p,
                 BrandName = b.Name,
-                Latest = p.PriceHistories.OrderByDescending(ph => ph.ScrapedAt).FirstOrDefault(),
                 // The reference comes from the summary, the lists' usual price (see PriceSummaryRefresher); live high until it exists.
                 ReferencePrice = (useSummary ? p.ReferencePrice30 : null) ?? p.PriceHistories
                     .Where(ph => ph.ScrapedAt >= referenceSince)
@@ -443,17 +442,18 @@ public partial class DealsQueryService(
                     .Min(ph => (decimal?)ph.Price),
             }).AsNoTracking().FirstOrDefaultAsync(cancellationToken);
 
-        if (row?.Latest is null || row.ReferencePrice is null || row.ThirtyDayLowPrice is null)
+        // Latest price in its own indexed query: FirstOrDefault inside the projection became a
+        // ROW_NUMBER window over the WHOLE price history in EF (2026-10-06: 0.25-0.9 s per product).
+        var latest = row is null ? null : await db.PriceHistories.AsNoTracking().Where(ph => ph.ProductId == productId)
+            .OrderByDescending(ph => ph.ScrapedAt).FirstOrDefaultAsync(cancellationToken);
+        if (latest is null || row!.ReferencePrice is null || row.ThirtyDayLowPrice is null)
             return null;
 
-        var dto = MapToDealDto(new DealRow(row.Product, row.BrandName, row.Latest, row.ReferencePrice.Value, row.ThirtyDayLowPrice.Value));
+        var dto = MapToDealDto(new DealRow(row.Product, row.BrandName, latest, row.ReferencePrice.Value, row.ThirtyDayLowPrice.Value));
 
-        // If this product is a SECONDARY record of a same brand + name group, its
-        // canonical should point to the main page. Computed only in this endpoint:
-        // list queries are the hot path and the canonical tag is only produced on
-        // a single product page anyway.
-        var duplicates = await DuplicateProductMap.BuildAsync(db, cancellationToken);
-        if (duplicates.TryGetValue(productId, out var mainId))
+        // A SECONDARY record of a same brand + name group points its canonical to the main page.
+        // Only this endpoint computes it (lists are the hot path; the canonical is a product-page tag).
+        if (await DuplicateProductMap.MainIdAsync(db, productId, row.Product.BrandId, row.Product.Name, cancellationToken) is int mainId)
             dto = dto with { CanonicalProductId = mainId };
 
         // This endpoint is DELIBERATELY exempt from the lists' frozen-product
@@ -468,7 +468,7 @@ public partial class DealsQueryService(
         // from the start. Instead the page is told it isn't current and, if there
         // is one, which record replaced it.
         var staleSince = DateTimeOffset.UtcNow.Subtract(StaleThreshold);
-        var isStale = row.Latest.ScrapedAt < staleSince;
+        var isStale = latest.ScrapedAt < staleSince;
         if (!isStale)
             return dto;
 

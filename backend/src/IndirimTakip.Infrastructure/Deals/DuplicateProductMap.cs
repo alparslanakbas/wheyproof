@@ -72,4 +72,41 @@ internal static class DuplicateProductMap
 
         return map;
     }
+
+    /// <summary>
+    /// What <see cref="BuildAsync"/> would answer for one product: the main record's id when the
+    /// product is a secondary record of a same brand + name group, otherwise null. Same rule (most
+    /// price history, then the lowest id), but only this product's group is read.
+    /// </summary>
+    /// <remarks>
+    /// The product endpoint (<c>GetProductByIdAsync</c>) used to build the whole map on every
+    /// request: every product, plus a count of all history rows of every duplicate-group product
+    /// (2026-10-06). Google requests each product page uncached, so every crawl paid for it.
+    /// </remarks>
+    public static async Task<int?> MainIdAsync(
+        AppDbContext db, int productId, int brandId, string name, CancellationToken cancellationToken)
+    {
+        var group = await db.Products
+            .AsNoTracking()
+            .Where(p => p.BrandId == brandId && p.Name == name)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        if (group.Count < 2)
+            return null;
+
+        var historyCounts = await db.PriceHistories
+            .AsNoTracking()
+            .Where(h => group.Contains(h.ProductId))
+            .GroupBy(h => h.ProductId)
+            .Select(g => new { ProductId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ProductId, x => x.Count, cancellationToken);
+
+        var main = group
+            .OrderByDescending(id => historyCounts.GetValueOrDefault(id))
+            .ThenBy(id => id)
+            .First();
+
+        return main == productId ? null : main;
+    }
 }
