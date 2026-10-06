@@ -124,6 +124,18 @@ public sealed class DealsListDatabase : IAsyncLifetime
         Add(naked, "Spiked Creatine", "creatine", null,
             [.. Enumerable.Repeat(50m, 8), 200m, 200m, 50m]);
 
+        // The gap rule (2026-10-06): eight days at $41.50, then six days unseen, then three days at $35.26.
+        // The old calculation kept $41.50 as the usual price (a 15% "real drop"); after the break there is
+        // no usual price yet, so no drop.
+        var returned = Add(naked, "Returned After Gap", "protein-powder", null,
+            [.. Enumerable.Repeat(41.50m, 8), 35.26m, 35.26m, 35.26m]);
+        foreach (var p in returned.PriceHistories.Where(p => p.Price == 41.50m))
+            p.ScrapedAt = p.ScrapedAt.AddDays(-5);
+        // Control: a two-day break is under the threshold (one missed run at a daily source); the drop stays.
+        var shortGap = Add(naked, "Short Gap Drop", "protein-powder", null, Week(100m, 90m));
+        foreach (var p in shortGap.PriceHistories.Where(p => p.Price == 100m))
+            p.ScrapedAt = p.ScrapedAt.AddDays(-1);
+
         // Same name, same price, two retailers: the sort keys are identical.
         for (var i = 0; i < 4; i++)
         {
@@ -134,7 +146,7 @@ public sealed class DealsListDatabase : IAsyncLifetime
         Add(vivo, "Vivo Life Magnesium", "vitamins", "vivolife.com", Week(18m, 14m));
 
         VisibleProducts = n;
-        DiscountedProducts = 8 + 1 + 8 + 1; // wheys, D3, Gold Standards, magnesium
+        DiscountedProducts = 8 + 1 + 8 + 1 + 1; // wheys, D3, Gold Standards, magnesium, short gap drop
 
         // Products that must NOT show.
         var stale = Add(naked, "Stale Product", "protein-powder", null, 99m);
@@ -233,6 +245,22 @@ public class DealsListDatabaseTests(DealsListDatabase data) : IClassFixture<Deal
         Assert.DoesNotContain(result.Items, d => d.ProductName is "Short History Drop" or "Spiked Creatine");
     }
 
+    // A product back after a break longer than the threshold earns its usual price again; a short break
+    // (a missed run) must not erase a drop.
+    [DatabaseFact]
+    public async Task A_product_back_after_a_gap_gets_its_usual_price_from_after_the_gap()
+    {
+        await using var db = data.Context();
+
+        var result = await Get(Service(db), null, null, null, false, 1, 100);
+
+        var returned = Assert.Single(result.Items, d => d.ProductName == "Returned After Gap");
+        Assert.Equal(0m, returned.DiscountPercent);
+        Assert.Equal(35.26m, returned.ReferencePrice);
+        var shortGap = Assert.Single(result.Items, d => d.ProductName == "Short Gap Drop");
+        Assert.Equal(100m, shortGap.ReferencePrice);
+    }
+
     // A product with no usual price stays in the list with a 0 discount: the
     // reference is the current price. A NULL reference would have made the list
     // query drop the product entirely.
@@ -274,7 +302,7 @@ public class DealsListDatabaseTests(DealsListDatabase data) : IClassFixture<Deal
 
         var catalog = new CatalogStatsQueryService(db);
         Assert.Equal(data.DiscountedProducts, (await catalog.GetHomepageStatsAsync()).DiscountCount);
-        Assert.Equal(8 + 1, (await catalog.GetBrandStatsAsync("Naked Nutrition")).DiscountCount); // wheys, D3
+        Assert.Equal(8 + 1 + 1, (await catalog.GetBrandStatsAsync("Naked Nutrition")).DiscountCount); // wheys, D3, short gap drop (not the returned one)
     }
 
     [DatabaseFact]

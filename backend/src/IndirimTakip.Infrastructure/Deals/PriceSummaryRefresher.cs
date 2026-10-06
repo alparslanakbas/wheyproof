@@ -60,14 +60,30 @@ public sealed class PriceSummaryRefresher(AppDbContext db, ILogger<PriceSummaryR
     /// </summary>
     public const int UsualPriceDays = 7;
 
+    /// <summary>
+    /// A longer break in a product's price history makes it count as restarted: the usual price and the
+    /// 30-day low come only from the points AFTER the break.
+    /// </summary>
+    /// <remarks>
+    /// Why (2026-10-06): an ON bundle unseen since 2026-09-30 came back through the home tunnel with
+    /// different contents, and with September's $237.56 still the usual price, $47.68 showed as an "80% real
+    /// drop". We can't know a product left and came back, nor that its new price compares with the old
+    /// one, so a returning product shows no drop until it earns a usual price again (7 days).
+    /// The threshold was measured (live, last 30 days): on ProteinAvcisi 419 products have a longest break
+    /// over 48 hours, mostly one missed run at once-a-day sources, and 53 over 72 hours; US 17 and UK 9 over
+    /// 72 hours. The ON case was 5 days.
+    /// </remarks>
+    public const int GapHours = 72;
+
     public async Task<int> RefreshAsync(CancellationToken cancellationToken = default)
     {
         // One statement, set-based. NO per-product loop; that would be the very
         // problem we are fixing.
         //
         // `latest`       : the newest price point (one row per product via DISTINCT ON)
-        // `price_window` : highest/lowest price of the last 30 days
-        // `daily`        : on how many different days each price was seen in the window
+        // `segment`      : the first scrape after the last break longer than GapHours (NULL if none)
+        // `price_window` : highest/lowest price of the last 30 days (after the break, if any)
+        // `daily`        : on how many different days each price was seen in that span
         // `usual`        : the highest price seen on at least UsualPriceDays days
         //
         // A product with an empty window (not scraped for 30 days) keeps a NULL
@@ -80,19 +96,32 @@ public sealed class PriceSummaryRefresher(AppDbContext db, ILogger<PriceSummaryR
                 FROM "PriceHistories" ph
                 ORDER BY ph."ProductId", ph."ScrapedAt" DESC
             ),
+            segment AS (
+                SELECT a."ProductId",
+                       MAX(a."ScrapedAt") FILTER (WHERE a."ScrapedAt" - a.previous > @gapThreshold) AS start
+                FROM (
+                    SELECT ph."ProductId", ph."ScrapedAt",
+                           LAG(ph."ScrapedAt") OVER (PARTITION BY ph."ProductId" ORDER BY ph."ScrapedAt") AS previous
+                    FROM "PriceHistories" ph
+                    WHERE ph."ScrapedAt" >= @windowStart
+                ) a
+                GROUP BY a."ProductId"
+            ),
             price_window AS (
                 SELECT ph."ProductId",
                        MAX(ph."Price") AS highest,
                        MIN(ph."Price") AS lowest
                 FROM "PriceHistories" ph
-                WHERE ph."ScrapedAt" >= @windowStart
+                JOIN segment s ON s."ProductId" = ph."ProductId"
+                WHERE ph."ScrapedAt" >= COALESCE(s.start, @windowStart)
                 GROUP BY ph."ProductId"
             ),
             daily AS (
                 SELECT ph."ProductId", ph."Price",
                        COUNT(DISTINCT (ph."ScrapedAt" AT TIME ZONE 'UTC')::date) AS days
                 FROM "PriceHistories" ph
-                WHERE ph."ScrapedAt" >= @windowStart
+                JOIN segment s ON s."ProductId" = ph."ProductId"
+                WHERE ph."ScrapedAt" >= COALESCE(s.start, @windowStart)
                 GROUP BY ph."ProductId", ph."Price"
             ),
             usual AS (
@@ -137,6 +166,7 @@ public sealed class PriceSummaryRefresher(AppDbContext db, ILogger<PriceSummaryR
             [
                 new Npgsql.NpgsqlParameter("windowStart", windowStart),
                 new Npgsql.NpgsqlParameter("usualDays", UsualPriceDays),
+                new Npgsql.NpgsqlParameter("gapThreshold", TimeSpan.FromHours(GapHours)),
                 new Npgsql.NpgsqlParameter("now", now),
             ],
             cancellationToken);
