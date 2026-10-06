@@ -72,6 +72,8 @@ export class CategoryPage implements OnInit {
   protected readonly items = signal<Deal[]>([]);
   protected readonly totalCount = signal(0);
   protected readonly totalPages = signal(0);
+  // Whether this component has loaded its first list (an out-of-range page 404s only then).
+  private firstListLoaded = false;
   protected readonly currentPage = signal(1);
   // Page numbers for the pagination bar (null = "…").
   protected readonly pageItems = computed(() => pageWindow(this.currentPage(), this.totalPages()));
@@ -215,8 +217,16 @@ export class CategoryPage implements OnInit {
         // currently not indexed". The page total is only known here, not at
         // the first setMeta call, so it is called again when needed.
         if (result.totalPages > 0 && this.currentPage() > result.totalPages) {
+          // An out-of-range page reached by its address (first load: a crawler, an old link) is a
+          // real 404 (SEO audit, item 7; an empty list can count as a soft 404). After a filter
+          // change inside the page the old behavior stays: a visitor shouldn't suddenly get a 404.
+          if (!this.firstListLoaded) {
+            showNotFound(this.router);
+            return;
+          }
           this.setMeta(this.categoryLabel(), this.categorySlug());
         }
+        this.firstListLoaded = true;
       },
       error: () => {
         this.itemsError.set(true);

@@ -10,6 +10,7 @@ import { canonicalOrigin } from './core/canonical-link';
 import { CATEGORY_LABELS } from './core/category-labels';
 import { DealsService } from './core/deals.service';
 import { upsertJsonLdScript } from './core/page-meta.service';
+import { MARKET } from './core/market';
 import { FOUNDER, SITE_NAME } from './core/site-identity';
 import { ComparisonBar } from './comparison-bar/comparison-bar';
 import { CookieConsentBanner } from './cookie-consent-banner/cookie-consent-banner';
@@ -80,6 +81,9 @@ export class App implements OnInit {
   });
 
   ngOnInit(): void {
+    // index.html says "en" for both editions; the market sets the real value (UK: en-GB).
+    this.document.documentElement.lang = MARKET.lang;
+
     this.dealsService.getFilterOptions().subscribe((options) => {
       this.brands.set(options.brands);
       this.categories.set(options.categories.map((slug) => ({ slug, label: CATEGORY_LABELS[slug] ?? slug })));

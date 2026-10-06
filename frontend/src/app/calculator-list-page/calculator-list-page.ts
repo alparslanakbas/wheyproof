@@ -4,7 +4,8 @@ import { RouterLink } from '@angular/router';
 
 import { BODY_CALCULATORS } from '../core/body-calculators';
 import { calculatorPhosphorIcon } from '../core/nav-icons';
-import { PageMetaService } from '../core/page-meta.service';
+import { buildBreadcrumbJsonLd } from '../core/breadcrumb';
+import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
 import { SITE_NAME } from '../core/site-identity';
 import { SUPPLEMENT_DOSAGES } from '../core/supplement-dosages';
 import { SiteHeader } from '../site-header/site-header';
@@ -68,6 +69,16 @@ export class CalculatorListPage implements OnInit {
         'Protein needs plus creatine, beta-alanine, citrulline, betaine and EAA dosage calculators, with results tied to current product prices.',
       canonicalPath: '/calculators',
     });
+
+    // No page-specific structured data before (SEO audit, item 10).
+    upsertJsonLdScript(
+      this.document,
+      null,
+      buildBreadcrumbJsonLd(this.document, [
+        { name: 'Home', path: '/' },
+        { name: 'Calculators', path: '/calculators' },
+      ]),
+    );
   }
 
   protected selectSection(section: CalculatorSection): void {

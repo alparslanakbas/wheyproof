@@ -5,7 +5,11 @@
 export const MARKET = {
   locale: 'en-US',
   currency: 'USD',
+  // Written into <html lang> (app.ts).
   lang: 'en',
+  // Names the market where a page must say which one it covers (the home page title and
+  // description); null on the US edition, whose texts stay as they are.
+  regionAdjective: null as string | null,
   // Fixed rather than the visitor's device zone, so the same scan time reads
   // the same for every visitor.
   timeZone: 'America/New_York',

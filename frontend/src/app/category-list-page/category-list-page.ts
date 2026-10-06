@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { of } from 'rxjs';
@@ -5,7 +6,8 @@ import { catchError } from 'rxjs/operators';
 
 import { CATEGORY_INTROS, CATEGORY_LABELS } from '../core/category-labels';
 import { DealsService } from '../core/deals.service';
-import { PageMetaService } from '../core/page-meta.service';
+import { buildBreadcrumbJsonLd } from '../core/breadcrumb';
+import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
 import { categoryPhosphorIcon } from '../core/nav-icons';
 import { normalizeSearchText } from '../core/search-normalize';
 import { SITE_NAME } from '../core/site-identity';
@@ -59,6 +61,7 @@ const CATEGORY_TONES: Record<string, CategoryTone> = {
 export class CategoryListPage implements OnInit {
   private readonly dealsService = inject(DealsService);
   private readonly pageMeta = inject(PageMetaService);
+  private readonly document = inject(DOCUMENT);
 
   protected readonly loading = signal(true);
   protected readonly loadError = signal(false);
@@ -92,6 +95,16 @@ export class CategoryListPage implements OnInit {
       description: 'Protein powder, creatine, amino acids, pre-workout and more: browse every supplement category we track, with real product counts.',
       canonicalPath: '/categories',
     });
+
+    // No page-specific structured data before (SEO audit, item 10).
+    upsertJsonLdScript(
+      this.document,
+      null,
+      buildBreadcrumbJsonLd(this.document, [
+        { name: 'Home', path: '/' },
+        { name: 'Categories', path: '/categories' },
+      ]),
+    );
 
     this.dealsService.getFilterOptions().subscribe({
       next: (options) => {

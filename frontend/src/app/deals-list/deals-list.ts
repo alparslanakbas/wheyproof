@@ -70,9 +70,11 @@ const SCAN_DATE_FORMATTER = new Intl.DateTimeFormat(MARKET.locale, { month: 'lon
 // follows the last " | " when a title is too long (it assumes a trailing
 // brand suffix); with the brand first, the Turkish site's home page was once
 // left titled with the brand alone.
-const DEFAULT_TITLE = `Real Protein and Supplement Deals | ${SITE_NAME}`;
+// The UK edition names itself (MARKET.regionAdjective); the US texts are unchanged.
+const REGION = MARKET.regionAdjective ? `${MARKET.regionAdjective} ` : '';
+const DEFAULT_TITLE = `Real ${REGION}Protein and Supplement Deals | ${SITE_NAME}`;
 const DEFAULT_DESCRIPTION =
-  'WheyProof tracks protein powder, creatine, pre-workout and other supplement prices every day and shows which discounts are real, based on price history rather than the store\'s own "was" price.';
+  `WheyProof tracks ${REGION}protein powder, creatine, pre-workout and other supplement prices every day and shows which discounts are real, based on price history rather than the store's own "was" price.`;
 
 // Real questions only, each describing something the site already does; no
 // marketing claims. Also used for the FAQPage structured data.
@@ -386,7 +388,9 @@ export class DealsList implements OnInit {
         buildBreadcrumbJsonLd(this.document, [
           { name: 'Home', path: '/' },
           ...(categoryLabel && deal.category ? [{ name: categoryLabel, path: `/category/${deal.category}` }] : []),
-          { name: deal.productName, path: canonicalProductPath },
+          // Same (display) name as the Product schema; raw names are all caps at some stores ("GOLD
+          // STANDARD 100% WHEY®"; SEO audit, item 11).
+          { name: displayedName, path: canonicalProductPath },
         ]),
       );
     });

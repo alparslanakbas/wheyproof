@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
@@ -12,7 +13,8 @@ import { brandSlug } from '../core/brand-slug';
 import { CATEGORY_LABELS } from '../core/category-labels';
 import { BrandCategoryPair, BrandProductCount, DealsService } from '../core/deals.service';
 import { MARKET } from '../core/market';
-import { PageMetaService } from '../core/page-meta.service';
+import { buildBreadcrumbJsonLd } from '../core/breadcrumb';
+import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
 import { matchesSearch } from '../core/search-normalize';
 import { SITE_NAME } from '../core/site-identity';
 import { SiteHeader } from '../site-header/site-header';
@@ -49,6 +51,7 @@ const byName = (a: BrandDirectoryItem, b: BrandDirectoryItem) => a.name.localeCo
 export class BrandListPage implements OnInit {
   private readonly dealsService = inject(DealsService);
   private readonly pageMeta = inject(PageMetaService);
+  private readonly document = inject(DOCUMENT);
 
   protected readonly loading = signal(true);
   protected readonly loadError = signal(false);
@@ -101,6 +104,16 @@ export class BrandListPage implements OnInit {
         'Browse protein powder, creatine and sports nutrition brands with real product counts, current prices and price history.',
       canonicalPath: '/brands',
     });
+
+    // No page-specific structured data before (SEO audit, item 10).
+    upsertJsonLdScript(
+      this.document,
+      null,
+      buildBreadcrumbJsonLd(this.document, [
+        { name: 'Home', path: '/' },
+        { name: 'Brands', path: '/brands' },
+      ]),
+    );
 
     forkJoin({
       filters: this.dealsService.getFilterOptions(),

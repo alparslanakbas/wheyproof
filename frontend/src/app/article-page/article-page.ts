@@ -80,7 +80,13 @@ export class ArticlePage implements OnInit {
       datePublished: article.publishedAt,
       ...(article.coverImageUrl ? { image: article.coverImageUrl } : {}),
       author: { '@type': 'Person', name: FOUNDER.name, url: FOUNDER.blogUrl },
-      publisher: { '@type': 'Organization', name: SITE_NAME },
+      // Logo: the same 512 px icon as the Organization schema (Google lists it as recommended; SEO
+      // audit, item 9). No dateModified: articles keep no updated date, and none is made up.
+      publisher: {
+        '@type': 'Organization',
+        name: SITE_NAME,
+        logo: { '@type': 'ImageObject', url: `${canonicalOrigin(this.document)}/icons/icon-512x512.png` },
+      },
       mainEntityOfPage: `${canonicalOrigin(this.document)}/guides/${article.slug}`,
     };
 

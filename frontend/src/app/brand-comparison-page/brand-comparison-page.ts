@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -7,7 +8,8 @@ import { BrandComparisonService } from '../core/brand-comparison.service';
 import { brandSlug, resolveBrandFromSlug } from '../core/brand-slug';
 import { DealsService } from '../core/deals.service';
 import { CATEGORY_LABELS } from '../core/category-labels';
-import { PageMetaService } from '../core/page-meta.service';
+import { buildBreadcrumbJsonLd } from '../core/breadcrumb';
+import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
 import { PricePipe } from '../core/price.pipe';
 import { SITE_NAME } from '../core/site-identity';
 import { SiteHeader } from '../site-header/site-header';
@@ -28,6 +30,8 @@ export class BrandComparisonPage implements OnInit {
   private readonly comparisonService = inject(BrandComparisonService);
   private readonly dealsService = inject(DealsService);
   private readonly pageMeta = inject(PageMetaService);
+  private readonly document = inject(DOCUMENT);
+  private breadcrumbEl: HTMLScriptElement | null = null;
 
   protected readonly comparison = signal<BrandComparison | null>(null);
   protected readonly loading = signal(true);
@@ -93,6 +97,18 @@ export class BrandComparisonPage implements OnInit {
       description,
       canonicalPath: `/compare/${this.pairSlug()}`,
     });
+
+    // The best-CTR page type on ProteinAvcisi carried no page-specific structured data (SEO audit,
+    // item 10); same here.
+    this.breadcrumbEl = upsertJsonLdScript(
+      this.document,
+      this.breadcrumbEl,
+      buildBreadcrumbJsonLd(this.document, [
+        { name: 'Home', path: '/' },
+        { name: 'Brands', path: '/brands' },
+        { name: `${comparison.brand1} vs ${comparison.brand2}`, path: `/compare/${this.pairSlug()}` },
+      ]),
+    );
   }
 
   protected categoryLabel(category: string): string {

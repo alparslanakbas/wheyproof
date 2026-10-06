@@ -143,6 +143,8 @@ export class BrandPage implements OnInit {
   private readonly sparklineRequest = new LatestRequest();
   protected readonly totalCount = signal(0);
   protected readonly totalPages = signal(0);
+  // Whether this component has loaded its first list (an out-of-range page 404s only then).
+  private firstListLoaded = false;
   protected readonly currentPage = signal(1);
   // Page numbers for the pagination bar (null = "…").
   protected readonly pageItems = computed(() => pageWindow(this.currentPage(), this.totalPages()));
@@ -389,8 +391,16 @@ export class BrandPage implements OnInit {
         // An out-of-range page must NOT claim itself canonical (see
         // category-page.ts); the page total is only known here.
         if (result.totalPages > 0 && this.currentPage() > result.totalPages) {
+          // An out-of-range page reached by its address (first load: a crawler, an old link) is a
+          // real 404 (SEO audit, item 7; an empty list can count as a soft 404). After a filter
+          // change inside the page the old behavior stays: a visitor shouldn't suddenly get a 404.
+          if (!this.firstListLoaded) {
+            showNotFound(this.router);
+            return;
+          }
           this.setMeta(this.brandName());
         }
+        this.firstListLoaded = true;
 
         // Does the brand have its own store? Read from the list rather than a
         // separate request: with `preferBrandStore` on, a brand with its own

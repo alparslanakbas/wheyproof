@@ -1,10 +1,12 @@
+import { DOCUMENT } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { ArticleSummary } from '../core/article.model';
 import { ArticlesService } from '../core/articles.service';
 import { MARKET } from '../core/market';
-import { PageMetaService } from '../core/page-meta.service';
+import { buildBreadcrumbJsonLd } from '../core/breadcrumb';
+import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
 import { normalizeSearchText } from '../core/search-normalize';
 import { SITE_NAME } from '../core/site-identity';
 import { SiteHeader } from '../site-header/site-header';
@@ -57,6 +59,7 @@ const LEARNING_PATH_CONFIGS: LearningPathConfig[] = [
 export class ArticleListPage implements OnInit {
   private readonly articlesService = inject(ArticlesService);
   private readonly pageMeta = inject(PageMetaService);
+  private readonly document = inject(DOCUMENT);
 
   protected readonly articles = signal<ArticleSummary[]>([]);
   protected readonly loading = signal(true);
@@ -97,6 +100,16 @@ export class ArticleListPage implements OnInit {
       description: 'Informational guides on protein powder, creatine, pre-workout and other supplements: honest, independent help choosing what to buy.',
       canonicalPath: '/guides',
     });
+
+    // No page-specific structured data before (SEO audit, item 10).
+    upsertJsonLdScript(
+      this.document,
+      null,
+      buildBreadcrumbJsonLd(this.document, [
+        { name: 'Home', path: '/' },
+        { name: 'Guides', path: '/guides' },
+      ]),
+    );
 
     this.articlesService.getArticles().subscribe({
       next: (articles) => {
