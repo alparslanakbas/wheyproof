@@ -74,6 +74,11 @@ export const routes: Routes = [
     path: 'review/:id/:slug',
     loadComponent: () => import('./product-review-page/product-review-page').then((m) => m.ProductReviewPage),
   },
+  // Without a slug this answered 404 (the product page answers 301); the component redirects to the canonical URL.
+  {
+    path: 'review/:id',
+    loadComponent: () => import('./product-review-page/product-review-page').then((m) => m.ProductReviewPage),
+  },
   {
     path: 'calculators',
     loadComponent: () => import('./calculator-list-page/calculator-list-page').then((m) => m.CalculatorListPage),

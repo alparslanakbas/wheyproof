@@ -123,11 +123,11 @@ export class ProductReviewPage implements OnInit {
         showNotFound(this.router);
         return;
       }
-      this.load(id);
+      this.load(id, params.get('slug'));
     });
   }
 
-  private load(id: number): void {
+  private load(id: number, slug: string | null): void {
     this.loading.set(true);
     this.loadError.set(false);
 
@@ -136,6 +136,20 @@ export class ProductReviewPage implements OnInit {
       history: this.priceHistoryService.get(id, HISTORY_DAYS).pipe(catchError(() => of({ points: [] as PricePoint[] }))),
     }).subscribe({
       next: ({ deal, history }) => {
+        // A missing or outdated slug (the product was renamed) goes to the
+        // canonical URL. Before 2026-10-06 the slugless URL answered 404 and a
+        // wrong slug 200 + canonical; same mechanism as the product page's
+        // ensureCanonicalSlug, which server.ts turns into a 301 during SSR. No
+        // redirect for an empty slug (a name without letters or digits): the
+        // empty segment leads back to the slugless URL, an endless loop.
+        const canonicalSlug = slugify(deal.productName);
+        if (canonicalSlug && slug !== canonicalSlug) {
+          this.router.navigate(['/review', deal.productId, canonicalSlug], {
+            replaceUrl: true,
+            queryParamsHandling: 'preserve',
+          });
+          return;
+        }
         this.deal.set(deal);
         // Drop same-day/same-price repeats, or hover shows the same date over
         // and over (the same bug the modal had).

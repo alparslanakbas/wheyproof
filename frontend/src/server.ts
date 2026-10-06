@@ -420,12 +420,17 @@ app.use((req, res, next) => {
       // Google "keep the old address, keep checking", so those pages pile up
       // under "Page with redirect" and validation keeps failing.
       //
-      // Only redirects to a product address become 301s. Ones that land on
-      // the home page are OUT of scope: they mean "no such product", not a
-      // permanent move; a 301 would tell Google "this product is now the
-      // home page".
+      // Only redirects to a product or review address become 301s (review
+      // since 2026-10-06: a slugless or wrong-slug review URL now goes to the
+      // canonical one). Ones that land on the home page are OUT of scope:
+      // they mean "no such product", not a permanent move; a 301 would tell
+      // Google "this product is now the home page".
       const location = response.headers.get('location');
-      if (response.status === 302 && location && new URL(location, 'https://x').pathname.startsWith(`${BASE_PATH}/product/`)) {
+      const target = location ? new URL(location, 'https://x').pathname : '';
+      if (
+        response.status === 302 &&
+        (target.startsWith(`${BASE_PATH}/product/`) || target.startsWith(`${BASE_PATH}/review/`))
+      ) {
         response = new Response(response.body, {
           status: 301,
           statusText: 'Moved Permanently',
