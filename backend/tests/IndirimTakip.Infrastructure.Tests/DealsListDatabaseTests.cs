@@ -261,6 +261,27 @@ public class DealsListDatabaseTests(DealsListDatabase data) : IClassFixture<Deal
         Assert.Equal(100m, shortGap.ReferencePrice);
     }
 
+    // Favorites take the latest price from one batch query rather than the projection (2026-10-06; the
+    // projection's FirstOrDefault windowed the whole price history). Each product must match its product page.
+    [DatabaseFact]
+    public async Task Favorites_give_every_product_the_same_latest_price_as_its_product_page()
+    {
+        await using var db = data.Context();
+        var service = Service(db);
+        var ids = await db.Products.Select(p => p.Id).ToListAsync();
+
+        var favorites = await service.GetDealsByIdsAsync(ids);
+
+        Assert.True(favorites.Count >= data.VisibleProducts, $"{favorites.Count} products returned");
+        foreach (var f in favorites)
+        {
+            var product = await service.GetProductByIdAsync(f.ProductId);
+            Assert.NotNull(product);
+            Assert.Equal((product.CurrentPrice, product.ScrapedAt, product.ReferencePrice, product.DiscountPercent),
+                (f.CurrentPrice, f.ScrapedAt, f.ReferencePrice, f.DiscountPercent));
+        }
+    }
+
     // A product with no usual price stays in the list with a 0 discount: the
     // reference is the current price. A NULL reference would have made the list
     // query drop the product entirely.
