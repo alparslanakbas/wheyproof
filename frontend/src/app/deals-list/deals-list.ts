@@ -317,8 +317,9 @@ export class DealsList implements OnInit {
       // NO price in the title on purpose: prices change several times a day,
       // and rewriting the title each time makes Google keep re-fetching the
       // snippet. The price stays in the description, the JSON-LD Offer and the
-      // share card title (ogTitle).
-      const title = buildPageTitle(displayedName, 'Price & Price History', deal.brandName);
+      // share card title (ogTitle). A long name gets the short suffix "Price",
+      // so the size/flavor tail isn't the part that is cut (see buildPageTitle).
+      const title = buildPageTitle(displayedName, 'Price & Price History', deal.brandName, 'Price');
       const ogTitle = `${displayedName} Price: ${priceText} | ${deal.brandName} — ${SITE_NAME}`;
       const description = buildProductDescription({
         displayName: displayedName,

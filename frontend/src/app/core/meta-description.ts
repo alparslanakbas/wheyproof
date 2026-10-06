@@ -83,10 +83,20 @@ function extractIntro(raw: string | null | undefined, productName: string): stri
  *
  * Google cuts titles around 60-70 characters, and rewrites very long titles
  * entirely, so control is lost. Priority: (1) the full product name with the
- * site tail, (2) without the tail, (3) the name trimmed at a word boundary.
- * The product name always leads, since it is what decides the click.
+ * site tail, (2) without the tail, (3) without an acronym brand's spelled-out
+ * name, (4) with the short suffix ("Price" instead of "Price & Price
+ * History"), (5) the name trimmed at a word boundary. The product name always
+ * leads, since it is what decides the click.
+ *
+ * Why the short suffix (2026-10-06): the long suffix left 42 characters for
+ * the name, and the part cut off was the size/flavor/count tail, so variants
+ * of one product shared a title. Measured on the live catalogs, titles cut /
+ * shared with a different product: US 53.9% / 27.3% → 16.8% / 5.1%, UK
+ * 36.9% / 12.5% → 7.3% / 1.7% (rows with the exact same name are not counted;
+ * canonical already merges them). Dropping parentheses when trimming was tried
+ * too and shared more titles, since some variants differ only inside them.
  */
-export function buildPageTitle(subject: string, suffix: string, tail: string): string {
+export function buildPageTitle(subject: string, suffix: string, tail: string, shortSuffix = suffix): string {
   const MAX = 65;
   const full = `${subject} ${suffix} | ${tail}`;
   if (full.length <= MAX) return full;
@@ -94,8 +104,39 @@ export function buildPageTitle(subject: string, suffix: string, tail: string): s
   const withoutTail = `${subject} ${suffix}`;
   if (withoutTail.length <= MAX) return withoutTail;
 
-  const room = MAX - suffix.length - 2;
-  return `${trimAtWordBoundary(subject, Math.max(20, room))} ${suffix}`;
+  const shorter = dropAcronymExpansion(subject, tail);
+  if (shorter !== subject && `${shorter} ${suffix}`.length <= MAX) return `${shorter} ${suffix}`;
+
+  const short = `${shorter} ${shortSuffix}`;
+  if (short.length <= MAX) return short;
+
+  const room = MAX - shortSuffix.length - 2;
+  return `${trimAtWordBoundary(shorter, Math.max(20, room))} ${shortSuffix}`;
+}
+
+/**
+ * When the brand is an acronym and the name spells it out right after it, the
+ * spelled-out part goes: "SSN Sports Style Nutrition Command Quadro Whey" →
+ * "SSN Command Quadro Whey". People search the acronym; the long form only
+ * takes room, and in trimmed titles it pushed out the variant tail. No
+ * WheyProof brand triggers it today (it came from ProteinAvcısı, where it
+ * separated 38 more titles); kept so both sites build titles the same way.
+ * Only called when the title doesn't fit.
+ */
+function dropAcronymExpansion(subject: string, brand: string): string {
+  const letters = brand.replace(/[^\p{L}]/gu, '');
+  if (letters.length < 2 || letters.length > 5 || letters !== letters.toUpperCase()) return subject;
+
+  const words = subject.split(/\s+/);
+  const expansion = words.slice(1, 1 + letters.length);
+  if (
+    words.length <= 1 + letters.length ||
+    words[0].toUpperCase() !== letters ||
+    expansion.map((w) => w[0]).join('').toUpperCase() !== letters
+  ) {
+    return subject;
+  }
+  return [words[0], ...words.slice(1 + letters.length)].join(' ');
 }
 
 /**

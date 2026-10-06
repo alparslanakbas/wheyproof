@@ -164,6 +164,38 @@ describe('buildPageTitle', () => {
     );
     expect(result).not.toMatch(/\s\d+…/);
   });
+
+  // 2026-10-06, live US example: both sizes were titled
+  // "Nutricost Creatine Monohydrate Capsules -… Price & Price History".
+  it('switches to the short suffix when the long one does not fit, keeping the variant tail', () => {
+    const large = buildPageTitle('Nutricost Creatine Monohydrate Capsules - 500 Capsules', 'Price & Price History', 'Nutricost', 'Price');
+    const small = buildPageTitle('Nutricost Creatine Monohydrate Capsules - 180 Capsules', 'Price & Price History', 'Nutricost', 'Price');
+    expect(large).toBe('Nutricost Creatine Monohydrate Capsules - 500 Capsules Price');
+    expect(small).toBe('Nutricost Creatine Monohydrate Capsules - 180 Capsules Price');
+  });
+
+  it('trims the name before the short suffix when even that does not fit', () => {
+    const result = buildPageTitle(
+      'Optimum Nutrition Gold Standard 100% Whey Protein Powder, Double Rich Chocolate, 5 Pound',
+      'Price & Price History',
+      'Optimum Nutrition',
+      'Price',
+    );
+    expect(result).toBe('Optimum Nutrition Gold Standard 100% Whey Protein Powder… Price');
+  });
+
+  it("drops an acronym brand's spelled-out name only when the title does not fit", () => {
+    expect(
+      buildPageTitle('ON Optimum Nutrition Gold Standard 100% Whey Protein 2 lb Chocolate', 'Price & Price History', 'ON', 'Price'),
+    ).toBe('ON Gold Standard 100% Whey Protein 2 lb Chocolate Price');
+    expect(buildPageTitle('ON Optimum Nutrition Creatine', 'Review', 'ON')).toBe('ON Optimum Nutrition Creatine Review | ON');
+  });
+
+  it('keeps words that do not spell out the acronym', () => {
+    expect(
+      buildPageTitle('GNC Pro Performance 100% Whey Protein 5 lb Chocolate', 'Price & Price History', 'GNC', 'Price'),
+    ).toBe('GNC Pro Performance 100% Whey Protein 5 lb Chocolate Price');
+  });
 });
 
 describe('buildReviewDescription', () => {
