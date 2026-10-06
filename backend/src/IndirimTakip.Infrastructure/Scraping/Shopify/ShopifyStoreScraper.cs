@@ -317,19 +317,16 @@ public sealed partial class ShopifyStoreScraper(
             .ToList();
 
         var hasSizeDimension = groups.Any(g => g.Key.Length > 0);
+        var names = RowNames(title, groups.Select(g => SizeValues(g.First(), sizePositions)).ToList());
 
         // Product-level: every size row shares the product's images.
         var labelImage = NutritionLabels.NutritionLabelImagePicker.Pick(product.Images.Select(i => i.Src));
 
-        foreach (var group in groups)
+        foreach (var (group, name) in groups.Zip(names))
         {
             var inStock = group.Where(v => v.Available).ToList();
             var chosen = (inStock.Count > 0 ? inStock : group.ToList()).MinBy(v => v.Price)!;
             var label = group.Key;
-
-            var name = label.Length == 0 || title.Contains(label, StringComparison.OrdinalIgnoreCase)
-                ? title
-                : $"{title} - {label}";
 
             if (ProductAttributeParser.ToGrams(ProductAttributeParser.ExtractSize(name)) >= WholesaleGrams)
                 continue;
@@ -498,21 +495,75 @@ public sealed partial class ShopifyStoreScraper(
     private static string? OptionValue(ShopifyVariant variant, int position) =>
         position switch { 1 => variant.Option1, 2 => variant.Option2, 3 => variant.Option3, _ => null };
 
-    private static string SizeKey(ShopifyVariant variant, List<int> positions)
-    {
+    private static string SizeKey(ShopifyVariant variant, List<int> positions) =>
+        string.Join(" / ", SizeValues(variant, positions));
+
+    private static List<string> SizeValues(ShopifyVariant variant, List<int> positions) =>
         // Runs of spaces collapse to one: Optimum Nutrition UK writes one size as
         // "2.73  kg (8 servings)", "2.73 kg  (8 servings)" and "2.73 kg (8 servings)",
         // and compared as written that one size became three rows at the same price
         // (six sizes, 13 rows, measured 2026-10-05). The merged group keeps the
         // lowest variant id, so the row that already existed keeps its identity and
         // the extra rows go stale on their own.
-        var values = positions
-            .Select(p => p switch { 1 => variant.Option1, 2 => variant.Option2, 3 => variant.Option3, _ => null })
+        positions
+            .Select(p => OptionValue(variant, p))
             .Where(v => !string.IsNullOrWhiteSpace(v) && !v.Equals("Default Title", StringComparison.OrdinalIgnoreCase))
-            .Select(v => SpaceRunRegex().Replace(PerUnitPriceNoteRegex().Replace(v!, ""), " ").Trim());
+            .Select(v => SpaceRunRegex().Replace(PerUnitPriceNoteRegex().Replace(v!, ""), " ").Trim())
+            .ToList();
 
-        return string.Join(" / ", values);
+    /// <summary>
+    /// The name of each size row, "{title} - {label}", leaving out the option values the name already says.
+    /// </summary>
+    /// <remarks>
+    /// BulkSupplements repeats its form option in most titles: "Creatine Monohydrate (Micronized) Powder"
+    /// sold as "Powder / 500 Grams (1.1 lbs)", or "GABA Capsules" as "Capsule / 240 Veg Capsules". A page
+    /// title has room for about 60 characters, so the repeated word pushed out the size, the only part
+    /// that tells the rows apart: on 2026-10-06, 108 of the 258 US product pages whose title another
+    /// product also had were BulkSupplements sizes. Estimated on the stored names, leaving the repeats out
+    /// changes about 600 of its 799 rows and leaves 31 of the 108 (forms the title does not say:
+    /// "NAG Capsules - Powder / 500 Grams").
+    ///
+    /// A value is left out when the title says it, when another value of the label says it ("Capsule" in
+    /// "240 Veg Capsules"; a trailing plural s counts) or when it repeats an earlier value ("Pink Lemonade /
+    /// Pink Lemonade"). If that would give two rows of the product the same name, the product keeps its
+    /// full labels. The URL, not the name, is the row's identity, so a shorter name updates the same row.
+    /// </remarks>
+    internal static List<string> RowNames(string title, IReadOnlyList<IReadOnlyList<string>> labels)
+    {
+        var trimmed = labels.Select(values => RowName(title, WithoutRepeats(title, values))).ToList();
+        return trimmed.Distinct(StringComparer.OrdinalIgnoreCase).Count() == trimmed.Count
+            ? trimmed
+            : labels.Select(values => RowName(title, values)).ToList();
     }
+
+    private static string RowName(string title, IReadOnlyList<string> values)
+    {
+        var label = string.Join(" / ", values);
+        return label.Length == 0 || title.Contains(label, StringComparison.OrdinalIgnoreCase)
+            ? title
+            : $"{title} - {label}";
+    }
+
+    private static List<string> WithoutRepeats(string title, IReadOnlyList<string> values)
+    {
+        var kept = new List<string>();
+        for (var i = 0; i < values.Count; i++)
+        {
+            var value = values[i];
+            var saidElsewhere = Says(title, value)
+                || values.Where((other, j) => j != i && !other.Equals(value, StringComparison.OrdinalIgnoreCase))
+                    .Any(other => Says(other, value))
+                || kept.Contains(value, StringComparer.OrdinalIgnoreCase);
+            if (!saidElsewhere)
+                kept.Add(value);
+        }
+        return kept;
+    }
+
+    // Whole words only: "Gel" is not said by "Softgels", "Capsule" is said by "Capsules".
+    private static bool Says(string text, string value) =>
+        Regex.IsMatch(text, $@"(?<![\p{{L}}\p{{N}}]){Regex.Escape(value)}s?(?![\p{{L}}\p{{N}}])",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex SpaceRunRegex();

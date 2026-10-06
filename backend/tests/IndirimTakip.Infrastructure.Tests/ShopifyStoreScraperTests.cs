@@ -149,8 +149,62 @@ public class ShopifyStoreScraperTests
         var items = ShopifyStoreScraper.ToScrapedProducts(p, Brand, null).ToList();
 
         Assert.Equal(2, items.Count);
-        Assert.Contains(items, i => i.Name == "Zinc Orotate Capsules - Capsule / 240 Capsules");
+        // "Capsule" is left out, the title says it; "Powder" stays, it is what sets the row apart.
+        Assert.Contains(items, i => i.Name == "Zinc Orotate Capsules - 240 Capsules");
+        Assert.Contains(items, i => i.Name == "Zinc Orotate Capsules - Powder / 100 Grams (3.5 oz)");
         Assert.Contains(items, i => ProductAttributeParser.ExtractSize(i.Name) == "100 g");
+    }
+
+    // BulkSupplements, 2026-10-06: "... Powder - Powder / 500 Grams (1.1 lbs)". The repeated form
+    // pushed the size out of the page title, and every size of the powder got the same title.
+    [Fact]
+    public void Option_values_the_name_already_says_are_left_out()
+    {
+        var p = Product("Creatine Monohydrate (Micronized) Powder", "Creatine", ["Style", "Size"],
+            (60, "Powder", "500 Grams (1.1 lbs)", 25.96m, true),
+            (61, "Powder", "1 Kilogram (2.2 lbs)", 39.96m, true),
+            (62, "Capsule", "210 Gelatin Capsules", 19.96m, true));
+
+        var items = ShopifyStoreScraper.ToScrapedProducts(p, Brand, null).ToList();
+
+        Assert.Equal(
+            [
+                "Creatine Monohydrate (Micronized) Powder - 500 Grams (1.1 lbs)",
+                "Creatine Monohydrate (Micronized) Powder - 1 Kilogram (2.2 lbs)",
+                "Creatine Monohydrate (Micronized) Powder - 210 Gelatin Capsules",
+            ],
+            items.Select(i => i.Name));
+        Assert.Equal("500 g", ProductAttributeParser.ExtractSize(items[0].Name));
+        // The URL, the row's identity, does not depend on the name.
+        Assert.Contains("?variant=60", items[0].Url);
+    }
+
+    // Bare Performance Nutrition, 2026-10-06: "Strength Collection - Pink Lemonade / Pink Lemonade".
+    [Fact]
+    public void A_value_repeated_in_the_label_is_written_once()
+    {
+        var p = Product("Strength Collection", null, ["Pre-Workout", "Creatine"],
+            (63, "Pink Lemonade", "Pink Lemonade", 99.95m, true),
+            (64, "Blue Raspberry", "Blue Raspberry", 99.95m, true));
+
+        var names = ShopifyStoreScraper.ToScrapedProducts(p, Brand, null).Select(i => i.Name).ToList();
+
+        Assert.Equal(["Strength Collection - Pink Lemonade", "Strength Collection - Blue Raspberry"], names);
+    }
+
+    // The title says both forms: leaving them out would give the two rows one name.
+    [Fact]
+    public void Rows_that_would_share_a_name_keep_their_full_labels()
+    {
+        var p = Product("Beta Alanine Powder & Capsules", null, ["Style", "Size"],
+            (65, "Powder", "500 Grams", 20m, true),
+            (66, "Capsules", "500 Grams", 24m, true));
+
+        var names = ShopifyStoreScraper.ToScrapedProducts(p, Brand, null).Select(i => i.Name).ToList();
+
+        Assert.Equal(
+            ["Beta Alanine Powder & Capsules - Powder / 500 Grams", "Beta Alanine Powder & Capsules - Capsules / 500 Grams"],
+            names);
     }
 
     [Theory]
