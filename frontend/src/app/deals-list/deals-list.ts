@@ -369,18 +369,11 @@ export class DealsList implements OnInit {
           price: deal.currentPrice.toFixed(2),
           ...offerAvailability(deal.inStock),
         },
-        // The store's own customer rating, ONLY when it exists, and shown on
-        // the page too: Google requires marked-up ratings to be visible.
-        ...(deal.ratingValue !== null && deal.ratingCount !== null
-          ? {
-              aggregateRating: {
-                '@type': 'AggregateRating',
-                ratingValue: deal.ratingValue,
-                reviewCount: deal.ratingCount,
-                bestRating: 5,
-              },
-            }
-          : {}),
+        // NO aggregateRating, on purpose (2026-10-06). Our rating is the store's
+        // own customer rating, and Google forbids marking up ratings taken from
+        // another site ("Don't aggregate reviews or ratings from other
+        // websites", review snippet guidelines); the penalty is losing rich
+        // results altogether. The rating stays on the page as text.
       };
 
       this.structuredDataEl = upsertJsonLdScript(this.document, this.structuredDataEl, jsonLd);

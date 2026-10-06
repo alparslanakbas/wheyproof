@@ -373,16 +373,8 @@ export class ProductReviewPage implements OnInit {
         price: deal.currentPrice.toFixed(2),
         ...offerAvailability(deal.inStock),
       },
-      ...(deal.ratingValue !== null && deal.ratingCount !== null
-        ? {
-            aggregateRating: {
-              '@type': 'AggregateRating',
-              ratingValue: deal.ratingValue,
-              reviewCount: deal.ratingCount,
-              bestRating: 5,
-            },
-          }
-        : {}),
+      // No aggregateRating: the rating comes from the store's site, and Google
+      // forbids marking up ratings taken from another site (see deals-list.ts).
       ...(this.nutritionRows().length > 0
         ? {
             additionalProperty: this.nutritionRows().map((r) => ({

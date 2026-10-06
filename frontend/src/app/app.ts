@@ -112,6 +112,15 @@ export class App implements OnInit {
       sameAs: [FOUNDER.linkedInUrl],
       worksFor: { '@type': 'Organization', name: SITE_NAME, url: origin },
     });
+    // Google picks the site name shown in results from WebSite markup first,
+    // and there was none (2026-10-06 SEO audit). Site names are per domain, not
+    // per subfolder, so the UK section (/uk) points at the domain's home page.
+    upsertJsonLdScript(this.document, null, {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: SITE_NAME,
+      url: `${new URL(origin).origin}/`,
+    });
 
     // An SPA does not inherit the browser's "scroll to top on a new page"
     // behavior. Angular's withInMemoryScrolling would scroll on EVERY
