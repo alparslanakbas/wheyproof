@@ -45,9 +45,9 @@ public class ShopifyTunnelTests
         return (new HttpMessageInvoker(handler), direct, tunnel, time, state);
     }
 
-    private static Task<HttpResponseMessage> Send(HttpMessageInvoker client)
+    private static Task<HttpResponseMessage> Send(HttpMessageInvoker client, string url = Url)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, Url);
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.UserAgent.ParseAdd("Test/1.0");
         return client.SendAsync(request, CancellationToken.None);
     }
@@ -141,6 +141,77 @@ public class ShopifyTunnelTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Single(direct.Requests);
+    }
+
+    // 2026-10-05 18:34 (UK cycle): 10 of 10 stores answered 403 through the tunnel and sticky mode sent
+    // every request to the home address. Now, if the home address is refused too, the scraper sees the
+    // 429 it saw before the tunnel.
+    [Fact]
+    public async Task If_the_tunnel_is_refused_too_the_direct_429_is_returned_and_sticky_mode_ends()
+    {
+        var (client, _, tunnel, _, state) = Build(HttpStatusCode.TooManyRequests, _ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+
+        var response = await Send(client);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+        Assert.Single(tunnel!.Requests);
+        Assert.False(state.UseTunnel);
+        Assert.True(state.Usable); // one refusal doesn't close the tunnel
+    }
+
+    [Fact]
+    public async Task Three_different_stores_refusing_rests_the_tunnel_for_two_hours()
+    {
+        var (client, _, tunnel, time, state) = Build(HttpStatusCode.TooManyRequests, _ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+
+        foreach (var store in new[] { "a.com", "b.com", "c.com" })
+            await Send(client, $"https://{store}/products.json");
+        Assert.False(state.Usable);
+
+        await Send(client, "https://d.com/products.json");
+        Assert.Equal(3, tunnel!.Requests.Count); // nothing goes to the home address while it rests
+
+        time.Now += ShopifyTunnel.ClosedFor + TimeSpan.FromMinutes(1);
+        await Send(client, "https://d.com/products.json");
+        Assert.Equal(4, tunnel.Requests.Count); // tried again once the period is over
+    }
+
+    [Fact]
+    public async Task The_same_store_refusing_twice_counts_once()
+    {
+        var (client, _, _, _, state) = Build(HttpStatusCode.TooManyRequests, _ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+
+        await Send(client, "https://a.com/products.json");
+        await Send(client, "https://a.com/products.json");
+        await Send(client, "https://b.com/products.json");
+
+        Assert.True(state.Usable);
+    }
+
+    // A single store that blocks Turkey mustn't close the tunnel for everyone: a success resets the count.
+    [Fact]
+    public async Task A_successful_tunnel_answer_resets_the_rejection_count()
+    {
+        var (client, _, _, _, state) = Build(HttpStatusCode.TooManyRequests,
+            request => new HttpResponseMessage(request.RequestUri!.Host == "ok.com" ? HttpStatusCode.OK : HttpStatusCode.Forbidden));
+
+        foreach (var store in new[] { "a.com", "b.com", "ok.com", "c.com", "d.com" })
+            await Send(client, $"https://{store}/products.json");
+
+        Assert.True(state.Usable);
+    }
+
+    [Fact]
+    public async Task If_the_tunnel_is_refused_during_the_sticky_period_the_request_goes_direct()
+    {
+        var (client, direct, _, _, state) = Build(HttpStatusCode.OK, _ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+        state.BlockSeen();
+
+        var response = await Send(client);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Single(direct.Requests);
+        Assert.False(state.UseTunnel);
     }
 
     [Fact]

@@ -38,11 +38,24 @@ public sealed class ShopifyTunnel : IDisposable
 {
     internal static readonly TimeSpan StickyFor = TimeSpan.FromMinutes(30);
 
+    // If the home address is refused too (2026-10-05 18:34, UK cycle: 10 of 10 stores answered 403
+    // through the tunnel), the tunnel rests for a while; otherwise sticky mode sends every request to
+    // the home address and prolongs the block. The threshold is THREE DIFFERENT stores, not one, so a
+    // single store that blocks Turkey can't close the tunnel for everyone; one successful tunnel
+    // answer in between resets the count.
+    internal const int RejectThreshold = 3;
+    internal static readonly TimeSpan ClosedFor = TimeSpan.FromHours(2);
+
     private readonly HttpMessageInvoker? tunnel;
     private readonly TimeProvider time;
+    private readonly Lock gate = new();
+    private readonly HashSet<string> rejectedBy = new(StringComparer.OrdinalIgnoreCase);
 
     // Until this moment (UTC ticks) requests go straight to the tunnel.
     private long tunnelUntil;
+
+    // Until this moment (UTC ticks) the tunnel isn't used at all (the home address was refused too).
+    private long closedUntil;
 
     public ShopifyTunnel(HttpMessageHandler? tunnelHandler, TimeProvider time)
     {
@@ -56,8 +69,11 @@ public sealed class ShopifyTunnel : IDisposable
 
     public bool Enabled => tunnel is not null;
 
+    /// <summary>The tunnel is configured and not resting because the home address was refused.</summary>
+    public bool Usable => Enabled && time.GetUtcNow().UtcTicks >= Interlocked.Read(ref closedUntil);
+
     /// <summary>True while <see cref="StickyFor"/> hasn't passed since the last 429.</summary>
-    public bool UseTunnel => Enabled && time.GetUtcNow().UtcTicks < Interlocked.Read(ref tunnelUntil);
+    public bool UseTunnel => Usable && time.GetUtcNow().UtcTicks < Interlocked.Read(ref tunnelUntil);
 
     /// <summary>A direct request got a 429. True when the tunnel wasn't already in use (log once).</summary>
     public bool BlockSeen()
@@ -69,6 +85,32 @@ public sealed class ShopifyTunnel : IDisposable
 
     /// <summary>The tunnel failed: try direct first again.</summary>
     public void Reset() => Interlocked.Exchange(ref tunnelUntil, 0);
+
+    /// <summary>
+    /// The home address was refused too (403/429). Sticky mode ends; after <see cref="RejectThreshold"/>
+    /// different stores in a row the tunnel rests for <see cref="ClosedFor"/> (true: it just closed).
+    /// </summary>
+    public bool Rejected(string store)
+    {
+        Reset();
+        lock (gate)
+        {
+            rejectedBy.Add(store);
+            if (rejectedBy.Count < RejectThreshold)
+                return false;
+
+            rejectedBy.Clear();
+            Interlocked.Exchange(ref closedUntil, (time.GetUtcNow() + ClosedFor).UtcTicks);
+            return true;
+        }
+    }
+
+    /// <summary>A tunnel request succeeded: the home address works, the rejection count resets.</summary>
+    public void Succeeded()
+    {
+        lock (gate)
+            rejectedBy.Clear();
+    }
 
     public Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
         (tunnel ?? throw new InvalidOperationException("The Shopify tunnel is off.")).SendAsync(request, cancellationToken);

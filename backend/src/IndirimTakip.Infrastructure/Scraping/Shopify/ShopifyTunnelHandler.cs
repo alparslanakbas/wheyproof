@@ -18,8 +18,9 @@ public sealed class ShopifyTunnelHandler(ShopifyTunnel tunnel, ILogger<ShopifyTu
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        // A request with a body can't be copied; Shopify requests are GETs anyway.
-        if (!tunnel.Enabled || request.Content is not null)
+        // A request with a body can't be copied; Shopify requests are GETs anyway. While the tunnel
+        // rests because the home address was refused too (see ShopifyTunnel.RejectThreshold), direct only.
+        if (!tunnel.Usable || request.Content is not null)
             return await base.SendAsync(request, cancellationToken);
 
         if (tunnel.UseTunnel)
@@ -42,12 +43,17 @@ public sealed class ShopifyTunnelHandler(ShopifyTunnel tunnel, ILogger<ShopifyTu
         return tunnelled;
     }
 
-    /// <summary>The tunnel's response, or null when the tunnel failed (the caller falls back to direct).</summary>
+    /// <summary>
+    /// The tunnel's response, or null when the tunnel failed or the home address was refused too
+    /// (403/429): the caller falls back to direct, and the scraper sees what it saw before the tunnel
+    /// (a 429 keeps 0 products rather than failing the store).
+    /// </summary>
     private async Task<HttpResponseMessage?> ThroughTunnelAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        HttpResponseMessage response;
         try
         {
-            return await tunnel.SendAsync(Copy(request), cancellationToken);
+            response = await tunnel.SendAsync(Copy(request), cancellationToken);
         }
         catch (Exception ex) when ((ex is HttpRequestException or OperationCanceledException)
                                    && !cancellationToken.IsCancellationRequested)
@@ -58,6 +64,21 @@ public sealed class ShopifyTunnelHandler(ShopifyTunnel tunnel, ILogger<ShopifyTu
                 request.RequestUri?.Host);
             return null;
         }
+
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests)
+        {
+            var store = request.RequestUri?.Host ?? "";
+            logger.LogWarning("Shopify {Host} answered {Status} through the home tunnel too; continuing with the direct answer.",
+                store, (int)response.StatusCode);
+            if (tunnel.Rejected(store))
+                logger.LogWarning("The home tunnel was refused by {Threshold} different stores in a row; it rests for {Hours} hours.",
+                    ShopifyTunnel.RejectThreshold, ShopifyTunnel.ClosedFor.TotalHours);
+            response.Dispose();
+            return null;
+        }
+
+        tunnel.Succeeded();
+        return response;
     }
 
     // A request can't be sent twice, so the tunnel gets a copy. Headers (User-Agent included)
