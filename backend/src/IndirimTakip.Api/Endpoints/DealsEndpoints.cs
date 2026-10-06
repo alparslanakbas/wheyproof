@@ -192,7 +192,7 @@ internal static class DealsEndpoints
             // wide pool; the upper bound is fixed against abuse.
             var take = Math.Clamp(count ?? 60, 1, 100);
             var result = await deals.GetPreferredProductsAsync(take, cancellationToken: ct);
-            return Results.Ok(result);
+            return Results.Ok(result.Select(ForShowcase).ToList());
         }).CacheOutput(cachePolicy);
 
         // The brand page's overview section: original content built from our own
@@ -234,4 +234,21 @@ internal static class DealsEndpoints
             return Results.Ok(result);
         }).CacheOutput(cachePolicy);
     }
+
+    /// <summary>
+    /// Empties the two heavy fields the showcase card never reads: the maker's
+    /// description and the nutrition table.
+    /// </summary>
+    /// <remarks>
+    /// The showcase is rendered on every product page too (a product page opens
+    /// as a dialog over the main list), so this response rides along in the
+    /// page's embedded transfer state. The card shows name, brand, image,
+    /// category, price and rating; a click goes to the product URL, and the
+    /// dialog loads the product with its own request. The query
+    /// (<c>DealsQueryService</c>) was left alone on purpose. Measured with
+    /// ProteinAvcisi on 2026-10-06, where descriptions were about two thirds of
+    /// a 196 KB response.
+    /// </remarks>
+    internal static DealDto ForShowcase(DealDto deal) =>
+        deal with { Description = null, NutritionJson = null };
 }

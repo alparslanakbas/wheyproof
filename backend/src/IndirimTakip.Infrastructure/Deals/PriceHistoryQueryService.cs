@@ -62,7 +62,37 @@ public class PriceHistoryQueryService(AppDbContext db)
             .GroupBy(r => r.ProductId)
             .Select(g => new ProductSparklineDto(
                 g.Key,
-                g.Select(r => new PricePointDto(r.Price, r.ScrapedAt)).ToList()))
+                RunEndpoints(g.Select(r => new PricePointDto(r.Price, r.ScrapedAt)).ToList())))
             .ToList();
+    }
+
+    /// <summary>
+    /// Of consecutive points with the same price, keeps only the first and last
+    /// of each run; the drawing doesn't change.
+    /// </summary>
+    /// <remarks>
+    /// The card chart places points by time and joins them with straight lines
+    /// (frontend <c>spark-chart.ts</c>). The inner points of an equal-price run
+    /// lie on the flat line between the run's first and last point, so dropping
+    /// them leaves the line and the area under it exactly the same. Prices are
+    /// scraped several times a day and change rarely, so ~140 points over 30
+    /// days come down to a few for most products.
+    ///
+    /// Why (2026-10-06): a product page renders the main list too, so the 24
+    /// cards' sparklines rode along in the page's embedded transfer state (US
+    /// product page ~250 KB of HTML, ~180 KB of it transfer state). One point a
+    /// day was not chosen: it erases a dip within a day and changes the drawing.
+    /// </remarks>
+    internal static List<PricePointDto> RunEndpoints(List<PricePointDto> points)
+    {
+        var result = new List<PricePointDto>(points.Count);
+        for (var i = 0; i < points.Count; i++)
+        {
+            var sameAsPrevious = i > 0 && points[i - 1].Price == points[i].Price;
+            var sameAsNext = i < points.Count - 1 && points[i + 1].Price == points[i].Price;
+            if (!(sameAsPrevious && sameAsNext))
+                result.Add(points[i]);
+        }
+        return result;
     }
 }
