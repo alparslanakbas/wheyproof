@@ -82,11 +82,19 @@ export class PageMetaService {
 // "Update if present, otherwise create" for a JSON-LD script tag. The element
 // reference isn't kept here (some callers add and remove it as the selection
 // changes); the caller keeps it and passes it back on the next call.
+//
+// Without a reference, the block with the same top-level @type is looked up (data-ld). Why (Oct 7, measured on
+// the live sites): on hydration components are rebuilt in the browser with empty references, so a second block was
+// appended next to the server-rendered one; every page had Organization, WebSite, BreadcrumbList and FAQPage twice.
+// Google renders pages with JS, so a duplicated FAQPage/Product can count as a "duplicate field". A page has one
+// block per top-level type (measured), so matching by type works without touching the call sites.
 export function upsertJsonLdScript(document: Document, existingEl: HTMLScriptElement | null, data: unknown): HTMLScriptElement {
-  let el = existingEl;
+  const type = jsonLdType(data);
+  let el = existingEl ?? (type ? document.head.querySelector<HTMLScriptElement>(`script[data-ld="${type}"]`) : null);
   if (!el) {
     el = document.createElement('script');
     el.type = 'application/ld+json';
+    if (type) el.setAttribute('data-ld', type);
     document.head.appendChild(el);
   }
   // "<" is escaped: JSON.stringify leaves it as is and SSR writes <script>
@@ -96,4 +104,10 @@ export function upsertJsonLdScript(document: Document, existingEl: HTMLScriptEle
   // < is the same character in JSON; readers see no difference.
   el.textContent = JSON.stringify(data).replace(/</g, '\\u003c');
   return el;
+}
+
+/** Top-level "@type" (letters/digits only, so it is safe in a selector), or null: that block is new on every call, as before. */
+function jsonLdType(data: unknown): string | null {
+  const type = typeof data === 'object' && data !== null ? (data as Record<string, unknown>)['@type'] : null;
+  return typeof type === 'string' && /^\w+$/.test(type) ? type : null;
 }
