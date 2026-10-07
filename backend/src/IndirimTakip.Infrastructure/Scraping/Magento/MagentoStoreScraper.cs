@@ -60,7 +60,7 @@ public static class MagentoStores
 /// the store uses in its own links, which opens the page on that size.
 /// </remarks>
 public sealed partial class MagentoStoreScraper(
-    HttpClient httpClient, MagentoStore store, ILogger<MagentoStoreScraper> logger) : IBrandScraper
+    HttpClient httpClient, MagentoStore store, ILogger<MagentoStoreScraper> logger) : IBrandScraper, IProductDetailFetcher
 {
     public const string HttpClientName = "magento-store";
 
@@ -72,6 +72,24 @@ public sealed partial class MagentoStoreScraper(
 
     public string BrandName => store.BrandName;
     public string BaseUrl => store.BaseUrl;
+
+    // Bulk's product page prints the UK nutrition table (per 100 g and per serving) as HTML; the
+    // GraphQL catalog the price scrape reads doesn't carry it (measured 2026-10-07).
+    public bool HasProductDetails => store.StoreMarket == SiteMarket.Uk;
+
+    /// <summary>The product page's UK nutrition table, for the detail backfill.</summary>
+    public async Task<ProductDetails> FetchDetailsAsync(string productUrl, CancellationToken cancellationToken = default)
+    {
+        if (!HasProductDetails)
+            return new ProductDetails(null, null, null);
+
+        var html = await httpClient.GetStringAsync(productUrl, cancellationToken);
+        if (NutritionLabels.UkNutritionTable.Read(html) is not { } reading)
+            return new ProductDetails(null, null, null);
+
+        var nutritionJson = NutritionParser.BuildNutritionJson(reading.Rows.Select(r => (r.Label, r.Amount)));
+        return new ProductDetails(null, nutritionJson, reading.ProteinGrams, reading.ServingSizeGrams);
+    }
 
     private const string Query = """
         query ($keys: [String]) {

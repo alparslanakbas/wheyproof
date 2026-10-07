@@ -255,6 +255,8 @@ services:
       # tables in a different layout, so it stays off here until measured.
       - NutritionLabels__Engine=tesseract
       - NutritionLabels__Enabled=false
+      # Reads the UK tables printed as HTML on product pages instead
+      # (Myprotein, Bulk, Veloforte; see UkNutritionTable).
       - DescriptionBackfill__Enabled=true
     expose:
       - "8080"

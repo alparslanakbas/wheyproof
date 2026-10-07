@@ -146,6 +146,50 @@ public class MyproteinScraperTests
         Assert.DoesNotContain("/c/nutrition/protein/?pageNumber=4", handler.Requests);
     }
 
+    private const string IsolateUrl = "https://www.myprotein.com/p/sports-nutrition/impact-whey-isolate-powder/10530911/";
+
+    // The page as served for one variant: masterData names it, the panel shows its table first and
+    // another flavour's further down.
+    private static string DetailPage(string country, long activeSku) => $$$"""
+        <html><body>{{{UkNutritionTableTests.MyproteinCaptainAmerica}}}<ul><li>{{{UkNutritionTableTests.MyproteinVanilla}}}</li></ul>
+        <script>const masterData = {"pageTitle":"Impact Whey Isolate Powder","masterSku":10530911,"userCountry":"{{{country}}}","activeVariant":{"sku":{{{activeSku}}},"inStock":null},"defaultImages":[],"variants":[]}; const later = [1];</script></body></html>
+        """;
+
+    private static Task<IndirimTakip.Core.Scraping.ProductDetails> FetchDetails(string page, string url)
+    {
+        var handler = new RoutingHandler(new Dictionary<string, string> { [new Uri(url).PathAndQuery] = page });
+        return new MyproteinScraper(new HttpClient(handler), NullLogger<MyproteinScraper>.Instance, TimeSpan.Zero)
+            .FetchDetailsAsync(url);
+    }
+
+    // Measured 2026-10-07: the first table follows ?variation=, 80 g protein per 100 g for this flavour and
+    // 82 g for the default one.
+    [Fact]
+    public async Task Details_are_the_linked_flavours_table()
+    {
+        var details = await FetchDetails(DetailPage("GB", 15049598), IsolateUrl + "?variation=15049598");
+
+        Assert.Equal(24m, details.ProteinPerServingGrams);
+        Assert.Equal(30m, details.ServingSizeGrams);
+        Assert.Contains("\"Protein\":\"24g\"", details.NutritionJson);
+    }
+
+    // A SKU the store no longer sells opens the page on another variant: its first table is another flavour's.
+    [Fact]
+    public async Task A_page_served_for_another_variant_gives_no_details()
+    {
+        var details = await FetchDetails(DetailPage("GB", 17716566), IsolateUrl + "?variation=15049598");
+
+        Assert.Null(details.NutritionJson);
+        Assert.Null(details.ProteinPerServingGrams);
+    }
+
+    [Fact]
+    public async Task Details_from_another_market_are_retried_later()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(() => FetchDetails(DetailPage("DE", 15049598), IsolateUrl + "?variation=15049598"));
+    }
+
     private sealed class RoutingHandler(Dictionary<string, string> pages) : HttpMessageHandler
     {
         public List<string> Requests { get; } = [];

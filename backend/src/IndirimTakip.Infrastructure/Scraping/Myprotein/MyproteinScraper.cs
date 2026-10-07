@@ -38,7 +38,7 @@ namespace IndirimTakip.Infrastructure.Scraping.Myprotein;
 /// </remarks>
 /// <param name="requestDelay">Pause between requests; tests pass zero.</param>
 public sealed partial class MyproteinScraper(
-    HttpClient httpClient, ILogger<MyproteinScraper> logger, TimeSpan? requestDelay = null) : IBrandScraper
+    HttpClient httpClient, ILogger<MyproteinScraper> logger, TimeSpan? requestDelay = null) : IBrandScraper, IProductDetailFetcher
 {
     public const string HttpClientName = "myprotein";
 
@@ -69,6 +69,45 @@ public sealed partial class MyproteinScraper(
     public string BrandName => "Myprotein";
     public string BaseUrl => "https://www.myprotein.com";
     public bool DailyOnly => true;
+
+    /// <summary>
+    /// The nutrition table of the flavour a record links to, for the detail backfill.
+    /// </summary>
+    /// <remarks>
+    /// <b>The values differ by flavour.</b> A page prints one table per flavour and shows the selected
+    /// one first ("Nutritional values will vary depending on the selected flavour", their own words):
+    /// on 2026-10-07 Impact Whey Isolate's first table gave 80 g protein per 100 g for the flavour in a
+    /// record's address and 82 g when fetched for another. The selected flavour is the page's
+    /// activeVariant, which follows <c>?variation=</c>, and a record's address carries the lowest SKU of
+    /// its amount, so the first table is the panel a shopper sees on arriving from our link. If the page
+    /// answers with another variant (a SKU it no longer sells), the first table is another flavour's and
+    /// nothing is read.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The page was served for another market; retried later.</exception>
+    public async Task<ProductDetails> FetchDetailsAsync(string productUrl, CancellationToken cancellationToken = default)
+    {
+        var none = new ProductDetails(null, null, null);
+        var html = await httpClient.GetStringAsync(productUrl, cancellationToken);
+        var data = ReadMasterData(html);
+        if (data is null || VariationRegex().Match(productUrl) is not { Success: true } variation)
+            return none;
+
+        if (!string.Equals(data.UserCountry, "GB", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Myprotein: page served for {data.UserCountry ?? "an unknown country"}, not GB ({productUrl}).");
+
+        if (data.ActiveVariant?.Sku.ToString(System.Globalization.CultureInfo.InvariantCulture) != variation.Groups[1].Value)
+            return none;
+
+        // The shown flavour's table sits in the "Nutritional Information" panel.
+        var panel = html.IndexOf(NutritionPanelMarker, StringComparison.Ordinal);
+        if (panel < 0 || NutritionLabels.UkNutritionTable.Read(html[panel..]) is not { } reading)
+            return none;
+
+        var nutritionJson = NutritionParser.BuildNutritionJson(reading.Rows.Select(r => (r.Label, r.Amount)));
+        return new ProductDetails(null, nutritionJson, reading.ProteinGrams, reading.ServingSizeGrams);
+    }
+
+    private const string NutritionPanelMarker = "id=\"nutritionalinfo\"";
 
     public async Task<IReadOnlyList<ScrapedProduct>> ScrapeAsync(CancellationToken cancellationToken = default)
     {
@@ -226,6 +265,9 @@ public sealed partial class MyproteinScraper(
 
     [GeneratedRegex(@"/p/[a-z0-9-]+/[a-z0-9-]+/[0-9]+/")]
     private static partial Regex ProductPathRegex();
+
+    [GeneratedRegex(@"[?&]variation=(\d+)")]
+    private static partial Regex VariationRegex();
 }
 
 internal sealed class MyproteinMasterData
@@ -244,6 +286,18 @@ internal sealed class MyproteinMasterData
 
     [JsonPropertyName("variants")]
     public List<MyproteinVariant> Variants { get; set; } = [];
+
+    /// <summary>The variant the page was served for (<c>?variation=</c>); its table is shown first.</summary>
+    [JsonPropertyName("activeVariant")]
+    public MyproteinActiveVariant? ActiveVariant { get; set; }
+}
+
+// Only the SKU: the price scrape reads the same object, and a field of the active variant shaped
+// differently from the variants' must not be able to fail it.
+internal sealed class MyproteinActiveVariant
+{
+    [JsonPropertyName("sku")]
+    public long Sku { get; set; }
 }
 
 internal sealed class MyproteinVariant

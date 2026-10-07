@@ -71,9 +71,11 @@ public sealed partial class ShopifyStoreScraper(
             return none;
 
         var html = await httpClient.GetStringAsync(productUrl, cancellationToken);
-        // Structured JSON first (Naked), then the visible panel text (Quest).
-        var reading = NutritionLabels.PageNutritionJson.Read(html, HandleFrom(productUrl))
-            ?? NutritionLabels.PageNutritionText.Read(html);
+        // A UK page prints per 100 g and per serving; a US one the Nutrition Facts panel, read from
+        // structured JSON first (Naked), then the visible panel text (Quest).
+        var reading = store.StoreMarket == SiteMarket.Uk
+            ? NutritionLabels.UkNutritionTable.Read(html)
+            : NutritionLabels.PageNutritionJson.Read(html, HandleFrom(productUrl)) ?? NutritionLabels.PageNutritionText.Read(html);
         if (reading is null)
             return none;
 

@@ -17,6 +17,7 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 /// readable form, so the detail backfill reads it there: as visible text
 /// (Quest, measured 2026-09-14) or as a JSON object in the page (Naked
 /// Nutrition, measured 2026-09-15). The other stores publish it as an image.
+/// A UK store's page is read as a UK table instead (see UkNutritionTable).
 /// </param>
 /// <param name="OnlyHandles">
 /// When set, only these product handles are kept. For stores where we want a
@@ -233,7 +234,10 @@ public static class ShopifyStores
         // blends and comes in on purpose, the way supplement bundles with a
         // gifted shaker do; it arrives as two rows at the same price that differ
         // only in bottle colour.
-        new("Veloforte", "https://veloforte.com", Market: SiteMarket.Uk),
+        // Its product pages print the UK table (per 100 g and per serve) as HTML, with amino acid and
+        // mineral tables after it (measured 2026-10-07 on CollagenPro).
+        new("Veloforte", "https://veloforte.com", NutritionOnPage: true, Market: SiteMarket.Uk),
+        // Not NutritionOnPage: its table is built from divs and its shakes are per 100 ml (2026-10-07).
         new("Grenade", "https://www.grenade.com", Market: SiteMarket.Uk),
         // Same brand as the US entry above, different storefront: /en-gb is the
         // UK catalog in GBP. Each instance registers only its own market's row.
