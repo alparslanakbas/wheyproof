@@ -235,8 +235,13 @@ public static class ShopifyStores
         // gifted shaker do; it arrives as two rows at the same price that differ
         // only in bottle colour.
         // Its product pages print the UK table (per 100 g and per serve) as HTML, with amino acid and
-        // mineral tables after it (measured 2026-10-07 on CollagenPro).
-        new("Veloforte", "https://veloforte.com", NutritionOnPage: true, Market: SiteMarket.Uk),
+        // mineral tables after it (measured 2026-10-07 on CollagenPro; 6 of 10 random records read in a dry
+        // run). NOT NutritionOnPage yet: the UK backfill's first run started at 00:26 UTC on 2026-10-07,
+        // when Shopify refuses the server at night, and every page went out twice, directly and through the
+        // home tunnel, both 429. The runs stay anchored near that hour, so the store would be asked twice a
+        // product every night and filled never, while the home tunnel is what the night scrapes of all three
+        // sites fall back on. It comes back with a backfill that keeps Shopify stores to the day.
+        new("Veloforte", "https://veloforte.com", Market: SiteMarket.Uk),
         // Not NutritionOnPage: its table is built from divs and its shakes are per 100 ml (2026-10-07).
         new("Grenade", "https://www.grenade.com", Market: SiteMarket.Uk),
         // Same brand as the US entry above, different storefront: /en-gb is the
