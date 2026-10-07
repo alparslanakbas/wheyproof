@@ -125,152 +125,198 @@ const MIN_PRODUCTS_FOR_COMPARISON = 40;
 
 // The sitemap grows with the catalog, so it can't be a static file: the raw
 // data comes from the backend (/api/products/sitemap) and becomes XML here.
+//
+// SPLIT BY PAGE TYPE (2026-10-07). Search Console reports indexing per
+// sitemap; with everything in one file, "which page type does Google leave
+// out?" had no answer. /sitemap.xml is now an index of the parts: the address
+// is unchanged, so the Search Console/Bing registrations and robots.txt keep
+// working, and the URLs inside are exactly the same. Brand pages and brand ×
+// category pages are separate parts because they perform very differently.
+const SITEMAP_PARTS = ['products', 'reviews', 'brands', 'brand-categories', 'categories', 'comparisons', 'guides', 'pages'] as const;
+type SitemapPart = (typeof SITEMAP_PARTS)[number];
+
+interface SitemapPartContent {
+  urls: string;
+  // The index's <lastmod>: the newest content change in the part; absent when unknown.
+  lastmod: number | null;
+}
+
+function newest(dates: string[]): number | null {
+  let latest: number | null = null;
+  for (const date of dates) {
+    const ms = new Date(date).getTime();
+    if (!Number.isNaN(ms) && (latest === null || ms > latest)) latest = ms;
+  }
+  return latest;
+}
+
+async function sitemapParts(origin: string): Promise<Record<SitemapPart, SitemapPartContent>> {
+  const [productsResponse, filtersResponse, articlesResponse, pairsResponse] = await Promise.all([
+    apiFetch('/api/products/sitemap'),
+    apiFetch('/api/filters'),
+    apiFetch('/api/articles'),
+    apiFetch('/api/brand-category-pairs'),
+  ]);
+  const products = (await productsResponse.json()) as SitemapEntry[];
+  const filters = (await filtersResponse.json()) as FilterOptions;
+  const articles = (await articlesResponse.json()) as ArticleSitemapEntry[];
+  const brandCategoryPairs = (await pairsResponse.json()) as BrandCategoryPair[];
+
+  const productUrls = products
+    .map(
+      (p) =>
+        `<url><loc>${origin}/product/${p.id}/${slugify(p.name)}</loc><lastmod>${new Date(p.lastModifiedAt).toISOString()}</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>`,
+    )
+    .join('');
+
+  // Review pages: only products with a real content source (brand
+  // description or nutrition table; see backend HasReviewContent). The
+  // page is open for other products too, but not offered as thin content.
+  const reviewUrls = products
+    .filter((p) => p.hasReviewContent)
+    .map(
+      (p) =>
+        `<url><loc>${origin}/review/${p.id}/${slugify(p.name)}</loc><lastmod>${new Date(p.lastModifiedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>`,
+    )
+    .join('');
+
+  // Brand pages, aimed at "[brand] coupon code" searches.
+  const brandUrls = filters.brands
+    .map(
+      (brand) =>
+        `<url><loc>${origin}/brand/${brandSlug(brand)}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>`,
+    )
+    .join('');
+
+  // Brand × category intersections, for searches like "optimum nutrition
+  // protein powder price". Only pairs with enough products; the list comes
+  // from the backend and needs no hand maintenance.
+  const brandCategoryUrls = brandCategoryPairs
+    .filter((pair) => pair.productCount >= MIN_PRODUCTS_FOR_SITEMAP)
+    .map(
+      (pair) =>
+        `<url><loc>${origin}/brand/${brandSlug(pair.brandName)}/${pair.category}</loc><changefreq>daily</changefreq><priority>0.7</priority></url>`,
+    )
+    .join('');
+
+  // Category pages, plus /categories, the index listing all of them.
+  const categoryUrls =
+    `<url><loc>${origin}/categories</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>` +
+    filters.categories
+      .map(
+        (category) =>
+          `<url><loc>${origin}/category/${category}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>`,
+      )
+      .join('');
+
+  const legalUrls =
+    `<url><loc>${origin}/privacy</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>` +
+    `<url><loc>${origin}/cookies</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>` +
+    `<url><loc>${origin}/terms</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>` +
+    `<url><loc>${origin}/how-it-works</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>` +
+    `<url><loc>${origin}/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>` +
+    `<url><loc>${origin}/contact</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>` +
+    `<url><loc>${origin}/glossary</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>` +
+    // Calculators: each targets its own search ("creatine dosage
+    // calculator"), plus the index page.
+    `<url><loc>${origin}/calculators</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>` +
+    `<url><loc>${origin}/calculators/protein</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>` +
+    SUPPLEMENT_DOSAGES.map(
+      (s) => `<url><loc>${origin}/calculators/${s.slug}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`,
+    ).join('') +
+    BODY_CALCULATORS.map(
+      (c) => `<url><loc>${origin}/calculators/${c.slug}</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>`,
+    ).join('') +
+    // The "Which supplement?" quiz and its goal pages. The product lists on
+    // the goal pages can change with every scan, hence weekly.
+    `<url><loc>${origin}${FINDER_PATH}</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>` +
+    SUPPLEMENT_GOALS.map(
+      (g) => `<url><loc>${origin}${FINDER_PATH}/${g.slug}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`,
+    ).join('');
+
+  // Brand comparison pages: every brand pair, in alphabetical order (the
+  // same canonical rule as brand-comparison-page.ts), one URL per pair.
+  //
+  // Only brands with enough products: these pages compare AVERAGE prices
+  // per category, and a brand with a single product in a category would
+  // present that one price as the "brand average", a number that looks
+  // like a statistic but isn't.
+  const productCountByBrand = new Map<string, number>();
+  for (const pair of brandCategoryPairs) {
+    const key = brandSlug(pair.brandName);
+    productCountByBrand.set(key, (productCountByBrand.get(key) ?? 0) + pair.productCount);
+  }
+
+  const comparisonPairs: string[] = [];
+  const sortedBrands = [...filters.brands]
+    .map((b) => brandSlug(b))
+    .filter((b) => (productCountByBrand.get(b) ?? 0) >= MIN_PRODUCTS_FOR_COMPARISON)
+    .sort();
+  for (let i = 0; i < sortedBrands.length; i++) {
+    for (let j = i + 1; j < sortedBrands.length; j++) {
+      comparisonPairs.push(`${sortedBrands[i]}-vs-${sortedBrands[j]}`);
+    }
+  }
+  const comparisonUrls = comparisonPairs
+    .map((pair) => `<url><loc>${origin}/compare/${pair}</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>`)
+    .join('');
+
+  // Guides: informational content, as important as product and category
+  // pages (0.7).
+  const articleUrls =
+    `<url><loc>${origin}/guides</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>` +
+    articles
+      .map(
+        (a) =>
+          `<url><loc>${origin}/guides/${a.slug}</loc><lastmod>${new Date(a.publishedAt).toISOString()}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`,
+      )
+      .join('');
+
+  return {
+    products: { urls: productUrls, lastmod: newest(products.map((p) => p.lastModifiedAt)) },
+    reviews: { urls: reviewUrls, lastmod: newest(products.filter((p) => p.hasReviewContent).map((p) => p.lastModifiedAt)) },
+    brands: { urls: brandUrls, lastmod: null },
+    'brand-categories': { urls: brandCategoryUrls, lastmod: null },
+    categories: { urls: categoryUrls, lastmod: null },
+    comparisons: { urls: comparisonUrls, lastmod: null },
+    guides: { urls: articleUrls, lastmod: newest(articles.map((a) => a.publishedAt)) },
+    pages: { urls: `<url><loc>${origin}/</loc><changefreq>hourly</changefreq><priority>1.0</priority></url>` + legalUrls, lastmod: null },
+  };
+}
+
+const XML_HEAD = `<?xml version="1.0" encoding="UTF-8"?>`;
+const SITEMAP_NS = `xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"`;
+
 app.get(`${BASE_PATH}/sitemap.xml`, async (req, res) => {
-  const origin = EDITION_ORIGIN;
-
   try {
-    const [productsResponse, filtersResponse, articlesResponse, pairsResponse] = await Promise.all([
-      apiFetch('/api/products/sitemap'),
-      apiFetch('/api/filters'),
-      apiFetch('/api/articles'),
-      apiFetch('/api/brand-category-pairs'),
-    ]);
-    const products = (await productsResponse.json()) as SitemapEntry[];
-    const filters = (await filtersResponse.json()) as FilterOptions;
-    const articles = (await articlesResponse.json()) as ArticleSitemapEntry[];
-    const brandCategoryPairs = (await pairsResponse.json()) as BrandCategoryPair[];
-
-    const productUrls = products
-      .map(
-        (p) =>
-          `<url><loc>${origin}/product/${p.id}/${slugify(p.name)}</loc><lastmod>${new Date(p.lastModifiedAt).toISOString()}</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>`,
-      )
+    const parts = await sitemapParts(EDITION_ORIGIN);
+    const entries = SITEMAP_PARTS.filter((name) => parts[name].urls.length > 0)
+      .map((name) => {
+        const lastmod = parts[name].lastmod;
+        const date = lastmod !== null ? `<lastmod>${new Date(lastmod).toISOString()}</lastmod>` : '';
+        return `<sitemap><loc>${EDITION_ORIGIN}/sitemap-${name}.xml</loc>${date}</sitemap>`;
+      })
       .join('');
-
-    // Review pages: only products with a real content source (brand
-    // description or nutrition table; see backend HasReviewContent). The
-    // page is open for other products too, but not offered as thin content.
-    const reviewUrls = products
-      .filter((p) => p.hasReviewContent)
-      .map(
-        (p) =>
-          `<url><loc>${origin}/review/${p.id}/${slugify(p.name)}</loc><lastmod>${new Date(p.lastModifiedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>`,
-      )
-      .join('');
-
-    // Brand pages, aimed at "[brand] coupon code" searches.
-    const brandUrls = filters.brands
-      .map(
-        (brand) =>
-          `<url><loc>${origin}/brand/${brandSlug(brand)}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>`,
-      )
-      .join('');
-
-    // Brand × category intersections, for searches like "optimum nutrition
-    // protein powder price". Only pairs with enough products; the list comes
-    // from the backend and needs no hand maintenance.
-    const brandCategoryUrls = brandCategoryPairs
-      .filter((pair) => pair.productCount >= MIN_PRODUCTS_FOR_SITEMAP)
-      .map(
-        (pair) =>
-          `<url><loc>${origin}/brand/${brandSlug(pair.brandName)}/${pair.category}</loc><changefreq>daily</changefreq><priority>0.7</priority></url>`,
-      )
-      .join('');
-
-    // Category pages, plus /categories, the index listing all of them.
-    const categoryUrls =
-      `<url><loc>${origin}/categories</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>` +
-      filters.categories
-        .map(
-          (category) =>
-            `<url><loc>${origin}/category/${category}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>`,
-        )
-        .join('');
-
-    const legalUrls =
-      `<url><loc>${origin}/privacy</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>` +
-      `<url><loc>${origin}/cookies</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>` +
-      `<url><loc>${origin}/terms</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>` +
-      `<url><loc>${origin}/how-it-works</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>` +
-      `<url><loc>${origin}/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>` +
-      `<url><loc>${origin}/contact</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>` +
-      `<url><loc>${origin}/glossary</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>` +
-      // Calculators: each targets its own search ("creatine dosage
-      // calculator"), plus the index page.
-      `<url><loc>${origin}/calculators</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>` +
-      `<url><loc>${origin}/calculators/protein</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>` +
-      SUPPLEMENT_DOSAGES.map(
-        (s) => `<url><loc>${origin}/calculators/${s.slug}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`,
-      ).join('') +
-      BODY_CALCULATORS.map(
-        (c) => `<url><loc>${origin}/calculators/${c.slug}</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>`,
-      ).join('') +
-      // The "Which supplement?" quiz and its goal pages. The product lists on
-      // the goal pages can change with every scan, hence weekly.
-      `<url><loc>${origin}${FINDER_PATH}</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>` +
-      SUPPLEMENT_GOALS.map(
-        (g) => `<url><loc>${origin}${FINDER_PATH}/${g.slug}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`,
-      ).join('');
-
-    // Brand comparison pages: every brand pair, in alphabetical order (the
-    // same canonical rule as brand-comparison-page.ts), one URL per pair.
-    //
-    // Only brands with enough products: these pages compare AVERAGE prices
-    // per category, and a brand with a single product in a category would
-    // present that one price as the "brand average", a number that looks
-    // like a statistic but isn't.
-    const productCountByBrand = new Map<string, number>();
-    for (const pair of brandCategoryPairs) {
-      const key = brandSlug(pair.brandName);
-      productCountByBrand.set(key, (productCountByBrand.get(key) ?? 0) + pair.productCount);
-    }
-
-    const comparisonPairs: string[] = [];
-    const sortedBrands = [...filters.brands]
-      .map((b) => brandSlug(b))
-      .filter((b) => (productCountByBrand.get(b) ?? 0) >= MIN_PRODUCTS_FOR_COMPARISON)
-      .sort();
-    for (let i = 0; i < sortedBrands.length; i++) {
-      for (let j = i + 1; j < sortedBrands.length; j++) {
-        comparisonPairs.push(`${sortedBrands[i]}-vs-${sortedBrands[j]}`);
-      }
-    }
-    const comparisonUrls = comparisonPairs
-      .map((pair) => `<url><loc>${origin}/compare/${pair}</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>`)
-      .join('');
-
-    // Guides: informational content, as important as product and category
-    // pages (0.7).
-    const articleUrls =
-      `<url><loc>${origin}/guides</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>` +
-      articles
-        .map(
-          (a) =>
-            `<url><loc>${origin}/guides/${a.slug}</loc><lastmod>${new Date(a.publishedAt).toISOString()}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`,
-        )
-        .join('');
-
-    const xml =
-      `<?xml version="1.0" encoding="UTF-8"?>` +
-      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
-      `<url><loc>${origin}/</loc><changefreq>hourly</changefreq><priority>1.0</priority></url>` +
-      brandUrls +
-      brandCategoryUrls +
-      categoryUrls +
-      productUrls +
-      reviewUrls +
-      legalUrls +
-      articleUrls +
-      comparisonUrls +
-      `</urlset>`;
-
     res.set('Content-Type', 'application/xml');
-    res.send(xml);
+    res.send(`${XML_HEAD}<sitemapindex ${SITEMAP_NS}>${entries}</sitemapindex>`);
   } catch (error) {
     console.error('sitemap.xml could not be built:', error);
     res.status(502).send('The sitemap is unavailable right now.');
   }
 });
+
+for (const name of SITEMAP_PARTS) {
+  app.get(`${BASE_PATH}/sitemap-${name}.xml`, async (req, res) => {
+    try {
+      const part = (await sitemapParts(EDITION_ORIGIN))[name];
+      res.set('Content-Type', 'application/xml');
+      res.send(`${XML_HEAD}<urlset ${SITEMAP_NS}>${part.urls}</urlset>`);
+    } catch (error) {
+      console.error(`sitemap-${name}.xml could not be built:`, error);
+      res.status(502).send('The sitemap is unavailable right now.');
+    }
+  });
+}
 
 // The store link is relative (/go/:id), so visitors click an address on the
 // domain they see rather than an unfamiliar API host (careful users read
