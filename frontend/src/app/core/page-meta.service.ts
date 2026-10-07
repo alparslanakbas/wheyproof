@@ -23,9 +23,9 @@ export interface PageMetaOptions {
   // The page must stay out of search indexes (personal content, or a product
   // the store no longer returns).
   //
-  // Without a value the service REMOVES the tag. That is required: in a
-  // single-page app a robots tag added on one page would otherwise linger on
-  // the next and drop normal pages from the index.
+  // Without a value the service REWRITES the tag as `max-image-preview:large`.
+  // That is required: in a single-page app a noindex added on one page would
+  // otherwise linger on the next and drop normal pages from the index.
   noIndex?: boolean;
 }
 
@@ -69,12 +69,10 @@ export class PageMetaService {
     this.metaService.updateTag({ name: 'twitter:description', content: description });
     this.metaService.updateTag({ name: 'twitter:image', content: ogImage });
 
-    if (options.noIndex) {
-      this.metaService.updateTag({ name: 'robots', content: 'noindex, follow' });
-    } else {
-      // Removing matters as much as adding; see the noIndex field.
-      this.metaService.removeTag("name='robots'");
-    }
+    // An indexable page gets the permission instead of no tag (2026-10-07): Google shows
+    // large image previews (search and Discover) only with max-image-preview:large. One
+    // tag written either way, so the previous page's noindex can't linger.
+    this.metaService.updateTag({ name: 'robots', content: options.noIndex ? 'noindex, follow' : 'max-image-preview:large' });
 
     setCanonicalLink(this.document, options.canonicalPath);
     setAlternateLinks(this.document, options.canonicalPath, options.noIndex ?? false);
