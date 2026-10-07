@@ -16,6 +16,16 @@ public sealed class AffiliateOptions
     /// host is a value: Affiliate__Rules__0__Host / Affiliate__Rules__0__Link.
     /// </summary>
     public List<AffiliateRule> Rules { get; set; } = [];
+
+    /// <summary>
+    /// Redirect template (<c>{url}</c>) for stores WITHOUT a rule: Sovrn Commerce
+    /// (<c>https://redirect.viglink.com?key=...&amp;u={url}</c>), which pays for the stores in its network and
+    /// sends the rest straight through. A store's own rule always wins. Empty = off, links stay as they are.
+    /// Why (2026-10-07, approved that day): about 80% of US products and most clicks went to stores with no
+    /// programme of ours (Nutricost, Bodybuilding.com, BulkSupplements...); one key covers them all, and stores
+    /// added later are covered without a new rule.
+    /// </summary>
+    public string? Fallback { get; set; }
 }
 
 public sealed class AffiliateRule
@@ -50,37 +60,46 @@ public static class AffiliateLinkBuilder
     /// reads it, and the sale would earn nothing. The host is the store that
     /// pays the commission.
     ///
-    /// Without a rule, or with a rule that doesn't have a recognizable shape,
-    /// the URL comes back unchanged: the shopper reaching the store comes
-    /// before the click being tracked.
+    /// Without a rule the network fallback applies (see <see cref="AffiliateOptions.Fallback"/>); with neither, or
+    /// with a rule that doesn't have a recognizable shape, the URL comes back unchanged: the shopper reaching the
+    /// store comes before the click being tracked.
     /// </summary>
     public static string Apply(string url, AffiliateOptions options)
     {
-        if (string.IsNullOrWhiteSpace(url) || options.Rules is not { Count: > 0 } rules)
-            return url;
-
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return url;
 
         var host = NormalizeHost(uri.Host);
-        var rule = rules
+        var rule = (options.Rules ?? [])
             .FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.Host) && !string.IsNullOrWhiteSpace(r.Link)
                                  && NormalizeHost(r.Host) == host)
             ?.Link?.Trim();
         if (string.IsNullOrEmpty(rule))
-            return url;
-
-        if (rule.Contains(UrlPlaceholder, StringComparison.OrdinalIgnoreCase))
         {
-            // A redirect template must itself be an https address; anything
-            // else is a configuration mistake, not a link to send people to.
-            return rule.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-                ? rule.Replace(UrlPlaceholder, Uri.EscapeDataString(url), StringComparison.OrdinalIgnoreCase)
+            // Only a redirect template makes sense for a store we know nothing about; a query pair is store-specific.
+            var fallback = options.Fallback?.Trim();
+            return !string.IsNullOrEmpty(fallback) && fallback.Contains(UrlPlaceholder, StringComparison.OrdinalIgnoreCase)
+                ? Redirect(fallback, url)
                 : url;
         }
 
-        return AppendQueryPair(url, rule);
+        return rule.Contains(UrlPlaceholder, StringComparison.OrdinalIgnoreCase)
+            ? Redirect(rule, url)
+            : AppendQueryPair(url, rule);
     }
+
+    /// <summary>Whether stores without a rule go through the network fallback, for the startup log.</summary>
+    public static bool HasFallback(AffiliateOptions options) =>
+        options.Fallback?.Trim() is { Length: > 0 } f
+        && f.Contains(UrlPlaceholder, StringComparison.OrdinalIgnoreCase)
+        && f.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+    // A redirect template must itself be an https address; anything else is a configuration mistake, not a link to
+    // send people to.
+    private static string Redirect(string template, string url) =>
+        template.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            ? template.Replace(UrlPlaceholder, Uri.EscapeDataString(url), StringComparison.OrdinalIgnoreCase)
+            : url;
 
     /// <summary>Hosts that have a usable rule, for the startup log.</summary>
     public static IEnumerable<string> ConfiguredHosts(AffiliateOptions options) =>

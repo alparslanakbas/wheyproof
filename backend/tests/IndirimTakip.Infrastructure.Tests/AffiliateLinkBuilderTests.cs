@@ -134,6 +134,7 @@ public class AffiliateLinkBuilderTests
             [$"{prefix}Affiliate__Rules__0__Link"] = sovrn,
             [$"{prefix}Affiliate__Rules__1__Host"] = "orgain.com",
             [$"{prefix}Affiliate__Rules__1__Link"] = "",
+            [$"{prefix}Affiliate__Fallback"] = sovrn,
         };
         foreach (var (k, v) in vars) Environment.SetEnvironmentVariable(k, v);
         try
@@ -146,11 +147,61 @@ public class AffiliateLinkBuilderTests
             Assert.StartsWith(
                 "https://redirect.viglink.com?key=0123456789abcdef0123456789abcdef&u=https%3A%2F%2Fwww.transparentlabs.com",
                 AffiliateLinkBuilder.Apply("https://www.transparentlabs.com/products/bulk", options));
+            // orgain.com has an empty rule, so the fallback applies to it too.
+            Assert.True(AffiliateLinkBuilder.HasFallback(options));
+            Assert.StartsWith("https://redirect.viglink.com?", AffiliateLinkBuilder.Apply("https://orgain.com/p", options));
         }
         finally
         {
             foreach (var k in vars.Keys) Environment.SetEnvironmentVariable(k, null);
         }
+    }
+
+    // Network fallback (Sovrn, 2026-10-07): stores without a rule go through it, a store's own rule always wins.
+    private const string SovrnTemplate = "https://redirect.viglink.com?key=0123456789abcdef0123456789abcdef&u={url}";
+
+    [Fact]
+    public void Store_without_a_rule_goes_through_the_fallback()
+    {
+        var options = Options(("transparentlabs.com", "sca_ref=12345.abcde"));
+        options.Fallback = SovrnTemplate;
+
+        Assert.Equal(
+            "https://redirect.viglink.com?key=0123456789abcdef0123456789abcdef&u=https%3A%2F%2Fwww.nutricost.com%2Fproducts%2Fwhey",
+            AffiliateLinkBuilder.Apply("https://www.nutricost.com/products/whey", options));
+        Assert.True(AffiliateLinkBuilder.HasFallback(options));
+    }
+
+    [Fact]
+    public void Store_rule_wins_over_the_fallback()
+    {
+        var options = Options(("transparentlabs.com", "sca_ref=12345.abcde"));
+        options.Fallback = SovrnTemplate;
+
+        Assert.Equal("https://www.transparentlabs.com/products/bulk?sca_ref=12345.abcde",
+            AffiliateLinkBuilder.Apply("https://www.transparentlabs.com/products/bulk", options));
+    }
+
+    // Works with no store rules at all (the UK instance could run on the fallback alone).
+    [Fact]
+    public void Fallback_works_without_any_store_rules()
+    {
+        var options = new AffiliateOptions { Fallback = SovrnTemplate };
+
+        Assert.StartsWith("https://redirect.viglink.com?", AffiliateLinkBuilder.Apply("https://www.grenade.com/p/1", options));
+    }
+
+    // A query pair or a non-https template is store-specific or a mistake: the URL stays as it is.
+    [Theory]
+    [InlineData("rfsn=1.a")]
+    [InlineData("http://redirect.viglink.com?key=k&u={url}")]
+    [InlineData("   ")]
+    public void Unusable_fallback_leaves_the_url_alone(string fallback)
+    {
+        var options = new AffiliateOptions { Fallback = fallback };
+
+        Assert.Equal("https://www.nutricost.com/p", AffiliateLinkBuilder.Apply("https://www.nutricost.com/p", options));
+        Assert.False(AffiliateLinkBuilder.HasFallback(options));
     }
 
     [Fact]

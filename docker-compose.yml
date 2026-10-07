@@ -116,6 +116,10 @@ services:
       # Approved 2026-09-25 (Awin 91093).
       - Affiliate__Rules__9__Host=ultimatepaleoprotein.com
       - Affiliate__Rules__9__Link=${AFFILIATE_ULTIMATEPALEO:-}
+      # Sovrn Commerce (approved 2026-10-07): every store WITHOUT a rule above goes through
+      # redirect.viglink.com?key=...&u={url}; Sovrn pays for stores in its network and passes the rest through.
+      # Same key as the UK instance. Empty = off.
+      - Affiliate__Fallback=${AFFILIATE_SOVRN:-}
       - PublicBaseUrl=https://api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com
       # Product images are resized and served by .NET, not Caddy (see Program.cs).
@@ -245,6 +249,8 @@ services:
       # with an awc that starts with 1495. Its 78 products have been scraped since 09-20 with plain links.
       - Affiliate__Rules__6__Host=maxinutrition.com
       - Affiliate__Rules__6__Link=${AFFILIATE_UK_MAXINUTRITION:-}
+      # Sovrn Commerce fallback for UK stores without a rule (see the US service).
+      - Affiliate__Fallback=${AFFILIATE_SOVRN:-}
       - PublicBaseUrl=https://uk-api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com/uk
       - ProductImages__Enabled=true

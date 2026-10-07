@@ -158,8 +158,10 @@ var app = builder.Build();
     var hosts = AffiliateLinkBuilder.ConfiguredHosts(affiliateOptions).ToList();
     var keyNames = app.Configuration.GetSection("Affiliate").AsEnumerable(makePathsRelative: true)
         .Where(kv => kv.Value is not null).Select(kv => kv.Key).Order();
-    app.Logger.LogInformation("Affiliate link rules loaded for {Count} stores: {Hosts} (configuration keys: {Keys})",
-        hosts.Count, string.Join(", ", hosts), string.Join(", ", keyNames));
+    app.Logger.LogInformation(
+        "Affiliate link rules loaded for {Count} stores: {Hosts}; network fallback for other stores: {Fallback} (configuration keys: {Keys})",
+        hosts.Count, string.Join(", ", hosts), AffiliateLinkBuilder.HasFallback(affiliateOptions) ? "on" : "off",
+        string.Join(", ", keyNames));
 }
 
 // /api/dev/* endpoints (manual scrapes, coupons) must not be public. A full
