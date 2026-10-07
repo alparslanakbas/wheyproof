@@ -37,6 +37,10 @@ export class ValuePickList implements OnInit {
   readonly section = input.required<GoalPickSection>();
   /** The starting type from the quiz's dairy answer (protein list only). */
   readonly initialType = input<string | null>(null);
+  /** How many products to show; the endpoint returns at most 12 (ValuePickRanker.MaxCount). */
+  readonly count = input(PICK_COUNT);
+  /** On goal pages the list sits under an h2 (h3); on the list's own page the title is the h2. */
+  readonly headingLevel = input<'h2' | 'h3'>('h3');
 
   protected readonly displayName = displayName;
   protected readonly productPath = productPath;
@@ -68,7 +72,7 @@ export class ValuePickList implements OnInit {
 
   private load(): void {
     this.state.set('loading');
-    this.request.run(this.dealsService.getValuePicks(this.section().category, this.type(), PICK_COUNT), {
+    this.request.run(this.dealsService.getValuePicks(this.section().category, this.type(), this.count()), {
       next: (result) => {
         this.picks.set(result.items);
         this.eligibleCount.set(result.eligibleCount);

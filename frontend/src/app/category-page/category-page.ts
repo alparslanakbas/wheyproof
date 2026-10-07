@@ -19,6 +19,7 @@ import { PriceHistoryService } from '../core/price-history.service';
 import { PricePipe } from '../core/price.pipe';
 import { formatRelativeTime } from '../core/relative-time';
 import { SITE_NAME } from '../core/site-identity';
+import { PRICE_UNIT } from '../core/unit-price';
 import { ProductModal } from '../product-modal/product-modal';
 import { SiteHeader } from '../site-header/site-header';
 import { showNotFound } from '../core/not-found-navigation';
@@ -34,6 +35,7 @@ const SEARCH_DEBOUNCE_MS = 350;
 })
 export class CategoryPage implements OnInit {
   protected readonly displayName = displayName;
+  protected readonly unitWord = PRICE_UNIT.word;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly dealsService = inject(DealsService);

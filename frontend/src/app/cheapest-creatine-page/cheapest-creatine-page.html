@@ -1,0 +1,49 @@
+<div class="noc-shell min-h-screen bg-[var(--noc-bg)] text-[var(--noc-text)]">
+  <app-site-header />
+
+  <main class="mx-auto max-w-[1280px] px-[28px] py-[22px]">
+    <nav class="mb-2 text-xs text-[var(--noc-neutral-500)]">
+      <a routerLink="/" class="hover:text-[var(--noc-accent)]">Home</a> /
+      <a routerLink="/category/creatine" class="hover:text-[var(--noc-accent)]">Creatine</a> / Cheapest creatine
+    </nav>
+    <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">Cheapest creatine, by price per {{ unitWord }}</h1>
+    <p class="mt-2 max-w-2xl text-[15px] text-[var(--noc-neutral-300)]">
+      Creatine comes in tubs of every size, so the sticker price alone doesn't tell you which one is cheapest. We divide
+      each tub's price by its weight to get the price per {{ unitWord }} and rank from the lowest.
+    </p>
+
+    <div class="mt-[22px]">
+      <app-value-pick-list [section]="list" [count]="12" headingLevel="h2" />
+    </div>
+
+    <section class="mt-[45px] max-w-3xl" aria-labelledby="method-title">
+      <h2 id="method-title" class="pa-section-title">How we rank</h2>
+      <ul class="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-[var(--noc-neutral-300)]">
+        @if (imperial) {
+          <li>Price per pound is the tub price divided by its weight in pounds: a 2.2 lb tub at $33 is $15 per pound.</li>
+          <li>Tubs from 100 g to 2 kg (about 3.5 oz to 4.4 lb) count. Capsules and tablets are sold by count, not weight, so they aren't on the list.</li>
+        } @else {
+          <li>Price per kilogram is the tub price divided by its weight in kilograms: a 500 g tub at £12 is £24 per kilogram.</li>
+          <li>Tubs from 100 g to 2 kg count. Capsules and tablets are sold by count, not weight, so they aren't on the list.</li>
+        }
+        <li>Blends are out: creatine with protein, carbs, amino acids, electrolytes or pre-workout ingredients, and multi-product bundles. We can't tell how much of those tubs is creatine.</li>
+        <li>Products we know are out of stock, and products whose price we haven't confirmed in the last 48 hours, aren't listed.</li>
+        <li>The same creatine is often sold in several sizes and by several stores; we show each brand's lowest price per {{ unitWord }}.</li>
+      </ul>
+    </section>
+
+    <section class="mt-[45px] max-w-3xl" aria-labelledby="faq-title">
+      <h2 id="faq-title" class="pa-section-title">Common questions</h2>
+      @for (faq of faqs; track faq.question) {
+        <h3 class="mt-5 text-[15px] font-semibold">{{ faq.question }}</h3>
+        <p class="mt-1 text-sm leading-6 text-[var(--noc-neutral-300)]">{{ faq.answer }}</p>
+      }
+    </section>
+
+    <nav class="mt-[45px] flex flex-wrap gap-2" aria-label="Related pages">
+      <a routerLink="/calculators/creatine-dosage" class="rounded-[6px] border border-[var(--noc-accent)] px-3 py-1.5 text-xs text-[var(--noc-accent)]">Creatine dosage calculator</a>
+      <a routerLink="/category/creatine" class="rounded-[6px] border border-[var(--noc-divider)] px-3 py-1.5 text-xs text-[var(--noc-neutral-300)] hover:text-[var(--noc-accent)]">All creatine prices</a>
+      <a routerLink="/which-supplement/build-muscle" class="rounded-[6px] border border-[var(--noc-divider)] px-3 py-1.5 text-xs text-[var(--noc-neutral-300)] hover:text-[var(--noc-accent)]">Which supplements build muscle?</a>
+    </nav>
+  </main>
+</div>

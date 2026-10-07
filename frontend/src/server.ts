@@ -217,6 +217,7 @@ async function sitemapParts(origin: string): Promise<Record<SitemapPart, Sitemap
     `<url><loc>${origin}/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>` +
     `<url><loc>${origin}/contact</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>` +
     `<url><loc>${origin}/glossary</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>` +
+    `<url><loc>${origin}/cheapest-creatine</loc><changefreq>daily</changefreq><priority>0.8</priority></url>` +
     // Calculators: each targets its own search ("creatine dosage
     // calculator"), plus the index page.
     `<url><loc>${origin}/calculators</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>` +

@@ -107,6 +107,11 @@ export const routes: Routes = [
     path: 'calculators/:slug',
     loadComponent: () => import('./supplement-dosage-page/supplement-dosage-page').then((m) => m.SupplementDosagePage),
   },
+  {
+    // Permanent list: the cheapest creatine by price per pound (US) / kilogram (UK).
+    path: 'cheapest-creatine',
+    loadComponent: () => import('./cheapest-creatine-page/cheapest-creatine-page').then((m) => m.CheapestCreatinePage),
+  },
   // The "Which supplement should I take?" quiz and one result page per goal.
   // The goal page is a single parameterized route so the goal list (with all
   // its page copy) stays out of the main bundle; an unknown goal shows a 404.
