@@ -240,6 +240,11 @@ services:
       # scraper in the same change. Same template, programme ID swapped.
       - Affiliate__Rules__5__Host=myprotein.com
       - Affiliate__Rules__5__Link=${AFFILIATE_UK_MYPROTEIN:-}
+      # Joined by 2026-10-07 (Awin 1495) after a rejection on 09-21 ("Site does not complement advertiser
+      # brand"). Same template, programme ID swapped; checked from the server: Awin 302 to maxinutrition.com
+      # with an awc that starts with 1495. Its 78 products have been scraped since 09-20 with plain links.
+      - Affiliate__Rules__6__Host=maxinutrition.com
+      - Affiliate__Rules__6__Link=${AFFILIATE_UK_MAXINUTRITION:-}
       - PublicBaseUrl=https://uk-api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com/uk
       - ProductImages__Enabled=true
