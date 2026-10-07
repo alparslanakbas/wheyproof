@@ -191,14 +191,16 @@ public class UkNutritionTableTests
     }
 
     [Fact]
-    public void A_uk_shopify_store_reads_the_uk_table_and_a_us_store_does_not()
+    public async Task A_uk_shopify_store_reads_the_uk_table_and_a_us_store_does_not()
     {
         var page = $"<html><body><div class=\"description\">{VeloforteNutrition}{VeloforteAminoAcids}</div></body></html>";
         var uk = new ShopifyStore("Veloforte", "https://veloforte.com", NutritionOnPage: true, Market: SiteMarket.Uk);
         var us = new ShopifyStore("Quest Nutrition", "https://www.questnutrition.com", NutritionOnPage: true);
 
-        var ukDetails = Details(new ShopifyStoreScraper(new HttpClient(new PageHandler(page)), uk, NullLogger<ShopifyStoreScraper>.Instance), "https://veloforte.com/products/collagen-pro");
-        var usDetails = Details(new ShopifyStoreScraper(new HttpClient(new PageHandler(page)), us, NullLogger<ShopifyStoreScraper>.Instance), "https://www.questnutrition.com/products/x");
+        var ukDetails = await new ShopifyStoreScraper(new HttpClient(new PageHandler(page)), uk, NullLogger<ShopifyStoreScraper>.Instance)
+            .FetchDetailsAsync("https://veloforte.com/products/collagen-pro");
+        var usDetails = await new ShopifyStoreScraper(new HttpClient(new PageHandler(page)), us, NullLogger<ShopifyStoreScraper>.Instance)
+            .FetchDetailsAsync("https://www.questnutrition.com/products/x");
 
         Assert.Equal(9.1m, ukDetails.ProteinPerServingGrams);
         Assert.Equal(10m, ukDetails.ServingSizeGrams);
@@ -207,13 +209,13 @@ public class UkNutritionTableTests
     }
 
     [Fact]
-    public void Bulk_reads_its_product_page_and_only_in_the_uk()
+    public async Task Bulk_reads_its_product_page_and_only_in_the_uk()
     {
         var bulk = MagentoStores.All.Single(s => s.BrandName == "Bulk");
         var handler = new PageHandler($"<html><body>{BulkBasicWhey}</body></html>");
         var scraper = new MagentoStoreScraper(new HttpClient(handler), bulk, NullLogger<MagentoStoreScraper>.Instance);
 
-        var details = scraper.FetchDetailsAsync("https://www.bulk.com/uk/products/basic-whey-protein/bpb-vwhe?o=MTc5LTE5MjU1").GetAwaiter().GetResult();
+        var details = await scraper.FetchDetailsAsync("https://www.bulk.com/uk/products/basic-whey-protein/bpb-vwhe?o=MTc5LTE5MjU1");
 
         Assert.True(scraper.HasProductDetails);
         Assert.Equal(18m, details.ProteinPerServingGrams);
@@ -221,9 +223,6 @@ public class UkNutritionTableTests
         var usStore = bulk with { Market = SiteMarket.Us };
         Assert.False(new MagentoStoreScraper(new HttpClient(handler), usStore, NullLogger<MagentoStoreScraper>.Instance).HasProductDetails);
     }
-
-    private static Core.Scraping.ProductDetails Details(ShopifyStoreScraper scraper, string url) =>
-        scraper.FetchDetailsAsync(url).GetAwaiter().GetResult();
 
     private sealed class PageHandler(string html) : HttpMessageHandler
     {
