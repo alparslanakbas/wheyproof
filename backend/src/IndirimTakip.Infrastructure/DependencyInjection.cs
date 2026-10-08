@@ -65,12 +65,17 @@ public static class DependencyInjection
         services.AddSingleton(_ => WebBotAuth.Create(configuration["WebBotAuth:PrivateKey"],
             configuration["WebBotAuth:SignatureAgent"], configuration["WebBotAuth:UserAgent"], TimeProvider.System,
             configuration.GetValue("WebBotAuth:SignRequests", true)));
+        // Each Shopify host's robots.txt, read once a day and checked before every request (see RobotsRules).
+        services.AddSingleton(new RobotsTxtCache(TimeProvider.System));
         services.AddHttpClient(ShopifyStoreScraper.HttpClientName, client =>
         {
             client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
             client.Timeout = TimeSpan.FromSeconds(30);
         })
-            // Outermost, so a request repeated through the tunnel carries the same signature.
+            // robots.txt first: a disallowed request isn't signed, tunnelled or sent at all.
+            .AddHttpMessageHandler(sp => new RobotsTxtHandler(sp.GetRequiredService<RobotsTxtCache>(),
+                sp.GetRequiredService<ILogger<RobotsTxtHandler>>()))
+            // Outside the tunnel, so a request repeated through it carries the same signature.
             .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()))
             .AddHttpMessageHandler<ShopifyTunnelHandler>();
         foreach (var store in ShopifyStores.ForMarket(market))
@@ -170,7 +175,10 @@ public static class DependencyInjection
         {
             client.Timeout = TimeSpan.FromSeconds(30);
             client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
-        }).AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>(), ShopifyStores.Hosts));
+        })
+            .AddHttpMessageHandler(sp => new RobotsTxtHandler(sp.GetRequiredService<RobotsTxtCache>(),
+                sp.GetRequiredService<ILogger<RobotsTxtHandler>>(), ShopifyStores.Hosts))
+            .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>(), ShopifyStores.Hosts));
         services.AddScoped<ProductRatingRefreshService>();
 
         services.AddScoped<ScrapeIngestionService>();
