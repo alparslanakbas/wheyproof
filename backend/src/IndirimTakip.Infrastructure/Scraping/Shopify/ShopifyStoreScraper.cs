@@ -114,6 +114,10 @@ public sealed partial class ShopifyStoreScraper(
         // lists reseller price sheets as "Wholesale": real rows, but not a
         // price a shopper can pay.
         "apparel and accessories", "t-shirt", "t-shirts", "hidden", "wholesale",
+        // Added with the 2026-10-08 stores: True Nutrition sells the add-ins for its
+        // custom blends as "Boost" (100 mg of cordyceps for $1) and "Flavor", not
+        // sold on their own; 1st Phorm lists app plans and coaching certifications.
+        "boost", "flavor", "app", "certification",
     };
 
     private static readonly HashSet<string> ColorOptionNames = new(StringComparer.OrdinalIgnoreCase)
@@ -327,10 +331,19 @@ public sealed partial class ShopifyStoreScraper(
         foreach (var (group, name) in groups.Zip(names))
         {
             var inStock = group.Where(v => v.Available).ToList();
+            if (store.OnlyInStock && inStock.Count == 0)
+                continue;
+
             var chosen = (inStock.Count > 0 ? inStock : group.ToList()).MinBy(v => v.Price)!;
             var label = group.Key;
 
             if (ProductAttributeParser.ToGrams(ProductAttributeParser.ExtractSize(name)) >= WholesaleGrams)
+                continue;
+
+            // Supplement Hunt sells short-dated stock as a size of its own, "60ct (Best
+            // Before Sept 1, 2026)", one of them past its date (2026-10-08). That is a
+            // clearance lot, not the product's price, and it would top every cheapest list.
+            if (ShortDatedRegex().IsMatch(name))
                 continue;
 
             // A size-specific link lands the shopper on that size. Products with
@@ -400,8 +413,10 @@ public sealed partial class ShopifyStoreScraper(
 
         // Checkout add-ons sold as products: SavedBy "Package Protection" (24
         // price tiers each on Gorilla Mind and Raw Nutrition, up to $40.97) and
-        // the Bodybuilding.com membership (measured 2026-09-13). The $1 floor
-        // doesn't catch them. Sample packs are real, buyable products and stay.
+        // the Bodybuilding.com membership (measured 2026-09-13), and RYSE's
+        // "Build Your Bundle!", a $3.33 placeholder for its bundle builder
+        // (2026-10-08). The $1 floor doesn't catch them. Sample packs are real,
+        // buyable products and stay.
         if (NonProductServiceRegex().IsMatch(product.Title))
             return true;
 
@@ -583,8 +598,11 @@ public sealed partial class ShopifyStoreScraper(
         return host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? host[4..] : host;
     }
 
-    [GeneratedRegex(@"\b(package|shipping|order|delivery|route)\s+(protection|insurance)\b|\bmembership\b|\bwarranty\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(package|shipping|order|delivery|route)\s+(protection|insurance)\b|\bmembership\b|\bwarranty\b|\bbuild\s+(your|a)\s+(own\s+)?bundle\b", RegexOptions.IgnoreCase)]
     private static partial Regex NonProductServiceRegex();
+
+    [GeneratedRegex(@"\bbest\s+before\b|\bexpir(es|y|ation)\b|\bshort[\s-]?dated\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ShortDatedRegex();
 
     [GeneratedRegex(@"\b(flavors?|flavours?|tastes?)\b", RegexOptions.IgnoreCase)]
     private static partial Regex FlavorOptionRegex();

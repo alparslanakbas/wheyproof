@@ -34,10 +34,17 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 /// US catalog from anywhere. Product links still use <see cref="BaseUrl"/>,
 /// the address a US visitor can open.
 /// </param>
+/// <param name="OnlyInStock">
+/// When set, a size with no variant in stock is skipped. For a closeout store
+/// where most of the catalog is sold out: those rows would fill the listings and
+/// the sitemap with pages nobody can buy from. A row that sells out stops being
+/// scraped and goes stale like any other; it comes back when it is restocked
+/// (the 72-hour gap rule keeps its old price from making a fake discount).
+/// </param>
 public sealed record ShopifyStore(
     string BrandName, string BaseUrl, bool IsRetailer = false, IReadOnlySet<string>? OnlyCategories = null,
     bool NutritionOnPage = false, IReadOnlySet<string>? OnlyHandles = null, SiteMarket? Market = null,
-    string? CatalogUrl = null)
+    string? CatalogUrl = null, bool OnlyInStock = false)
 {
     public SiteMarket StoreMarket => Market ?? SiteMarket.Us;
 
@@ -178,6 +185,41 @@ public static class ShopifyStores
         // reviews each in JSON-LD, ready the day stock returns. "Enchant" is the
         // name on the pack; "Enchant Brands" is the company.
         new("Enchant", "https://enchantbrands.com"),
+        // Added 2026-10-08, all in Sovrn's network (CPC, through the network
+        // fallback). Read through the real mapping code before adding: catalogs
+        // downloaded via a third-party reader at night, because Shopify refuses the
+        // server then and the home tunnel is what the night scrapes fall back on.
+        // All twelve declare USD; hosts are where the store's own redirect lands.
+        // Brands Bodybuilding.com had already created (Cellucor, BPI Sports, EHP
+        // Labs, RYSE) use the database spelling, so both sources share one brand.
+        //
+        // A closeout store: of 4,371 variants only 192 were in stock, so it is
+        // limited to stock (1,400 sold-out pages would otherwise fill the listings
+        // and the sitemap) and to the sport categories (765 of its rows were
+        // vitamins). 85 rows, about 40 brands; its vendor labels that differ from
+        // ours are mapped in BrandNameNormalizer.
+        new("Supplement Hunt", "https://supplementhunt.com", IsRetailer: true,
+            OnlyCategories: SportCategories, OnlyInStock: true),
+        // Sport categories only for the BulkSupplements reason: 112 own-label
+        // vitamins and 62 uncategorised "Stack" bundles next to its proteins.
+        new("True Nutrition", "https://truenutrition.com", OnlyCategories: SportCategories),
+        new("1UP Nutrition", "https://1upnutrition.com"),
+        // Sport categories only: its catalog also carries a "Test - AN offer"
+        // placeholder and an e-book offer, neither of which a category lets in.
+        new("Cellucor", "https://cellucor.com", OnlyCategories: SportCategories),
+        new("Ultimate Nutrition", "https://ultimatenutrition.com"),
+        new("Chike", "https://www.ilikechike.com"),
+        new("BPI Sports", "https://bpisports.com"),
+        // Formerly Designer Protein. Sport categories only: a $10 donation
+        // product ("Gift for Good") sits next to the shakes.
+        new("Designer Wellness", "https://designerwellness.com", OnlyCategories: SportCategories),
+        new("EHP Labs", "https://ehplabs.com"),
+        new("Jacked Factory", "https://jackedfactory.com"),
+        // Sport categories only: of 515 catalog products, 254 are gear, 16 app
+        // plans and coaching certifications ($440-540), and most of the rest are
+        // multi-product "Stack" bundles with no category of ours.
+        new("1st Phorm", "https://1stphorm.com", OnlyCategories: SportCategories),
+        new("RYSE", "https://rysesupps.com"),
 
         // ---- UK SECTION (www.wheyproof.com/uk) ----------------------------
         // Scraped only by the UK instance (Market:Code=UK), priced in GBP.

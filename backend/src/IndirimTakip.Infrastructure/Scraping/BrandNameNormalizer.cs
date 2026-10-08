@@ -136,6 +136,23 @@ public static class BrandNameNormalizer
         // ONE ...". The canonical side is the database spelling (the short one),
         // because renaming a brand breaks its brand page URL.
         ["Kingsize Nutrition"] = "Kingsize",
+
+        // US: Supplement Hunt's vendor labels (2026-10-08) for brands Bodybuilding.com
+        // had already created under another spelling. Each was confirmed from the
+        // store's PRODUCT NAMES ("Kaged Muscle" sells "Kaged Pre-Workout Sport", "VMI"
+        // sells "VMI K-XR", "David" sells "David High Protein Bars"); the canonical
+        // side is the database spelling, as above. Folding already covers "ProSupps",
+        // "USPLabs" and "Muscle Meds".
+        ["Kaged Muscle"] = "Kaged",
+        ["VMI"] = "VMI SPORTS",
+        ["BPI"] = "BPI Sports",
+        ["Panda Supplements"] = "PANDA",
+        ["Axe & Sledge"] = "Axe & Sledge Supplements",
+        ["Nutrex"] = "Nutrex Research, Inc.",
+        ["Nutrex Research"] = "Nutrex Research, Inc.",
+        ["Hi-Tech Pharmaceuticals"] = "Hi-Tech Pharma",
+        ["Grenade USA"] = "Grenade",
+        ["David"] = "David Bar",
         };
 
     /// <summary>

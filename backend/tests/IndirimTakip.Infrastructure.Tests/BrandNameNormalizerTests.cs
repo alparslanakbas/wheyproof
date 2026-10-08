@@ -24,6 +24,11 @@ public class BrandNameNormalizerTests
     [InlineData("Swiss", "Swiss Nutrition")]
     [InlineData("Zero Shot", "ZeroShot")]
     [InlineData("Trec Nutrition", "Trec")]
+    // US: Supplement Hunt's vendor labels for brands already in the catalog (2026-10-08).
+    [InlineData("Kaged Muscle", "Kaged")]
+    [InlineData("VMI", "VMI SPORTS")]
+    [InlineData("Nutrex Research", "Nutrex Research, Inc.")]
+    [InlineData("Grenade USA", "Grenade")]
     public void Known_aliases_map_to_the_canonical_name(string raw, string expected)
     {
         Assert.Equal(expected, BrandNameNormalizer.Normalize(raw));
