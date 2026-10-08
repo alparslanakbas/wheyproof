@@ -63,7 +63,8 @@ public static class DependencyInjection
         services.AddTransient<ShopifyTunnelHandler>();
         // Shopify requests are signed as a registered bot (see WebBotAuth); key from .env, empty = off.
         services.AddSingleton(_ => WebBotAuth.Create(configuration["WebBotAuth:PrivateKey"],
-            configuration["WebBotAuth:SignatureAgent"], configuration["WebBotAuth:UserAgent"], TimeProvider.System));
+            configuration["WebBotAuth:SignatureAgent"], configuration["WebBotAuth:UserAgent"], TimeProvider.System,
+            configuration.GetValue("WebBotAuth:SignRequests", true)));
         services.AddHttpClient(ShopifyStoreScraper.HttpClientName, client =>
         {
             client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);

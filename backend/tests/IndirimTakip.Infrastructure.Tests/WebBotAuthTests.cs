@@ -135,6 +135,24 @@ public class WebBotAuthTests
         Assert.True(Verifies(auth.PublicKey!, signatureBase, Regex.Match(signature, "^sig1=:(.+):$").Groups[1].Value));
     }
 
+    // Signing off (until Shopify answers the registration): requests go out exactly as before, while
+    // the directory keeps serving the key.
+    [Fact]
+    public void With_signing_off_requests_are_untouched_and_the_directory_is_still_served()
+    {
+        var auth = new WebBotAuth(FromBase64Url(RfcSeed), Agent, Ua, Time, signRequests: false);
+        var request = new HttpRequestMessage(HttpMethod.Get, "https://www.kaged.com/products.json");
+        request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/129.0");
+
+        auth.Sign(request);
+
+        Assert.False(request.Headers.Contains("Signature"));
+        Assert.False(request.Headers.Contains("Signature-Agent"));
+        Assert.Contains("Chrome/129.0", request.Headers.UserAgent.ToString());
+        Assert.True(auth.Enabled);
+        Assert.Contains(RfcPublicKey, auth.Directory("api.wheyproof.com").Json);
+    }
+
     [Fact]
     public void No_key_means_off_without_a_problem()
     {

@@ -44,9 +44,10 @@ public sealed class WebBotAuth
     private readonly Ed25519PrivateKeyParameters? key;
     private readonly TimeProvider time;
 
-    public WebBotAuth(byte[]? seed, string? signatureAgent, string? userAgent, TimeProvider time)
+    public WebBotAuth(byte[]? seed, string? signatureAgent, string? userAgent, TimeProvider time, bool signRequests = true)
     {
         this.time = time;
+        SignRequests = signRequests;
         SignatureAgent = signatureAgent?.Trim() ?? "";
         UserAgent = userAgent?.Trim() ?? "";
 
@@ -76,10 +77,11 @@ public sealed class WebBotAuth
     }
 
     /// <summary>Built from configuration: base64 seed, Signature-Agent origin, User-Agent.</summary>
-    public static WebBotAuth Create(string? seedBase64, string? signatureAgent, string? userAgent, TimeProvider time)
+    public static WebBotAuth Create(string? seedBase64, string? signatureAgent, string? userAgent, TimeProvider time,
+        bool signRequests = true)
     {
         if (string.IsNullOrWhiteSpace(seedBase64))
-            return new WebBotAuth(null, signatureAgent, userAgent, time);
+            return new WebBotAuth(null, signatureAgent, userAgent, time, signRequests);
 
         byte[] seed;
         try
@@ -88,12 +90,25 @@ public sealed class WebBotAuth
         }
         catch (FormatException)
         {
-            return new WebBotAuth([], signatureAgent, userAgent, time);
+            return new WebBotAuth([], signatureAgent, userAgent, time, signRequests);
         }
-        return new WebBotAuth(seed, signatureAgent, userAgent, time);
+        return new WebBotAuth(seed, signatureAgent, userAgent, time, signRequests);
     }
 
+    /// <summary>A usable key is configured: the directory is served.</summary>
     public bool Enabled => key is not null;
+
+    /// <summary>
+    /// Requests are signed (and carry the bot User-Agent). Separate from <see cref="Enabled"/> because
+    /// signing was switched OFF on the day it went live, with the directory left up for the registration.
+    /// Measured 2026-10-08 16:47-16:52 UTC, block on: signed requests got 429 from the server as before,
+    /// and through the home tunnel too (Kaged twice, Nutricost), which had passed every cycle since
+    /// 2026-10-05. From the home connection in the same minutes, unsigned requests got 200 with a
+    /// browser or our bot User-Agent, and so did one signed with a key NOT in our directory. Only the
+    /// verifiable signature failed: Shopify recognizes the bot and holds an unregistered one to a strict
+    /// limit wherever it comes from. Turned back on once Shopify answers the registration.
+    /// </summary>
+    public bool SignRequests { get; }
 
     /// <summary>Why a configured key was not used; null when on or simply not configured.</summary>
     public string? Problem { get; }
@@ -113,7 +128,7 @@ public sealed class WebBotAuth
     /// <summary>Adds Signature-Agent, Signature-Input and Signature, and sets the bot's User-Agent.</summary>
     public void Sign(HttpRequestMessage request)
     {
-        if (key is null || request.RequestUri is null)
+        if (key is null || !SignRequests || request.RequestUri is null)
             return;
 
         var created = time.GetUtcNow().ToUnixTimeSeconds();

@@ -170,7 +170,8 @@ var app = builder.Build();
 {
     var webBotAuth = app.Services.GetRequiredService<WebBotAuth>();
     if (webBotAuth.Enabled)
-        app.Logger.LogInformation("Web Bot Auth: on (Signature-Agent {Agent}, keyid {KeyId})", webBotAuth.SignatureAgent, webBotAuth.KeyId);
+        app.Logger.LogInformation("Web Bot Auth: directory on, request signing {Signing} (Signature-Agent {Agent}, keyid {KeyId})",
+            webBotAuth.SignRequests ? "on" : "off", webBotAuth.SignatureAgent, webBotAuth.KeyId);
     else if (webBotAuth.Problem is not null)
         app.Logger.LogWarning("Web Bot Auth: off, the configured key is unusable: {Problem}", webBotAuth.Problem);
 
