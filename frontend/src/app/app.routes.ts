@@ -67,6 +67,10 @@ export const routes: Routes = [
     loadComponent: () => import('./contact-page/contact-page').then((m) => m.ContactPage),
   },
   {
+    path: 'bot',
+    loadComponent: () => import('./bot-page/bot-page').then((m) => m.BotPage),
+  },
+  {
     path: 'glossary',
     loadComponent: () => import('./glossary-page/glossary-page').then((m) => m.GlossaryPage),
   },
