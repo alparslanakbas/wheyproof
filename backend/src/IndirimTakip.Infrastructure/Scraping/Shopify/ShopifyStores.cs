@@ -318,6 +318,11 @@ public static class ShopifyStores
             }),
     ];
 
+    /// <summary>Every Shopify host we read, store and catalog addresses, both markets (for signing).</summary>
+    public static readonly IReadOnlySet<string> Hosts = All
+        .SelectMany(s => new[] { new Uri(s.BaseUrl).Host, new Uri(s.CatalogBase).Host })
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>The stores an instance of the given market scrapes.</summary>
     public static IEnumerable<ShopifyStore> ForMarket(SiteMarket market) =>
         All.Where(s => s.StoreMarket == market);

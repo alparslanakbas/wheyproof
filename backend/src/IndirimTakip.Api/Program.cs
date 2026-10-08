@@ -164,6 +164,29 @@ var app = builder.Build();
         string.Join(", ", keyNames));
 }
 
+// Web Bot Auth (see WebBotAuth): Shopify fetches our public key here to verify signed requests.
+// Only the public key and its thumbprint are logged; a configured but unusable key is logged too,
+// since signing then stays off and every request goes out unsigned.
+{
+    var webBotAuth = app.Services.GetRequiredService<WebBotAuth>();
+    if (webBotAuth.Enabled)
+        app.Logger.LogInformation("Web Bot Auth: on (Signature-Agent {Agent}, keyid {KeyId})", webBotAuth.SignatureAgent, webBotAuth.KeyId);
+    else if (webBotAuth.Problem is not null)
+        app.Logger.LogWarning("Web Bot Auth: off, the configured key is unusable: {Problem}", webBotAuth.Problem);
+
+    app.MapMethods(WebBotAuth.DirectoryPath, ["GET", "HEAD"], (HttpContext context) =>
+    {
+        if (!webBotAuth.Enabled)
+            return Results.NotFound();
+
+        var (json, signatureInput, signature) = webBotAuth.Directory(context.Request.Host.Value ?? "");
+        context.Response.Headers["Signature-Input"] = signatureInput;
+        context.Response.Headers["Signature"] = signature;
+        context.Response.Headers.CacheControl = "public, max-age=3600";
+        return Results.Text(json, WebBotAuth.DirectoryMediaType);
+    });
+}
+
 // /api/dev/* endpoints (manual scrapes, coupons) must not be public. A full
 // user/auth system would be over-engineering; a shared key (in a header) is
 // enough. With no key configured (forgotten locally, say) we stay on the

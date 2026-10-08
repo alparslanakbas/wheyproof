@@ -61,11 +61,17 @@ public static class DependencyInjection
         // this client carries it: other sources' 429s are real rate limits, not to be bypassed.
         services.AddSingleton(_ => ShopifyTunnel.Create(configuration["Shopify:Tunnel"], TimeProvider.System));
         services.AddTransient<ShopifyTunnelHandler>();
+        // Shopify requests are signed as a registered bot (see WebBotAuth); key from .env, empty = off.
+        services.AddSingleton(_ => WebBotAuth.Create(configuration["WebBotAuth:PrivateKey"],
+            configuration["WebBotAuth:SignatureAgent"], configuration["WebBotAuth:UserAgent"], TimeProvider.System));
         services.AddHttpClient(ShopifyStoreScraper.HttpClientName, client =>
         {
             client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
             client.Timeout = TimeSpan.FromSeconds(30);
-        }).AddHttpMessageHandler<ShopifyTunnelHandler>();
+        })
+            // Outermost, so a request repeated through the tunnel carries the same signature.
+            .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()))
+            .AddHttpMessageHandler<ShopifyTunnelHandler>();
         foreach (var store in ShopifyStores.ForMarket(market))
         {
             services.AddScoped<IBrandScraper>(sp => new ShopifyStoreScraper(
@@ -163,7 +169,7 @@ public static class DependencyInjection
         {
             client.Timeout = TimeSpan.FromSeconds(30);
             client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
-        });
+        }).AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>(), ShopifyStores.Hosts));
         services.AddScoped<ProductRatingRefreshService>();
 
         services.AddScoped<ScrapeIngestionService>();

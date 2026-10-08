@@ -119,6 +119,9 @@ services:
       # Sovrn Commerce (approved 2026-10-07): every store WITHOUT a rule above goes through
       # redirect.viglink.com?key=...&u={url}; Sovrn pays for stores in its network and passes the rest through.
       # Same key as the UK instance. Empty = off.
+      # Web Bot Auth signing key for Shopify requests (see WebBotAuth): an Ed25519 seed generated
+      # on the server, only in .env. Empty = requests go out unsigned, as before.
+      - WebBotAuth__PrivateKey=${WEB_BOT_AUTH_KEY:-}
       - Affiliate__Fallback=${AFFILIATE_SOVRN:-}
       - PublicBaseUrl=https://api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com
@@ -250,6 +253,8 @@ services:
       - Affiliate__Rules__6__Host=maxinutrition.com
       - Affiliate__Rules__6__Link=${AFFILIATE_UK_MAXINUTRITION:-}
       # Sovrn Commerce fallback for UK stores without a rule (see the US service).
+      # Same Web Bot Auth key as the US service: one registered bot.
+      - WebBotAuth__PrivateKey=${WEB_BOT_AUTH_KEY:-}
       - Affiliate__Fallback=${AFFILIATE_SOVRN:-}
       - PublicBaseUrl=https://uk-api.wheyproof.com
       - FrontendBaseUrl=https://www.wheyproof.com/uk
