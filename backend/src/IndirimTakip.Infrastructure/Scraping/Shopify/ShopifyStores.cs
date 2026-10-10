@@ -27,13 +27,6 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 /// The edition the store belongs to; null means US. An instance registers only
 /// its own market's stores and requires that market's currency from them.
 /// </param>
-/// <param name="CatalogUrl">
-/// Where the catalog is READ from, when that differs from where shoppers are
-/// SENT. Huel's public site sits behind a geo redirect that sends our Frankfurt
-/// server to its German store, while the Shopify backend behind it answers the
-/// US catalog from anywhere. Product links still use <see cref="BaseUrl"/>,
-/// the address a US visitor can open.
-/// </param>
 /// <param name="OnlyInStock">
 /// When set, a size with no variant in stock is skipped. For a closeout store
 /// where most of the catalog is sold out: those rows would fill the listings and
@@ -44,12 +37,9 @@ namespace IndirimTakip.Infrastructure.Scraping.Shopify;
 public sealed record ShopifyStore(
     string BrandName, string BaseUrl, bool IsRetailer = false, IReadOnlySet<string>? OnlyCategories = null,
     bool NutritionOnPage = false, IReadOnlySet<string>? OnlyHandles = null, SiteMarket? Market = null,
-    string? CatalogUrl = null, bool OnlyInStock = false)
+    bool OnlyInStock = false)
 {
     public SiteMarket StoreMarket => Market ?? SiteMarket.Us;
-
-    /// <summary>The address the catalog and its currency are read from.</summary>
-    public string CatalogBase => CatalogUrl ?? BaseUrl;
 }
 
 public static class ShopifyStores
@@ -145,31 +135,8 @@ public static class ShopifyStores
                 "super-mushroom-lion-s-mane-elixir", "super-mushroom-cordyceps-elixir", "super-mushroom-chaga-elixir",
                 "pre-probiotic-elixir", "performance-power-bundle", "mind-focus-bundle",
             }),
-        // Added 2026-09-21. Its Awin US programme REJECTED the first application,
-        // most likely because the reviewer found no Huel products here: the public
-        // site 307s our Frankfurt server to de.huel.com (a Vercel geo redirect keyed
-        // on a huel_user_country_iso cookie). The Shopify backend behind it,
-        // huelamerica.myshopify.com, answers the US catalog from anywhere and its
-        // meta.json declares USD, so the catalog is read there while shoppers are
-        // sent to huel.com.
-        // LISTED BY HANDLE because half the backend has no public page: every one
-        // of the 48 rows the scraper produced was opened as a US visitor, and 22
-        // answered 404 (single units, multi-packs and bundle parts the site sells
-        // only through its cart builders). Linking them would send shoppers, and
-        // affiliate clicks, to a dead page. The handles below answered 200. The
-        // store's sitemap was NOT used as the list: it omits five of these pages.
-        new("Huel", "https://huel.com", CatalogUrl: "https://huelamerica.myshopify.com",
-            OnlyHandles: new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "huel", "huel-black-edition", "black-edition-10-meals", "huel-essential",
-                "huel-complete-protein", "huel-daily-superblend", "huel-daily-greens",
-                "huel-daily-greens-ready-to-drink", "huel-ready-to-drink",
-                "huel-black-edition-ready-to-drink", "huel-bar", "huel-energy-plus",
-                "huel-instant-meal-pots", "hot-and-savoury-meal-packs", "bestseller-bundle",
-                "huel-bestseller-bundle", "breakfast-lunch-bundle", "discovery-bundle-v2",
-                "fiber-boost-bundle", "glp1-companion-pack", "high-protein-starter-kit",
-                "huel-high-protein-bundle",
-            }),
+        // Huel left this list on 2026-10-10: it no longer publishes its products to
+        // Shopify's storefront, see HuelScraper.
         // Added 2026-09-25: liquid energy, hydration, immunity and sleep shots,
         // a lion's mane capsule and a tincture. Every supplement was sold out
         // when added (products.json, the .js endpoint and the page's JSON-LD all
@@ -298,29 +265,11 @@ public static class ShopifyStores
         // (measured through the real scraper, 2026-09-19).
         new("Bodybuilding Warehouse", "https://bodybuildingwarehouse.co.uk", IsRetailer: true,
             OnlyCategories: SportCategories, Market: SiteMarket.Uk),
-        // Added 2026-09-21, on Awin (application pending), the same way as the US
-        // entry above: uk.huel.com 307s our Frankfurt server to de.huel.com, while
-        // its Shopify backend, hibble.myshopify.com, answers the UK catalog from
-        // anywhere and declares GBP in meta.json. 86 product pages opened as a GB
-        // visitor, 27 answered 200 and are listed here (32 rows); the other 59 are
-        // single units and bundle parts sold only through the cart builder.
-        new("Huel", "https://uk.huel.com", Market: SiteMarket.Uk, CatalogUrl: "https://hibble.myshopify.com",
-            OnlyHandles: new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "huel", "huel-black-edition", "black-edition-10-meals", "black-edition-10-meals-banana",
-                "black-edition-bulk-save", "huel-essential", "huel-complete-protein", "huel-professional",
-                "huel-gluten-free", "huel-diet-powder", "huel-daily-greens", "huel-daily-greens-ready-to-drink",
-                "huel-daily-a-z-vitamins", "huel-ready-to-drink", "huel-black-edition-ready-to-drink",
-                "huel-lite-ready-to-drink", "huel-bar", "hot-and-savoury-meal-packs",
-                "hot-and-savoury-black-edition-ramen", "hot-and-savoury-lite-ramen", "huel-bestseller-bundle",
-                "huel-taster-bundle", "breakfast-lunch-bundle", "daily-wellness-set", "high-protein-starter-kit",
-                "huel-high-protein-bundle", "light-lean-bundle",
-            }),
     ];
 
-    /// <summary>Every Shopify host we read, store and catalog addresses, both markets (for signing).</summary>
+    /// <summary>Every Shopify host we read, both markets (for signing).</summary>
     public static readonly IReadOnlySet<string> Hosts = All
-        .SelectMany(s => new[] { new Uri(s.BaseUrl).Host, new Uri(s.CatalogBase).Host })
+        .Select(s => new Uri(s.BaseUrl).Host)
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The stores an instance of the given market scrapes.</summary>

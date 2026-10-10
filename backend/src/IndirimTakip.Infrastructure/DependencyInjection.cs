@@ -86,6 +86,29 @@ public static class DependencyInjection
                 sp.GetRequiredService<ILogger<ShopifyStoreScraper>>()));
         }
 
+        // Huel (both editions): its own product pages since it stopped publishing to Shopify's
+        // storefront (see HuelScraper). Redirects off: a page that redirects was served for another
+        // country and must fail rather than be read. Cookies off, so the locale cookie the scraper
+        // sets goes out as written. Compression on: a page is about 1 MB unpacked.
+        services.AddHttpClient(Scraping.Huel.HuelScraper.HttpClientName, client =>
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+            client.Timeout = TimeSpan.FromSeconds(60);
+        }).ConfigurePrimaryHttpMessageHandler(() =>
+        {
+            var handler = PublicNetworkConnection.CreateHandler();
+            handler.AllowAutoRedirect = false;
+            handler.UseCookies = false;
+            handler.AutomaticDecompression = System.Net.DecompressionMethods.All;
+            return handler;
+        })
+            .AddHttpMessageHandler(sp => new RobotsTxtHandler(sp.GetRequiredService<RobotsTxtCache>(),
+                sp.GetRequiredService<ILogger<RobotsTxtHandler>>()));
+        services.AddScoped<IBrandScraper>(sp => new Scraping.Huel.HuelScraper(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient(Scraping.Huel.HuelScraper.HttpClientName),
+            Scraping.Huel.HuelScraper.ForMarket(market),
+            sp.GetRequiredService<ILogger<Scraping.Huel.HuelScraper>>()));
+
         // WooCommerce stores. Same idea as the Shopify list: one configurable
         // scraper reads the public Store API, the stores live in WooStores.All.
         services.AddHttpClient(Scraping.Woo.WooStoreScraper.HttpClientName, client =>

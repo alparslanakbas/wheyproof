@@ -190,12 +190,12 @@ public class WebBotAuthTests
         Assert.False(inner.Requests[1].Headers.Contains("Signature"));
     }
 
+    // Huel's pages are read from its own Next.js site (see HuelScraper), not Shopify.
     [Fact]
-    public void Shopify_hosts_include_catalog_addresses()
+    public void Shopify_hosts_are_the_store_addresses()
     {
         Assert.Contains("www.kaged.com", ShopifyStores.Hosts);
-        Assert.Contains("huelamerica.myshopify.com", ShopifyStores.Hosts);
-        Assert.Contains("huel.com", ShopifyStores.Hosts);
+        Assert.DoesNotContain("huel.com", ShopifyStores.Hosts);
     }
 
     private sealed class RecordingHandler : HttpMessageHandler

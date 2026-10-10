@@ -187,7 +187,7 @@ public sealed partial class ShopifyStoreScraper(
     /// <summary>One catalog page; a 429 is retried once after <see cref="retryDelay"/>.</summary>
     private async Task<ShopifyProductsResponse?> GetPageAsync(int page, CancellationToken cancellationToken)
     {
-        var url = $"{store.CatalogBase}/products.json?limit={PageSize}&page={page}&{MarketQuery}";
+        var url = $"{store.BaseUrl}/products.json?limit={PageSize}&page={page}&{MarketQuery}";
         try
         {
             return await httpClient.GetFromJsonAsync<ShopifyProductsResponse>(url, JsonOptions, cancellationToken);
@@ -201,41 +201,9 @@ public sealed partial class ShopifyStoreScraper(
         }
     }
 
-    private async Task<string?> ReadShopCurrencyAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(
-                await httpClient.GetStringAsync($"{store.CatalogBase}/meta.json", cancellationToken));
-            return doc.RootElement.TryGetProperty("currency", out var c) && c.ValueKind == JsonValueKind.String
-                ? c.GetString()
-                : null;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException)
-        {
-            logger.LogWarning(ex, "{Store}: meta.json did not load; checking the storefront instead.", store.BrandName);
-            return null;
-        }
-    }
-
     private async Task EnsureMarketCurrencyAsync(CancellationToken cancellationToken)
     {
         var required = store.StoreMarket.Currency;
-
-        // A separate catalog host is a Shopify backend: its /meta.json states the
-        // shop currency outright, which is stronger than reading a storefront page
-        // (the public site in front of it may not be a Shopify theme at all).
-        if (store.CatalogUrl is not null)
-        {
-            var declared = await ReadShopCurrencyAsync(cancellationToken);
-            if (declared is not null)
-            {
-                if (!declared.Equals(required, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException(
-                        $"{store.BrandName}: shop currency is {declared}, not {required}. Skipped so that prices in the wrong currency never reach the site.");
-                return;
-            }
-        }
 
         string html;
         try
