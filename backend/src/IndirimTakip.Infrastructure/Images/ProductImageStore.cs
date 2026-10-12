@@ -243,6 +243,9 @@ public sealed class ProductImageOptions
 
     public int IntervalMinutes { get; set; } = 10;
 
+    /// <summary>A failed image is retried no sooner than this many hours later.</summary>
+    public int FailedRetryHours { get; set; } = 24;
+
     public int Quality { get; set; } = 78;
 
     /// <summary>Largest source file downloaded (bytes).</summary>

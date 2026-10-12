@@ -13,7 +13,9 @@ namespace IndirimTakip.Infrastructure.Images;
 /// a missed run is made up by the next one, and finished work isn't repeated. So
 /// the "a timer holding the period gets reset by every deploy" trap, hit twice
 /// with the digest and the detail backfill, can't happen here and no separate
-/// stamp record is needed.
+/// stamp record is needed. The one exception is the backoff for failed images
+/// (<see cref="FailedImageBackoff"/>): it lives in memory, and if a deploy resets
+/// it a dead address is simply tried once more.
 ///
 /// <b>WHY A QUOTA.</b> The first run faces thousands of images. Pulling them all
 /// at once would load every source at the same time; a per-run limit is polite to
@@ -29,6 +31,8 @@ public sealed class ProductImageBackgroundService(
     ProductImageOptions options,
     ILogger<ProductImageBackgroundService> logger) : BackgroundService
 {
+    private readonly FailedImageBackoff backoff = new();
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!options.Enabled)
@@ -80,14 +84,23 @@ public sealed class ProductImageBackgroundService(
         // Hidden products are included (IgnoreQueryFilters): when visibility is
         // turned back on the image should be ready; starting the download then
         // would leave the card empty for a run.
-        var candidates = await db.Products
+        //
+        // Failed images still backing off are filtered in memory, not in SQL:
+        // the query stays the same and only fetches as many extra rows as are
+        // waiting, so the whole quota still goes to images worth trying.
+        var waiting = backoff.Waiting(
+            DateTimeOffset.UtcNow, TimeSpan.FromHours(options.FailedRetryHours));
+        var candidates = (await db.Products
             .IgnoreQueryFilters()
             .Where(p => p.ImageUrl != null && p.ImageUrl != "" && p.LocalImagePath == null)
             .OrderByDescending(p => p.ClickCount)
             .ThenByDescending(p => p.Id)
             .Select(p => new { p.Id, p.ImageUrl })
+            .Take(options.MaxPerRun + waiting.Count)
+            .ToListAsync(cancellationToken))
+            .Where(c => !waiting.Contains(c.Id))
             .Take(options.MaxPerRun)
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         if (candidates.Count == 0)
             return 0;
@@ -97,7 +110,10 @@ public sealed class ProductImageBackgroundService(
         {
             var fileName = await store.DownloadAsync(candidate.ImageUrl!, cancellationToken);
             if (fileName is null)
+            {
+                backoff.Failed(candidate.Id, DateTimeOffset.UtcNow);
                 continue;
+            }
 
             // Written one by one: if the run is cut off, the work done so far is
             // saved. A batch save would leave files downloaded in a cut-off run
