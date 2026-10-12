@@ -159,8 +159,9 @@ public sealed class ProductImageStore(
         // header and the decoder would try to hold that many pixels in memory
         // (~3.6 GB; the slice cap is 4 GB). The header is read and the size
         // checked; only then is the image opened.
-        var info = await Image.IdentifyAsync(input, cancellationToken)
-            ?? throw new InvalidOperationException("Unrecognized image format.");
+        // An unknown format makes IdentifyAsync throw UnknownImageFormatException
+        // itself (ImageSharp 3+); it no longer returns null.
+        var info = await Image.IdentifyAsync(input, cancellationToken);
         if ((long)info.Width * info.Height > MaxPixels)
             throw new InvalidOperationException(
                 $"Image exceeds the pixel limit ({info.Width}x{info.Height}).");

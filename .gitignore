@@ -41,3 +41,8 @@ design-audit-*/
 design-qa-directory/
 indirim-takip-sistemi.sln
 caddy-log/
+
+# Six Labors (ImageSharp 4.x) license key. Release builds look for it under
+# backend/src/IndirimTakip.Infrastructure/; it lives only on the server.
+# The repo is public: this file must NEVER be committed.
+sixlabors.lic
