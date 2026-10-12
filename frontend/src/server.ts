@@ -456,6 +456,16 @@ app.use((req, res, next) => {
     if (hit) ssrCache.delete(key);
   }
 
+  // Angular ignores proxy headers (Forwarded, X-Forwarded-*) unless
+  // trustProxyHeaders is set, but it logged a warning on every request
+  // (3×506 lines in 2 hours live, Oct 12). Express is done with them above;
+  // removing them here leaves the render unchanged and only stops the
+  // warning. Trust is deliberately not widened: the canonical origin comes
+  // from the environment, not from the request.
+  for (const name of Object.keys(req.headers)) {
+    if (name === 'forwarded' || name.startsWith('x-forwarded-')) delete req.headers[name];
+  }
+
   angularApp
     .handle(req)
     .then(async (response) => {
