@@ -47,8 +47,9 @@ trap drop_check_db EXIT
 # section (the same app run a second time, see docker-compose.yml). Each gets
 # its own dump file and its own restore check.
 #   $1 database   $2 file prefix   $3 minimum dump size in bytes (0 = no floor)
+#   $4 table whose row count proves the restore (default "Products")
 backup_database() {
-  local db=$1 prefix=$2 min_size=$3
+  local db=$1 prefix=$2 min_size=$3 count_table=${4:-'"Products"'}
   local container_path=/tmp/backup-$prefix-$STAMP.dump
   local host_path="$TARGET/$prefix-$STAMP.dump"
 
@@ -72,14 +73,14 @@ backup_database() {
   # catches real loss (a half-restored or empty dump).
   local live restored
   live=$(docker compose exec -T db psql -U "$DB_USER" -d "$db" -tAc \
-    'SELECT COUNT(*) FROM "Products";' </dev/null | tr -d '[:space:]')
+    "SELECT COUNT(*) FROM $count_table;" </dev/null | tr -d '[:space:]')
   restored=$(docker compose exec -T db psql -U "$DB_USER" -d "$CHECK_DB" -tAc \
-    'SELECT COUNT(*) FROM "Products";' </dev/null | tr -d '[:space:]')
+    "SELECT COUNT(*) FROM $count_table;" </dev/null | tr -d '[:space:]')
 
   # An empty restore is an error only when the live database isn't empty: the
   # UK section starts with no products, and that is not a broken backup.
   if [ "${live:-0}" -gt 0 ] && [ "${restored:-0}" -lt 1 ]; then
-    echo "ERROR: $db: restored backup has no products (live: $live)" >&2
+    echo "ERROR: $db: restored backup has no rows in $count_table (live: $live)" >&2
     exit 1
   fi
   local diff=$(( live > restored ? live - restored : restored - live ))
@@ -102,7 +103,7 @@ backup_database() {
     exit 1
   fi
 
-  echo "$(date '+%Y-%m-%d %H:%M') backup ok: $host_path ($size bytes, restore verified: $restored products)"
+  echo "$(date '+%Y-%m-%d %H:%M') backup ok: $host_path ($size bytes, restore verified: $restored rows in $count_table)"
 }
 
 backup_database wheyproof wheyproof 200000
@@ -113,5 +114,15 @@ if [ "$(run_psql "SELECT 1 FROM pg_database WHERE datname = 'wheyproof_uk';" | t
   backup_database wheyproof_uk wheyproof-uk 0
 fi
 
-# Both editions' files start with "wheyproof-", so one rule prunes them.
-find "$TARGET" -name 'wheyproof-*.dump' -mtime +$RETENTION_DAYS -delete
+# CupProof, the coffee and tea site, keeps its own database on this server
+# (its collector runs as a container on this compose network). Its price
+# history can't be recreated either. Price points are counted: they are the
+# data that would be lost. Skipped until its first migration has run.
+if [ "$(run_psql "SELECT 1 FROM pg_database WHERE datname = 'cupproof';" | tr -d '[:space:]')" = "1" ] &&
+   [ "$(docker compose exec -T db psql -U "$DB_USER" -d cupproof -tAc "SELECT to_regclass('public.price_points') IS NOT NULL;" </dev/null | tr -d '[:space:]')" = "t" ]; then
+  backup_database cupproof cupproof 0 price_points
+fi
+
+# Both editions' files start with "wheyproof-", so one rule prunes them;
+# CupProof's start with "cupproof-".
+find "$TARGET" \( -name 'wheyproof-*.dump' -o -name 'cupproof-*.dump' \) -mtime +$RETENTION_DAYS -delete
