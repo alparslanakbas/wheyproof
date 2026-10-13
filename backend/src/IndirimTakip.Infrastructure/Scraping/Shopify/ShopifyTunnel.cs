@@ -135,9 +135,13 @@ public sealed class ShopifyTunnel : IDisposable
     {
         Proxy = new WebProxy(proxy),
         UseProxy = true,
-        // Compression shrinks traffic on the home line about tenfold: a 250-product catalog page is
-        // 115 KB instead of 1.2 MB (measured 2026-10-05).
-        AutomaticDecompression = DecompressionMethods.All,
+        // NO compression, although it would shrink home-line traffic about tenfold (115 KB instead of
+        // 1.2 MB per catalog page, 2026-10-05). With "Accept-Encoding: gzip, deflate, br" Cloudflare
+        // answered the home IP with a 403 challenge (cf-mitigated: challenge) on Transparent Labs,
+        // Momentous and RAW; the same request without the header got 200 (measured 2026-10-13). Those
+        // 403s are what tripped the breaker in the 10-11 Oct US cycles. Our manual curl checks never
+        // reproduced them because curl sends no Accept-Encoding by default.
+        AutomaticDecompression = DecompressionMethods.None,
         // If the tunnel is down, don't hang; the scraper then sees the direct answer (the 429).
         ConnectTimeout = TimeSpan.FromSeconds(10),
         PooledConnectionLifetime = TimeSpan.FromMinutes(5),

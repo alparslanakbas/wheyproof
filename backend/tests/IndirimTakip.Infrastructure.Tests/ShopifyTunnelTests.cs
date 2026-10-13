@@ -275,6 +275,8 @@ public class ShopifyTunnelTests
         using var handler = ShopifyTunnel.CreateHandler(proxy);
         Assert.True(handler.UseProxy);
         Assert.NotNull(handler.ConnectCallback);
+        // Accept-Encoding through the home tunnel drew Cloudflare 403 challenges (2026-10-13).
+        Assert.Equal(DecompressionMethods.None, handler.AutomaticDecompression);
     }
 
     // The production address must be valid; a bad one would fail every Shopify crawl.
