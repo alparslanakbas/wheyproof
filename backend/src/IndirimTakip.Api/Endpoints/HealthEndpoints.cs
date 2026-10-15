@@ -1,3 +1,4 @@
+using System.Globalization;
 using IndirimTakip.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -49,10 +50,96 @@ internal static class HealthEndpoints
     /// </summary>
     private const int RetiredAfterDays = 30;
 
+    /// <summary>
+    /// A known failure taken out of the 503 until a date (UTC, the day
+    /// INCLUDED): entries under <c>Health:Muted</c> with <c>Source</c> and
+    /// <c>Until</c> ("yyyy-MM-dd"). The source name must match the body's
+    /// <c>source</c> field EXACTLY.
+    ///
+    /// <b>WHY IT EXISTS.</b> A monitor kept red by one source goes BLIND: it is
+    /// already "down", so a second source breaking brings no news. On 14 Oct
+    /// 2026 Kaged put a Cloudflare bot challenge in front of its store (403
+    /// from the server and from the home tunnel alike); the endpoint would
+    /// have stayed red until the 30-day retirement. The sister site has the
+    /// same rule since 2 Oct (Gigi's).
+    ///
+    /// <b>The end date is REQUIRED:</b> a mute without one gets forgotten and
+    /// quietly drops the source from monitoring; after the date the source
+    /// raises the alarm again by itself. A muted source stays listed in the
+    /// body. An entry with a broken name or date is IGNORED, not fatal: the
+    /// safe direction is the alarm going on ringing. A test checks that the
+    /// production entries are valid, so a typo can't leave an alarm open that
+    /// someone believes muted.
+    /// </summary>
+    internal sealed record SourceMute(string Source, DateOnly Until);
+
+    internal sealed record SourceState(string Source, DateTimeOffset LastScraped, int ProductCount);
+
+    internal sealed record MutedSource(SourceState Source, DateOnly Until);
+
+    internal sealed record HealthClassification(
+        IReadOnlyList<SourceState> Stale,
+        IReadOnlyList<MutedSource> Muted,
+        IReadOnlyList<string> Retired);
+
+    internal static IReadOnlyList<SourceMute> ReadMutes(IConfiguration configuration) =>
+        configuration.GetSection("Health:Muted").GetChildren()
+            .Select(m => (Source: m["Source"]?.Trim(), Until: m["Until"]))
+            .Where(m => !string.IsNullOrEmpty(m.Source))
+            .Select(m => DateOnly.TryParseExact(m.Until, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var until)
+                ? new SourceMute(m.Source!, until)
+                : null)
+            .OfType<SourceMute>()
+            .ToList();
+
+    /// <summary>
+    /// Sorts the sources into stale ones (503), muted stale ones and retired
+    /// ones. Pure and apart from the endpoint so the alarm's decision can be
+    /// tested without a database: an alarm that silently stays green is worse
+    /// than none.
+    /// </summary>
+    internal static HealthClassification Classify(
+        IEnumerable<SourceState> sources, DateTimeOffset now, int staleHours, IReadOnlyList<SourceMute> mutes)
+    {
+        var staleBefore = now.AddHours(-staleHours);
+        var retiredBefore = now.AddDays(-RetiredAfterDays);
+        var today = DateOnly.FromDateTime(now.UtcDateTime);
+
+        var stale = new List<SourceState>();
+        var muted = new List<MutedSource>();
+        var retired = new List<string>();
+
+        foreach (var source in sources.OrderBy(s => s.LastScraped))
+        {
+            if (source.LastScraped < retiredBefore)
+            {
+                retired.Add(source.Source);
+                continue;
+            }
+
+            if (source.LastScraped >= staleBefore)
+                continue;
+
+            // Several entries for one source: the latest end date wins.
+            var mute = mutes
+                .Where(m => m.Source == source.Source && today <= m.Until)
+                .MaxBy(m => m.Until);
+
+            if (mute is null)
+                stale.Add(source);
+            else
+                muted.Add(new MutedSource(source, mute.Until));
+        }
+
+        return new HealthClassification(stale, muted, retired.OrderBy(name => name).ToList());
+    }
+
     public static void MapHealthEndpoints(this WebApplication app)
     {
         var staleHours = app.Configuration.GetValue<int?>("Health:StaleHours")
                          ?? DefaultStaleHours;
+        var mutes = ReadMutes(app.Configuration);
 
         // GET *and* HEAD, both REQUIRED.
         //
@@ -66,8 +153,6 @@ internal static class HealthEndpoints
         app.MapMethods("/api/health/sources", ["GET", "HEAD"], async (AppDbContext db, CancellationToken ct) =>
         {
             var now = DateTimeOffset.UtcNow;
-            var staleBefore = now.AddHours(-staleHours);
-            var retiredBefore = now.AddDays(-RetiredAfterDays);
 
             // Source = who brings the product in: the seller for retailer
             // products, the brand itself for products from the brand's own
@@ -92,38 +177,39 @@ internal static class HealthEndpoints
                 })
                 .ToListAsync(ct);
 
-            var stale = sources
-                .Where(s => s.LastScraped < staleBefore && s.LastScraped >= retiredBefore)
-                .OrderBy(s => s.LastScraped)
-                .Select(s => new
+            var result = Classify(
+                sources.Select(s => new SourceState(s.Source, s.LastScraped, s.ProductCount)),
+                now, staleHours, mutes);
+
+            var body = new
+            {
+                status = result.Stale.Count == 0 ? "healthy" : "stale-sources",
+                thresholdHours = staleHours,
+                sourceCount = sources.Count,
+                staleSources = result.Stale.Select(s => new
                 {
                     source = s.Source,
                     lastScraped = s.LastScraped,
                     hoursAgo = (int)(now - s.LastScraped).TotalHours,
                     productCount = s.ProductCount,
-                })
-                .ToList();
-
-            var retired = sources
-                .Where(s => s.LastScraped < retiredBefore)
-                .Select(s => s.Source)
-                .OrderBy(name => name)
-                .ToList();
-
-            var body = new
-            {
-                status = stale.Count == 0 ? "healthy" : "stale-sources",
-                thresholdHours = staleHours,
-                sourceCount = sources.Count,
-                staleSources = stale,
+                }).ToList(),
+                // A known failure: no 503 until its end date (SourceMute).
+                mutedSources = result.Muted.Select(m => new
+                {
+                    source = m.Source.Source,
+                    lastScraped = m.Source.LastScraped,
+                    hoursAgo = (int)(now - m.Source.LastScraped).TotalHours,
+                    productCount = m.Source.ProductCount,
+                    until = m.Until,
+                }).ToList(),
                 // For information: they don't produce a 503 (see above).
-                retiredSources = retired,
+                retiredSources = result.Retired,
             };
 
             // The health endpoint must NOT be cached: a cached "healthy" response
             // hides a failure. The output cache policy isn't applied anyway; this
             // header is for Cloudflare and every layer in between.
-            return stale.Count == 0
+            return result.Stale.Count == 0
                 ? Results.Json(body, statusCode: StatusCodes.Status200OK)
                 : Results.Json(body, statusCode: StatusCodes.Status503ServiceUnavailable);
         })
