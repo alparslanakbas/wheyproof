@@ -344,6 +344,7 @@ app.MapDealsEndpoints(PublicDataCachePolicy);
 app.MapCouponEndpoints(PublicDataCachePolicy);
 app.MapArticleEndpoints(PublicDataCachePolicy);
 app.MapPriceHistoryEndpoints(PublicDataCachePolicy);
+app.MapCampaignEndpoints(PublicDataCachePolicy);
 app.MapEngagementEndpoints(frontendBaseUrl);
 app.MapStoreRedirectEndpoints();
 app.MapSubscriptionEndpoints(frontendBaseUrl);

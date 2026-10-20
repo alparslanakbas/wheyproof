@@ -50,6 +50,8 @@ const SHARED_ROUTES: readonly RegExp[] = [
   /^\/cookies$/,
   /^\/terms$/,
   /^\/watchlist$/,
+  // Same page in every edition; the numbers come from each edition's own catalog.
+  /^\/black-friday$/,
   // Every edition seeds the same embedded articles at startup (backend
   // ArticleSeeder), so each guide exists at the same slug in all of them.
   // Guides were left out on the belief that the UK section had no articles;

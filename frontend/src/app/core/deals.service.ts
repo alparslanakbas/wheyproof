@@ -4,6 +4,7 @@ import { Observable, catchError, of, shareReplay, throwError } from 'rxjs';
 
 import { API_BASE_URL } from './api.config';
 import { BrandStats } from './brand-stats.model';
+import { CampaignSummary } from './campaign';
 import { CategoryPriceStats } from './category-price-stats.model';
 import { Deal } from './deal.model';
 import { HomepageStats } from './homepage-stats.model';
@@ -57,6 +58,11 @@ export class DealsService {
 
   getAllProducts(query: DealsQuery): Observable<PagedResult<Deal>> {
     return this.http.get<PagedResult<Deal>>(`${API_BASE_URL}/api/products`, { params: this.buildParams(query) });
+  }
+
+  /** Season page (/black-friday): store "sales" checked against the 30 days before the discount. */
+  getCampaignSummary(): Observable<CampaignSummary> {
+    return this.http.get<CampaignSummary>(`${API_BASE_URL}/api/campaign/summary`);
   }
 
   getStoreDeals(query: DealsQuery): Observable<PagedResult<Deal>> {

@@ -210,6 +210,7 @@ public static class DependencyInjection
         services.AddScoped<DealsQueryService>();
         services.AddScoped<CatalogStatsQueryService>();
         services.AddScoped<ValuePicksQueryService>();
+        services.AddScoped<CampaignDiscountService>();
         services.AddScoped<PriceHistoryQueryService>();
         services.AddScoped<CouponService>();
         services.AddScoped<ArticleService>();

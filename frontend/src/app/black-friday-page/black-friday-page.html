@@ -1,0 +1,148 @@
+<div class="noc-shell min-h-screen bg-[var(--noc-bg)] text-[var(--noc-text)]">
+  <app-site-header />
+
+  <main class="mx-auto max-w-[1280px] px-[28px] py-[22px]">
+    <nav class="mb-2 text-xs text-[var(--noc-neutral-500)]">
+      <a routerLink="/" class="hover:text-[var(--noc-accent)]">Home</a> / Black Friday
+    </nav>
+    <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">Black Friday {{ year }}: which supplement deals are real?</h1>
+    <p class="mt-2 max-w-2xl text-[15px] text-[var(--noc-neutral-300)]">
+      Crossed-out prices will be everywhere this Black Friday. We check every one against the product's lowest price in
+      the 30 days before the sale started: what it actually sold for, not what the store says it used to cost.
+    </p>
+
+    <section class="mt-[22px] grid gap-3 sm:grid-cols-2" aria-label="Sale dates">
+      <div class="flex items-center gap-4 rounded-[14px] bg-[var(--noc-card)] p-5 shadow-[var(--noc-shadow-sm)]">
+        <i class="ph ph-calendar-blank text-2xl text-[var(--noc-accent)]" aria-hidden="true"></i>
+        <div>
+          <div class="text-xs text-[var(--noc-neutral-500)]">Black Friday</div>
+          <div class="mt-0.5 text-[17px] font-semibold">{{ day(blackFridayDate) }}</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 rounded-[14px] bg-[var(--noc-card)] p-5 shadow-[var(--noc-shadow-sm)]">
+        <i class="ph ph-calendar-blank text-2xl text-[var(--noc-accent)]" aria-hidden="true"></i>
+        <div>
+          <div class="text-xs text-[var(--noc-neutral-500)]">Cyber Monday</div>
+          <div class="mt-0.5 text-[17px] font-semibold">{{ day(cyberMondayDate) }}</div>
+        </div>
+      </div>
+    </section>
+
+    @if (loading()) {
+      <div class="mt-[22px] space-y-3" aria-label="Loading the measurement">
+        <div class="pa-card pa-skeleton h-[220px]"></div>
+        <div class="pa-card pa-skeleton h-[146px]"></div>
+      </div>
+    } @else if (failed()) {
+      <div class="mx-auto mt-[22px] max-w-md rounded-[14px] bg-[var(--noc-card)] px-6 py-8 text-center shadow-[var(--noc-shadow-sm)]">
+        The measurement couldn't be loaded right now. Please try again in a moment.
+      </div>
+    } @else if (summary(); as s) {
+      <section class="mt-[22px] rounded-[14px] bg-[var(--noc-card)] p-5 shadow-[var(--noc-shadow-sm)] sm:p-7" aria-labelledby="status-title">
+        <h2 id="status-title" class="pa-section-title">Where things stand today</h2>
+        <p class="mt-4 text-[44px] font-semibold leading-none tracking-[-0.04em] sm:text-[56px]">
+          <span class="text-[var(--pa-positive)]">{{ s.real }}</span><span class="text-[var(--noc-neutral-500)]"> / {{ judged() }}</span>
+        </p>
+        <p class="mt-3 max-w-2xl text-[15px] text-[var(--noc-neutral-300)]">
+          Of the products {{ stores }} show with a crossed-out price, and whose price history we can judge, this many are
+          really cheaper: today's price is below the lowest price of the 30 days before the sale started.
+        </p>
+        <dl class="mt-5 grid gap-3 sm:grid-cols-3">
+          <div class="rounded-[12px] border border-[var(--noc-divider)] p-4">
+            <dt class="text-xs text-[var(--noc-neutral-500)]">Same price for a month</dt>
+            <dd class="mt-1 text-2xl font-semibold">{{ s.permanent }}</dd>
+            <dd class="mt-1 text-xs text-[var(--noc-neutral-500)]">The price hasn't changed in over 30 days, yet a crossed-out "was" price is still shown.</dd>
+          </div>
+          <div class="rounded-[12px] border border-[var(--noc-divider)] p-4">
+            <dt class="text-xs text-[var(--noc-neutral-500)]">Not cheaper</dt>
+            <dd class="mt-1 text-2xl font-semibold">{{ s.notCheaper }}</dd>
+            <dd class="mt-1 text-xs text-[var(--noc-neutral-500)]">Sold at today's price or less in the 30 days before the sale.</dd>
+          </div>
+          <div class="rounded-[12px] border border-[var(--noc-divider)] p-4">
+            <dt class="text-xs text-[var(--noc-neutral-500)]">Not counted</dt>
+            <dd class="mt-1 text-2xl font-semibold">{{ s.insufficientData }}</dd>
+            <dd class="mt-1 text-xs text-[var(--noc-neutral-500)]">Not enough of our own price checks in the 30 days before the sale (we need at least 7 different days).</dd>
+          </div>
+        </dl>
+        <p class="mt-4 text-xs text-[var(--noc-neutral-500)]">
+          Last measured {{ measuredAt(s.measuredAt) }}. How we collect prices:
+          <a routerLink="/how-it-works" class="text-[var(--noc-accent)] hover:underline">how it works</a>.
+        </p>
+      </section>
+
+      <section class="mt-[45px]" aria-labelledby="list-title">
+        <h2 id="list-title" class="pa-section-title">Really cheaper right now</h2>
+        <p class="mt-2 max-w-2xl text-sm text-[var(--noc-neutral-300)]">
+          Products below the lowest price of the 30 days before their sale, biggest real drop first. Open the price
+          history to see it for yourself or add the product to your watchlist.
+        </p>
+        @if (s.realDiscounts.length === 0) {
+          <div class="mt-4 rounded-[14px] bg-[var(--noc-card)] px-6 py-8 text-center text-[var(--noc-neutral-500)] shadow-[var(--noc-shadow-sm)]">
+            Nothing passes this test right now. The list fills up as Black Friday gets closer; join the newsletter and we'll let you know.
+          </div>
+        } @else {
+          <p class="mb-2 mt-4 text-[11px] text-[var(--noc-neutral-500)]">Some store links are affiliate links: we may earn a commission, at no extra cost to you.</p>
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            @for (d of s.realDiscounts; track d.product.productId) {
+              <article class="flex flex-col rounded-[14px] bg-[var(--noc-card)] p-4 shadow-[var(--noc-shadow-sm)]">
+                <div class="flex gap-3">
+                  @if (d.product.imageUrl) {
+                    <img [src]="d.product.imageUrl" [alt]="displayName(d.product.productName)" loading="lazy" class="h-16 w-16 shrink-0 rounded-[10px] bg-[var(--noc-neutral-100)] object-contain p-1.5" />
+                  }
+                  <div class="min-w-0">
+                    <div class="text-[11px] text-[var(--noc-neutral-500)]">{{ d.product.brandName }}</div>
+                    <a [href]="productPath(d.product)" class="line-clamp-2 text-sm font-semibold leading-snug hover:text-[var(--noc-accent)]">{{ displayName(d.product.productName) }}</a>
+                  </div>
+                </div>
+                <div class="mt-3 text-xl font-bold tracking-[-0.02em]">{{ formatPrice(d.product.currentPrice) }}</div>
+                <div class="mt-1 text-xs text-[var(--noc-neutral-500)]">Lowest in the 30 days before the sale: {{ formatPrice(d.priorLowest) }}</div>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <span class="pa-positive-badge">{{ percent(d.realPercent) }}% real drop</span>
+                  @if (d.product.storeDiscountPercent && d.product.storeDiscountPercent > 0) {
+                    <span class="pa-campaign-badge">Store says {{ percent(d.product.storeDiscountPercent) }}% off</span>
+                  }
+                </div>
+                <div class="mt-auto grid grid-cols-2 gap-2 pt-4">
+                  <a [href]="productPath(d.product)" class="pa-secondary-button h-10 px-3 text-sm">Price history</a>
+                  <a [href]="goToStoreUrl(d)" (click)="storeClick(d.product.productId)" target="_blank" rel="nofollow sponsored noopener" class="pa-primary-button h-10 px-3 text-sm">Go to store<i class="ph ph-arrow-square-out ml-2 text-base" aria-hidden="true"></i></a>
+                </div>
+              </article>
+            }
+          </div>
+        }
+      </section>
+    }
+
+    <section class="mt-[45px] rounded-[14px] bg-[var(--noc-card)] p-5 shadow-[var(--noc-shadow-sm)] sm:flex sm:items-center sm:justify-between sm:gap-8 sm:p-7" aria-labelledby="newsletter-title">
+      <div class="max-w-xl">
+        <h2 id="newsletter-title" class="text-lg font-semibold">We'll tell you when it starts</h2>
+        <p class="mt-1 text-sm text-[var(--noc-neutral-300)]">When real discounts start, you'll see them in our weekly email. Unsubscribe any time.</p>
+      </div>
+      <div class="mt-4 sm:mt-0 sm:min-w-[320px]"><app-newsletter-signup /></div>
+    </section>
+
+    <section class="mt-[45px] max-w-3xl" aria-labelledby="faq-title">
+      <h2 id="faq-title" class="pa-section-title">Questions</h2>
+      <h3 class="mt-5 text-[15px] font-semibold">When is Black Friday {{ year }}?</h3>
+      <p class="mt-1 text-sm leading-6 text-[var(--noc-neutral-300)]">
+        {{ day(blackFridayDate) }}, the day after Thanksgiving. Cyber Monday follows on {{ day(cyberMondayDate) }}. Many
+        stores start their sales several days early and run them through the weekend.
+      </p>
+      <h3 class="mt-5 text-[15px] font-semibold">How can I tell if a discount is real?</h3>
+      <p class="mt-1 text-sm leading-6 text-[var(--noc-neutral-300)]">
+        Look at what the product actually sold for recently, not at the crossed-out price. This page compares today's
+        price with the lowest price in the 30 days before the sale started; that is the rule EU law sets for "was"
+        prices, and we apply it to every store we track. Our product pages show the full price history.
+      </p>
+      <h3 class="mt-5 text-[15px] font-semibold">Do discount codes count?</h3>
+      <p class="mt-1 text-sm leading-6 text-[var(--noc-neutral-300)]">
+        No. We measure the price shown on the store's product page; coupon codes and cart deals can take more off.
+      </p>
+      <h3 class="mt-5 text-[15px] font-semibold">How is this different from the "Real discount" label on the site?</h3>
+      <p class="mt-1 text-sm leading-6 text-[var(--noc-neutral-300)]">
+        The label on product cards uses a looser rule: it compares today's price with the usual price we saw on at least
+        7 different days in the last 30. This page uses the stricter 30-day-low test.
+      </p>
+    </section>
+  </main>
+</div>

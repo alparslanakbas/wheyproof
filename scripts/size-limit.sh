@@ -19,7 +19,7 @@ LIMIT=800
 declare -A CEILING=(
   [frontend/src/app/admin-page/admin-page.html]=1478
   [frontend/src/app/admin-page/admin-page.ts]=883
-  [frontend/src/app/deals-list/deals-list.ts]=989
+  [frontend/src/app/deals-list/deals-list.ts]=987
   [backend/src/IndirimTakip.Infrastructure/Deals/DealsQueryService.cs]=819
 )
 

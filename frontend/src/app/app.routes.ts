@@ -111,6 +111,11 @@ export const routes: Routes = [
     path: 'calculators/:slug',
     loadComponent: () => import('./supplement-dosage-page/supplement-dosage-page').then((m) => m.SupplementDosagePage),
   },
+  // Season page, permanent address with no year (see black-friday-page.ts).
+  {
+    path: 'black-friday',
+    loadComponent: () => import('./black-friday-page/black-friday-page').then((m) => m.BlackFridayPage),
+  },
   {
     // Permanent list: the cheapest creatine by price per pound (US) / kilogram (UK).
     path: 'cheapest-creatine',
