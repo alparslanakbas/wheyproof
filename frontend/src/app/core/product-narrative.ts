@@ -1,6 +1,7 @@
 import { Deal } from './deal.model';
 import { displayName } from './display-name';
 import { MARKET, formatPrice } from './market';
+import { trackedSinceDate } from './tracked-low';
 import {
   PROTEIN_REFERENCE_GRAMS,
   pricePerServing,
@@ -38,7 +39,9 @@ function priceParagraph(deal: Deal, discountEventCount?: number): string {
 
   if (deal.isAtThirtyDayLow) {
     sentences.push(
-      `${name} is ${formatPrice(deal.currentPrice)} right now, the lowest price we measured in the last 30 days.`,
+      deal.lowestSince
+        ? `${name} is ${formatPrice(deal.currentPrice)} right now, the lowest price we've measured since we started tracking it on ${trackedSinceDate(deal.lowestSince)}.`
+        : `${name} is ${formatPrice(deal.currentPrice)} right now, the lowest price we measured in the last 30 days.`,
     );
     sentences.push(
       `In the same period we saw ${formatPrice(deal.referencePrice)} for at least a week; today's price is ${deal.discountPercent}% below that.`,

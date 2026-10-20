@@ -15,6 +15,8 @@ export interface ValuePick {
   // Discount from our own price history; 0 if none.
   discountPercent: number;
   isAtThirtyDayLow: boolean;
+  /** Same as Deal.lowestSince. */
+  lowestSince?: string | null;
   inStock: boolean | null;
   storeUrl: string;
 }

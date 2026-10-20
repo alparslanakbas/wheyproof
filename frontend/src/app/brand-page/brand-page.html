@@ -233,7 +233,7 @@
                   <span title="The discount the store claims, not verified by us" class="absolute left-2 top-2 rounded-[6px] px-2 py-0.5 text-xs font-medium" style="background: var(--noc-neutral-800); color: var(--noc-neutral-100)">{{ storeDiscountBadge(deal) }}</span>
                 }
                 @if (deal.isAtThirtyDayLow) {
-                  <span class="absolute left-2 top-[34px] rounded-[6px] border border-[var(--noc-accent)] bg-[var(--noc-card)] px-2 py-0.5 text-[10px] text-[var(--noc-accent)]">Lowest in 30 days</span>
+                  <span class="absolute left-2 top-[34px] rounded-[6px] border border-[var(--noc-accent)] bg-[var(--noc-card)] px-2 py-0.5 text-[10px] text-[var(--noc-accent)]" [attr.title]="deal.lowestSince ? trackedLow.title(deal.lowestSince) : null">{{ deal.lowestSince ? trackedLow.label(deal.lowestSince) : 'Lowest in 30 days' }}</span>
                 }
 
                 <!-- Comparison toggle, as on the home page cards

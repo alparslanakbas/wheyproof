@@ -158,7 +158,7 @@ public class Product
 
     // ---- Price summary (precomputed) ----------------------------------------
     //
-    // These five fields are DERIVED from PriceHistories, not source data; price
+    // These fields are DERIVED from PriceHistories, not source data; price
     // history remains the single source of truth. They are recomputed after
     // every scrape with one set-based query (PriceSummaryRefresher).
     //
@@ -185,6 +185,16 @@ public class Product
 
     /// <summary>LOWEST price of the last 30 days; the "30-day low" badge.</summary>
     public decimal? LowestPrice30 { get; set; }
+
+    /// <summary>
+    /// Start of tracking: the product's first price point. If the last 30 days have a break longer than 72 hours
+    /// the product counts as restarted and tracking starts at the first scrape after the break (the same gap rule
+    /// as the usual price).
+    /// </summary>
+    public DateTimeOffset? TrackedSince { get; set; }
+
+    /// <summary>Lowest price seen since <see cref="TrackedSince"/>; the "lowest since …" badge.</summary>
+    public decimal? LowestTrackedPrice { get; set; }
 
     /// <summary>
     /// When the summary was last computed. Updated after a scrape; if it is very

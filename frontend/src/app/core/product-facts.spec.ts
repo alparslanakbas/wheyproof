@@ -86,3 +86,19 @@ describe('buildProductFacts: seller', () => {
     expect(row!.value).toContain('Nutricost');
   });
 });
+
+describe('buildProductFacts: lowest since tracking started', () => {
+  const labels = (d: Deal) => buildProductFacts(d).map((f) => f.label);
+
+  it('replaces the 30-day row when today is the lowest since tracking started', () => {
+    const facts = labels(deal({ isAtThirtyDayLow: true, lowestSince: '2026-09-13T12:00:00Z' }));
+    expect(facts).toContain('Since tracking started');
+    expect(facts).not.toContain('30-day trend');
+  });
+
+  it('keeps the 30-day row without it', () => {
+    const facts = labels(deal({ isAtThirtyDayLow: true, lowestSince: null }));
+    expect(facts).toContain('30-day trend');
+    expect(facts).not.toContain('Since tracking started');
+  });
+});

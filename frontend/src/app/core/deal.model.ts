@@ -41,6 +41,8 @@ export interface Deal {
   storeDiscountPercent: number | null;
   scrapedAt: string;
   isAtThirtyDayLow: boolean;
+  /** Tracking start if today's price is the lowest since then (backend TrackedLow); null otherwise. */
+  lowestSince?: string | null;
   // The customer rating on the store's OWN site; not our review, and labeled
   // that way in the UI. Only set for stores that collect reviews. Not
   // comparable across stores (each uses its own review system), so ranking

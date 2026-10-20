@@ -145,8 +145,23 @@ public sealed class DealsListDatabase : IAsyncLifetime
         Add(vivo, "Vivo Life Perform", null, null, 55m);
         Add(vivo, "Vivo Life Magnesium", "vitamins", "vivolife.com", Week(18m, 14m));
 
+        // The "lowest since" badge (TrackedLow): forty-day histories. All four sit at their 30-day low, only the
+        // first should get the badge. Their own brand and category so other tests' counts aren't affected.
+        var low = new Brand { Name = "Low Brand", BaseUrl = "https://low.example" };
+        db.Brands.Add(low);
+        Add(low, "Low Real", "fat-burners", null, [.. Enumerable.Repeat(100m, 35), .. Enumerable.Repeat(90m, 5)]);
+        // Sold for $80 35-39 days ago: the 30-day low, not the low since tracking started.
+        Add(low, "Low Once Cheaper", "fat-burners", null,
+            [.. Enumerable.Repeat(80m, 5), .. Enumerable.Repeat(100m, 30), .. Enumerable.Repeat(90m, 5)]);
+        Add(low, "Low Short History", "fat-burners", null, Week(100m, 90m));
+        // A six-day break in the window: the product counts as restarted, tracking starts after the break.
+        var afterGap = Add(low, "Low After Gap", "fat-burners", null, [.. Enumerable.Repeat(100m, 38), 90m, 90m]);
+        foreach (var p in afterGap.PriceHistories.Take(30))
+            p.ScrapedAt = p.ScrapedAt.AddDays(-5);
+
         VisibleProducts = n;
-        DiscountedProducts = 8 + 1 + 8 + 1 + 1; // wheys, D3, Gold Standards, magnesium, short gap drop
+        // wheys, D3, Gold Standards, magnesium, short gap drop; the four low-brand products
+        DiscountedProducts = 8 + 1 + 8 + 1 + 1 + 4;
 
         // Products that must NOT show.
         var stale = Add(naked, "Stale Product", "protein-powder", null, 99m);
@@ -324,6 +339,40 @@ public class DealsListDatabaseTests(DealsListDatabase data) : IClassFixture<Deal
         var catalog = new CatalogStatsQueryService(db);
         Assert.Equal(data.DiscountedProducts, (await catalog.GetHomepageStatsAsync()).DiscountCount);
         Assert.Equal(8 + 1 + 1, (await catalog.GetBrandStatsAsync("Naked Nutrition")).DiscountCount); // wheys, D3, short gap drop (not the returned one)
+    }
+
+    // The "lowest since" badge (2026-10-20, ported from the Turkish site). The price summary writes the tracking
+    // start and the lowest price since then; the badge only goes to a product at its 30-day low with at least 30 days
+    // of history and at the lowest of its whole history. The list, favorites and product page share one mapping;
+    // all three must give the same badge.
+    [DatabaseFact]
+    public async Task The_lowest_since_badge_goes_only_to_the_product_at_the_lowest_of_its_whole_history()
+    {
+        await using var db = data.Context();
+        var service = Service(db);
+        var products = await db.Products.Include(p => p.PriceHistories)
+            .Where(p => p.Brand!.Name == "Low Brand")
+            .ToDictionaryAsync(p => p.Name);
+        var real = products["Low Real"];
+        var firstScrape = real.PriceHistories.Min(p => p.ScrapedAt);
+        var firstAfterGap = products["Low After Gap"].PriceHistories
+            .Where(p => p.ScrapedAt > DateTimeOffset.UtcNow.AddDays(-12))
+            .Min(p => p.ScrapedAt);
+
+        Assert.Equal((firstScrape, 90m), (real.TrackedSince, real.LowestTrackedPrice));
+        Assert.Equal(80m, products["Low Once Cheaper"].LowestTrackedPrice);
+        Assert.Equal((firstAfterGap, 90m),
+            (products["Low After Gap"].TrackedSince, products["Low After Gap"].LowestTrackedPrice));
+
+        var list = (await Get(service, null, null, null, false, 1, 100)).Items;
+        Assert.All(list.Where(d => d.BrandName == "Low Brand"), d => Assert.True(d.IsAtThirtyDayLow, d.ProductName));
+        var badged = Assert.Single(list, d => d.LowestSince is not null);
+        Assert.Equal(("Low Real", firstScrape), (badged.ProductName, badged.LowestSince!.Value));
+
+        var favorite = Assert.Single(await service.GetDealsByIdsAsync([real.Id]));
+        var page = await service.GetProductByIdAsync(real.Id);
+        Assert.Equal(firstScrape, favorite.LowestSince);
+        Assert.Equal(firstScrape, page!.LowestSince);
     }
 
     [DatabaseFact]

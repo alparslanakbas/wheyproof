@@ -104,7 +104,9 @@
           </a>
 
           <div class="pa-hero-price">
-            @if (hero.isAtThirtyDayLow) { <span class="pa-positive-badge">Lowest in 30 days</span> }
+            @if (hero.lowestSince) {
+              <span class="pa-positive-badge" [title]="trackedLow.title(hero.lowestSince)">{{ trackedLow.label(hero.lowestSince) }}</span>
+            } @else if (hero.isAtThirtyDayLow) { <span class="pa-positive-badge">Lowest in 30 days</span> }
             <div class="mt-2 text-[28px] font-bold tracking-[-0.035em] text-white">{{ hero.currentPrice | price }}</div>
             @if (hero.discountPercent > 0) {
               <div class="mt-2 flex items-center gap-2"><span class="rounded-[6px] bg-[#2d8b5b]/25 px-2 py-1 text-xs font-bold text-[#85dfa9]">{{ hero.discountPercent }}%</span><span class="text-xs text-[#aeb4ce]">You save {{ hero.referencePrice - hero.currentPrice | price }}</span></div>
@@ -256,7 +258,7 @@
 
               <div class="pa-product-details min-w-0">
                 @if (deal.discountPercent > 0 || deal.isAtThirtyDayLow) {
-                  <span class="pa-positive-badge">{{ deal.isAtThirtyDayLow ? 'Lowest in 30 days' : discountBadge(deal) }}</span>
+                  <span class="pa-positive-badge" [attr.title]="deal.lowestSince ? trackedLow.title(deal.lowestSince) : null">{{ deal.lowestSince ? trackedLow.label(deal.lowestSince) : deal.isAtThirtyDayLow ? 'Lowest in 30 days' : discountBadge(deal) }}</span>
                 } @else if (deal.storeDiscountPercent && deal.storeDiscountPercent > 0) {
                   <span class="pa-campaign-badge">{{ storeDiscountBadge(deal) }}</span>
                 }

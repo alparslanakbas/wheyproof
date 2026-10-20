@@ -51,6 +51,8 @@ public sealed class ValuePicksQueryService(
                 Price = p.LatestPrice!.Value,
                 ReferencePrice = p.ReferencePrice30!.Value,
                 LowestPrice = p.LowestPrice30!.Value,
+                p.TrackedSince,
+                p.LowestTrackedPrice,
             })
             .AsNoTracking()
             .ToListAsync(cancellationToken);
@@ -79,6 +81,8 @@ public sealed class ValuePicksQueryService(
                     // number here.
                     r.ReferencePrice > 0 ? Math.Round((r.ReferencePrice - r.Price) / r.ReferencePrice * 100, 1) : 0m,
                     r.Price <= r.LowestPrice && r.LowestPrice < r.ReferencePrice,
+                    TrackedLow.Since(r.Price <= r.LowestPrice && r.LowestPrice < r.ReferencePrice, r.Price,
+                        r.TrackedSince, r.LowestTrackedPrice, DateTimeOffset.UtcNow),
                     r.InStock,
                     AffiliateLinkBuilder.Apply(r.Url, affiliateOptions.Value));
             })

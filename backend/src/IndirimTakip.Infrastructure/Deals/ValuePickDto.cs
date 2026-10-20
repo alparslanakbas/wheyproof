@@ -15,6 +15,8 @@ public sealed record ValuePickDto(
     // Discount from our own price history (same calculation as DealDto); 0 if none.
     decimal DiscountPercent,
     bool IsAtThirtyDayLow,
+    // Same as DealDto.LowestSince: the "lowest since …" badge (see TrackedLow).
+    DateTimeOffset? LowestSince,
     // Out-of-stock products never make the list; null = the store doesn't report stock.
     bool? InStock,
     // Store URL with the affiliate code applied (see DealDto.StoreUrl).

@@ -163,7 +163,7 @@
                   <td class="px-[16.8px] py-[11.2px]">
                     <div class="flex flex-wrap items-center gap-1.5">
                       @if (deal.isAtThirtyDayLow) {
-                        <span class="rounded-[6px] border border-[var(--noc-accent)] px-1.5 py-0.5 text-[10px] text-[var(--noc-accent)]">Lowest in 30 days</span>
+                        <span class="rounded-[6px] border border-[var(--noc-accent)] px-1.5 py-0.5 text-[10px] text-[var(--noc-accent)]" [attr.title]="deal.lowestSince ? trackedLow.title(deal.lowestSince) : null">{{ deal.lowestSince ? trackedLow.label(deal.lowestSince) : 'Lowest in 30 days' }}</span>
                       }
                       <span class="text-xs text-[var(--noc-neutral-500)]">{{ lastCheckedText(deal) }}</span>
                     </div>

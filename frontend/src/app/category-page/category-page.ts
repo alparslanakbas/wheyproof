@@ -13,6 +13,7 @@ import { Deal } from '../core/deal.model';
 import { productHref, shouldHandleInApp } from '../core/product-link';
 import { DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
+import { TRACKED_LOW } from '../core/tracked-low';
 import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
 import { pageFromQuery, paginatedTitle, pageWindow } from '../core/pagination-window';
 import { PriceHistoryService } from '../core/price-history.service';
@@ -35,6 +36,7 @@ const SEARCH_DEBOUNCE_MS = 350;
 })
 export class CategoryPage implements OnInit {
   protected readonly displayName = displayName;
+  protected readonly trackedLow = TRACKED_LOW;
   protected readonly unitWord = PRICE_UNIT.word;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);

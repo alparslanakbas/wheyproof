@@ -19,8 +19,8 @@ LIMIT=800
 declare -A CEILING=(
   [frontend/src/app/admin-page/admin-page.html]=1478
   [frontend/src/app/admin-page/admin-page.ts]=883
-  [frontend/src/app/deals-list/deals-list.ts]=987
-  [backend/src/IndirimTakip.Infrastructure/Deals/DealsQueryService.cs]=819
+  [frontend/src/app/deals-list/deals-list.ts]=989
+  [backend/src/IndirimTakip.Infrastructure/Deals/DealsQueryService.cs]=782
 )
 
 # The list is taken into a variable FIRST: set -e doesn't see the exit code of

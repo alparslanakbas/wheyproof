@@ -1,6 +1,7 @@
 import { Deal } from './deal.model';
 import { CATEGORY_LABELS } from './category-labels';
 import { MARKET, formatPrice } from './market';
+import { trackedSinceDate } from './tracked-low';
 import { SITE_NAME } from './site-identity';
 import {
   PROTEIN_REFERENCE_GRAMS,
@@ -105,7 +106,12 @@ export function buildProductFacts(deal: Deal, discountEventCount?: number): Prod
         : `${formatPrice(deal.referencePrice)} — the current price is at the reference level`,
   });
 
-  if (deal.isAtThirtyDayLow) {
+  if (deal.lowestSince) {
+    facts.push({
+      label: 'Since tracking started',
+      value: `The current price is the lowest we've measured since we started tracking it on ${trackedSinceDate(deal.lowestSince)}`,
+    });
+  } else if (deal.isAtThirtyDayLow) {
     facts.push({
       label: '30-day trend',
       value: 'The current price is the lowest we measured in the last 30 days',

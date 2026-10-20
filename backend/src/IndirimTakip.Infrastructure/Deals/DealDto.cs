@@ -85,4 +85,7 @@ public record DealDto(
     //
     // When set, the product page's canonical points to the main page.
     // NULL = this page is the main page (or has no copies).
-    int? CanonicalProductId = null);
+    int? CanonicalProductId = null,
+    // Tracking start if the current price is the lowest we have seen since tracking started, otherwise NULL.
+    // The step above the "Lowest in 30 days" badge (it requires IsAtThirtyDayLow), see TrackedLow.
+    DateTimeOffset? LowestSince = null);

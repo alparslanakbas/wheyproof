@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 
 import { DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
+import { TRACKED_LOW } from '../core/tracked-low';
 import { LatestRequest } from '../core/latest-request';
 import { PricePipe } from '../core/price.pipe';
 import { PriceHistoryService } from '../core/price-history.service';
@@ -43,6 +44,7 @@ export class ValuePickList implements OnInit {
   readonly headingLevel = input<'h2' | 'h3'>('h3');
 
   protected readonly displayName = displayName;
+  protected readonly trackedLow = TRACKED_LOW;
   protected readonly productPath = productPath;
   protected readonly proteinTypes = PROTEIN_TYPES;
   protected readonly unitLabel = PRICE_UNIT.label;

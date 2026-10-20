@@ -9,6 +9,7 @@ import { Deal } from '../core/deal.model';
 import { productHref, shouldHandleInApp } from '../core/product-link';
 import { DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
+import { TRACKED_LOW } from '../core/tracked-low';
 import { FavoritesService } from '../core/favorites.service';
 import { LoadErrorInfo, describeLoadError, friendlyErrorMessage } from '../core/friendly-error-message';
 import { PageMetaService } from '../core/page-meta.service';
@@ -31,6 +32,7 @@ const MAX_AUTO_RETRY = 2;
 })
 export class FavoritesPage implements OnInit, OnDestroy {
   protected readonly displayName = displayName;
+  protected readonly trackedLow = TRACKED_LOW;
   private readonly favoritesService = inject(FavoritesService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);

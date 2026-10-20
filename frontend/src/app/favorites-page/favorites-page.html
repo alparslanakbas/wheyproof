@@ -106,7 +106,7 @@
                   <h3>{{ displayName(deal.productName) }}</h3>
                   <p>{{ deal.brandName }} · {{ lastCheckedText(deal) }}</p>
                   @if (deal.isAtThirtyDayLow) {
-                    <span>Lowest price in 30 days</span>
+                    <span [attr.title]="deal.lowestSince ? trackedLow.title(deal.lowestSince) : null">{{ deal.lowestSince ? trackedLow.label(deal.lowestSince) : 'Lowest price in 30 days' }}</span>
                   } @else if (deal.discountPercent > 0) {
                     <span>On sale</span>
                   }

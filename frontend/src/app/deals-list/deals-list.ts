@@ -20,6 +20,7 @@ import { CouponsService } from '../core/coupons.service';
 import { Deal } from '../core/deal.model';
 import { DealsQuery, DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
+import { TRACKED_LOW } from '../core/tracked-low';
 import { FavoritesService } from '../core/favorites.service';
 import { HomepageStats } from '../core/homepage-stats.model';
 import { MARKET } from '../core/market';
@@ -113,6 +114,7 @@ const FAQ_ITEMS: { question: string; answer: string }[] = [
 export class DealsList implements OnInit {
   // Turns ALL CAPS product names into readable Title Case in the template.
   protected readonly displayName = displayName;
+  protected readonly trackedLow = TRACKED_LOW;
   private readonly dealsService = inject(DealsService);
   private readonly couponsService = inject(CouponsService);
   private readonly articlesService = inject(ArticlesService);

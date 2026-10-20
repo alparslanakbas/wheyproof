@@ -291,6 +291,9 @@ namespace IndirimTakip.Infrastructure.Migrations
                     b.Property<decimal?>("LowestPrice30")
                         .HasColumnType("numeric");
 
+                    b.Property<decimal?>("LowestTrackedPrice")
+                        .HasColumnType("numeric");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -349,6 +352,9 @@ namespace IndirimTakip.Infrastructure.Migrations
 
                     b.Property<string>("Size")
                         .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("TrackedSince")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Url")
                         .IsRequired()
