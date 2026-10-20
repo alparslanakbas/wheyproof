@@ -11,6 +11,7 @@ import { MARKET } from '../core/market';
 import { showNotFound } from '../core/not-found-navigation';
 import { PageMetaService, upsertJsonLdScript } from '../core/page-meta.service';
 import { FOUNDER, SITE_NAME } from '../core/site-identity';
+import { withSitePaths } from '../core/site-path';
 import { SiteHeader } from '../site-header/site-header';
 
 @Component({
@@ -43,7 +44,7 @@ export class ArticlePage implements OnInit {
 
     this.articlesService.getArticleBySlug(slug).subscribe({
       next: (article) => {
-        this.article.set(article);
+        this.article.set({ ...article, body: withSitePaths(article.body) });
         this.setMeta(article);
         this.loading.set(false);
       },
