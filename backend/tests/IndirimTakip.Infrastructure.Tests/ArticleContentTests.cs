@@ -19,6 +19,8 @@ public class ArticleContentTests
         "do-fat-burners-work",
         "how-to-choose-protein-bars",
         "how-to-choose-vitamins-and-minerals",
+        // Linked from the Black Friday page.
+        "are-supplement-sales-real",
     ];
 
     [Fact]
