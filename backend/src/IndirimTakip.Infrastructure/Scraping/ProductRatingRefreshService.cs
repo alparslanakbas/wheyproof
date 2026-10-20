@@ -20,14 +20,16 @@ namespace IndirimTakip.Infrastructure.Scraping;
 public class ProductRatingRefreshService(
     AppDbContext db,
     IHttpClientFactory httpClientFactory,
-    ILogger<ProductRatingRefreshService> logger)
+    ILogger<ProductRatingRefreshService> logger,
+    TimeSpan? delayBetweenProducts = null)
 {
     // Courtesy delay between requests; the same value as ProductDetailBackfillService.
     // It was 750 ms: on 2026-10-03 Shopify rate-limited the server's address across
     // the whole platform (429 even from stores we never scrape), each time after
     // 80-page rating bursts at about one request a second. Runs are now daily
-    // (RatingRefresh:IntervalHours 6 -> 24) and the requests spread out.
+    // (RatingRefresh:IntervalHours 6 -> 24) and the requests spread out. Tests pass zero.
     private static readonly TimeSpan DelayBetweenProducts = TimeSpan.FromSeconds(5);
+    private readonly TimeSpan delay = delayBetweenProducts ?? DelayBetweenProducts;
 
     // Each run refreshes this many of the products checked longest ago. A full
     // pass over the catalog spreads across days; ratings don't change noticeably
@@ -57,9 +59,21 @@ public class ProductRatingRefreshService(
         var httpClient = httpClientFactory.CreateClient(RatingHttpClientName);
         var updated = 0;
 
+        // Stores that answered 429 in this run. Their remaining products are not
+        // requested, only stamped like any failed attempt (see below), so a store
+        // that keeps refusing doesn't pile its products up at the head of the queue.
+        var refusedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var product in products)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            var host = Uri.TryCreate(product.Url, UriKind.Absolute, out var uri) ? uri.Host : product.Url;
+            if (refusedHosts.Contains(host))
+            {
+                product.RatingCheckedAt = DateTimeOffset.UtcNow;
+                continue;
+            }
 
             try
             {
@@ -87,6 +101,13 @@ public class ProductRatingRefreshService(
                     product.RatingCount = null;
                 }
             }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                // The store asked us to slow down: no more of its pages in this run
+                // (the same rule as ProductDetailBackfillService).
+                refusedHosts.Add(host);
+                logger.LogWarning("{Host} answered 429; its remaining products are skipped this run.", host);
+            }
             catch (Exception ex)
             {
                 // One product page failing to load must not stop the run.
@@ -97,7 +118,7 @@ public class ProductRatingRefreshService(
             // unreachable product would be retried every run and clog the queue forever.
             product.RatingCheckedAt = DateTimeOffset.UtcNow;
 
-            await Task.Delay(DelayBetweenProducts, cancellationToken);
+            await Task.Delay(delay, cancellationToken);
         }
 
         await db.SaveChangesAsync(cancellationToken);

@@ -16,13 +16,15 @@ namespace IndirimTakip.Infrastructure.Scraping;
 public class ProductDetailBackfillService(
     AppDbContext db,
     IEnumerable<IBrandScraper> scrapers,
-    ILogger<ProductDetailBackfillService> logger)
+    ILogger<ProductDetailBackfillService> logger,
+    TimeSpan? delayBetweenProducts = null)
 {
     // Courtesy delay between product requests so the store isn't hammered. It was
     // 750 ms; since Shopify rate-limited the server's address platform-wide on
     // 2026-10-03, both product-page readers spread their requests to 5 s (see
-    // ProductRatingRefreshService).
+    // ProductRatingRefreshService). Tests pass zero.
     private static readonly TimeSpan DelayBetweenProducts = TimeSpan.FromSeconds(5);
+    private readonly TimeSpan delay = delayBetweenProducts ?? DelayBetweenProducts;
 
     // At most this many products are tried in one run. Progressing gradually
     // instead of pulling every gap at once keeps a run reasonably short and
@@ -173,6 +175,17 @@ public class ProductDetailBackfillService(
                         logger.LogWarning("{Brand} - product page 404, will check again: {Url}.", brandScraper.BrandName, product.Url);
                     }
                 }
+                catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    // The store asked us to slow down, so this run leaves it alone.
+                    // Measured 2026-10-18: Quest answered 429 to all of ~30 product
+                    // pages in a row, each also retried through the home tunnel (60
+                    // requests the store had already refused). Nothing is stamped:
+                    // the remaining products come first in the next run.
+                    logger.LogWarning(
+                        "{Brand} answered 429; its remaining products wait for the next run.", brandScraper.BrandName);
+                    break;
+                }
                 catch (Exception ex)
                 {
                     // One product's error (404, transient network issue) must not
@@ -180,7 +193,7 @@ public class ProductDetailBackfillService(
                     logger.LogWarning(ex, "{Brand} - could not fetch details for {Url}.", brandScraper.BrandName, product.Url);
                 }
 
-                await Task.Delay(DelayBetweenProducts, cancellationToken);
+                await Task.Delay(delay, cancellationToken);
             }
 
             await db.SaveChangesAsync(cancellationToken);
