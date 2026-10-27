@@ -82,6 +82,20 @@
 	}
 }
 
+# No 502 during a deploy: while a container is recreated (the old one stops, the
+# new one starts, and for a moment its DNS name is gone) Caddy keeps retrying a
+# request it couldn't connect for up to 30 s. Measured 27 Oct 2026 on the Turkish
+# site: each deploy left a 1-2 s window of 502/503 (the www 503s are SSR's own,
+# when it can't reach the API), Googlebot hit it 4 times in a month and Search
+# Console reported "Server error (5xx)". Tried in separate containers: upstream
+# removed, without the option a 502 in 0 s; with it a 200 once it's back; if it
+# never comes back, still a 502 after 30 s, so a real outage isn't hidden. Only
+# requests that never connected are retried; a POST that was sent isn't.
+(wheyproof-retry-upstream) {
+	lb_try_duration 30s
+	lb_try_interval 250ms
+}
+
 # The bare domain redirects permanently to the canonical www host. Proxying it to
 # the frontend would hit server.ts's "noindex for non-canonical hosts" guard and
 # tell crawlers not to index the real address.
@@ -102,7 +116,9 @@ www.wheyproof.com {
 	# /admin/api/security-events -> /api/dev/security-events
 	handle_path /admin/api/* {
 		rewrite * /api/dev{uri}
-		reverse_proxy wheyproof-backend:8080
+		reverse_proxy wheyproof-backend:8080 {
+			import wheyproof-retry-upstream
+		}
 	}
 
 	# UK SECTION (/uk): a second instance of the same app (docker-compose.yml,
@@ -113,15 +129,21 @@ www.wheyproof.com {
 	# (the rule for www.wheyproof.com/admin* doesn't match /uk/admin).
 	handle_path /uk/admin/api/* {
 		rewrite * /api/dev{uri}
-		reverse_proxy wheyproof-uk-backend:8080
+		reverse_proxy wheyproof-uk-backend:8080 {
+			import wheyproof-retry-upstream
+		}
 	}
 	redir /uk /uk/ permanent
 	handle /uk/* {
-		reverse_proxy wheyproof-uk-frontend:4000
+		reverse_proxy wheyproof-uk-frontend:4000 {
+			import wheyproof-retry-upstream
+		}
 	}
 
 	handle {
-		reverse_proxy wheyproof-frontend:4000
+		reverse_proxy wheyproof-frontend:4000 {
+			import wheyproof-retry-upstream
+		}
 	}
 }
 
@@ -132,7 +154,9 @@ api.wheyproof.com {
 	# text that doesn't block crawling, so the header keeps JSON URLs out of
 	# search results. The www pages that use this data are unaffected.
 	header X-Robots-Tag "noindex, nofollow"
-	reverse_proxy wheyproof-backend:8080
+	reverse_proxy wheyproof-backend:8080 {
+		import wheyproof-retry-upstream
+	}
 }
 
 # The UK section's API. Its own host rather than api.wheyproof.com/uk: the
@@ -141,5 +165,7 @@ api.wheyproof.com {
 uk-api.wheyproof.com {
 	import wheyproof-access-log
 	header X-Robots-Tag "noindex, nofollow"
-	reverse_proxy wheyproof-uk-backend:8080
+	reverse_proxy wheyproof-uk-backend:8080 {
+		import wheyproof-retry-upstream
+	}
 }
