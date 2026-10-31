@@ -799,6 +799,8 @@ export class DealsList implements OnInit {
       error: () => {
         this.error.set("We couldn't load the products. Please try again in a moment.");
         this.loading.set(false);
+        // A failed list is a temporary 503: the SSR cache keeps a 200 and would serve this error page to everyone. The list is hidden on the product route.
+        if (this.responseInit && !this.route.snapshot.paramMap.has('id')) this.responseInit.status = 503;
       },
     });
   }

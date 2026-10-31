@@ -9,7 +9,12 @@ import { join } from 'node:path';
 
 import { brandSlug } from './app/core/brand-slug';
 import { API_BASE_URL } from './app/core/api.config';
-import { INTERNAL_API_HEADERS, toInternalApiUrl } from './app/core/internal-api';
+import {
+  CONNECTION_RETRY,
+  INTERNAL_API_HEADERS,
+  connectionNotEstablished,
+  toInternalApiUrl,
+} from './app/core/internal-api';
 import { CURRENT_EDITION, listedEditions } from './app/core/editions';
 import { BASE_PATH } from './app/core/site-path';
 import { slugify } from './app/core/slugify';
@@ -22,11 +27,24 @@ const browserDistFolder = join(import.meta.dirname, '../browser');
 
 // The sitemap and /go also reach the API over the Docker network (see core/internal-api.ts).
 const INTERNAL_API_BASE = process.env['API_INTERNAL_URL'] || null;
-const apiFetch = (path: string, init: RequestInit = {}) =>
-  fetch(toInternalApiUrl(`${API_BASE_URL}${path}`, INTERNAL_API_BASE), {
+
+// During a deploy the backend refuses connections for a few seconds; a request
+// is retried only if it never reached the backend (see core/internal-api.ts).
+const apiFetch = async (path: string, init: RequestInit = {}): Promise<Response> => {
+  const url = toInternalApiUrl(`${API_BASE_URL}${path}`, INTERNAL_API_BASE);
+  const options: RequestInit = {
     ...init,
     headers: { ...(INTERNAL_API_BASE ? INTERNAL_API_HEADERS : {}), ...(init.headers as Record<string, string> | undefined) },
-  });
+  };
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fetch(url, options);
+    } catch (error) {
+      if (attempt >= CONNECTION_RETRY.count || !connectionNotEstablished(error)) throw error;
+      await new Promise((done) => setTimeout(done, CONNECTION_RETRY.delayMs));
+    }
+  }
+};
 
 // The sitemap and robots.txt always use this fixed origin, never the
 // request's Host header: built from the Host, any other hostname that reaches

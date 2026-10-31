@@ -19,7 +19,8 @@ LIMIT=800
 declare -A CEILING=(
   [frontend/src/app/admin-page/admin-page.html]=1478
   [frontend/src/app/admin-page/admin-page.ts]=883
-  [frontend/src/app/deals-list/deals-list.ts]=989
+  # deals-list: +2 lines (31 Oct), SSR 503 when the list fails (the cache kept the 200 error page).
+  [frontend/src/app/deals-list/deals-list.ts]=991
   [backend/src/IndirimTakip.Infrastructure/Deals/DealsQueryService.cs]=782
 )
 

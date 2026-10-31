@@ -1,5 +1,6 @@
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { InjectionToken, inject } from '@angular/core';
+import { MonoTypeOperatorFunction, retry, throwError, timer } from 'rxjs';
 
 import { API_BASE_URL } from './api.config';
 
@@ -34,9 +35,47 @@ export function toInternalApiUrl(url: string, internalBase: string | null | unde
   return url;
 }
 
+// RETRYING CONNECTION ERRORS DURING A DEPLOY.
+//
+// A deploy recreates the backend; for those few seconds its address refuses
+// connections and SSR answers the page with a deliberate 503. Caddy's wait
+// (lb_try_duration) doesn't cover this path, because SSR reaches the backend
+// without going through Caddy: within ±60 s of the 30 Oct deploy, 3 of 49
+// requests got a 503 in 19-34 ms (the Turkish site, with this retry, 0 of 83).
+//
+// Only CONNECTION errors (status 0, no response at all) and only GETs are
+// retried; a 4xx/5xx from the backend is a real answer and isn't repeated.
+// The ceiling is 15 s: Docker stops the old container within 10 s at most and
+// the backend starts listening in 3.8 s (measured). If the backend really is
+// down the page still gets a 503, 15 s late; an outage isn't hidden. apiFetch
+// in server.ts uses the same limit.
+export const CONNECTION_RETRY = { count: 30, delayMs: 500 } as const;
+
+export function retryOnConnectionError<T>(
+  count: number = CONNECTION_RETRY.count,
+  delayMs: number = CONNECTION_RETRY.delayMs,
+): MonoTypeOperatorFunction<T> {
+  return retry({
+    count,
+    delay: (error) => (error instanceof HttpErrorResponse && error.status === 0 ? timer(delayMs) : throwError(() => error)),
+  });
+}
+
+// A narrower test for apiFetch in server.ts (Node fetch): only errors where the
+// connection was NEVER established, so the request never reached the backend.
+// /go increments the click counter; repeating a request that broke halfway
+// could count a click twice. While the container is gone, Docker's DNS can't
+// resolve its name (ENOTFOUND).
+const CONNECTION_NOT_ESTABLISHED = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN']);
+
+export function connectionNotEstablished(error: unknown): boolean {
+  return CONNECTION_NOT_ESTABLISHED.has((error as { cause?: { code?: string } } | null)?.cause?.code ?? '');
+}
+
 export const internalApiInterceptor: HttpInterceptorFn = (req, next) => {
   const internalBase = inject(INTERNAL_API_BASE_URL);
   const url = toInternalApiUrl(req.url, internalBase);
   if (url === req.url) return next(req);
-  return next(req.clone({ url, setHeaders: INTERNAL_API_HEADERS }));
+  const response = next(req.clone({ url, setHeaders: INTERNAL_API_HEADERS }));
+  return req.method === 'GET' ? response.pipe(retryOnConnectionError()) : response;
 };
