@@ -8,7 +8,9 @@
     <h1 class="text-[38px] font-medium tracking-[-0.03em] sm:text-[42px]">wheyproofbot</h1>
     <p class="mt-2 max-w-2xl text-[15px] text-[var(--noc-neutral-300)]">
       wheyproofbot is the crawler behind {{ siteName }}. It reads public product prices from supplement stores so we
-      can show each product's price history and send shoppers to the store that sells it.
+      can show each product's price history and send shoppers to the store that sells it. It also reads Shopify stores
+      for our sister sites, which run on the same server: Protein Avcısı (supplement stores in Turkey) and a coffee and
+      tea price site we are building.
     </p>
 
     <div class="mt-[22px] grid max-w-3xl gap-4">
@@ -24,8 +26,8 @@
       <section class="rounded-[14px] bg-[var(--noc-card)] p-5 shadow-[var(--noc-shadow-sm)]" aria-labelledby="bot-rate">
         <h2 id="bot-rate" class="text-lg font-semibold">How often</h2>
         <p class="mt-2 max-w-2xl text-sm text-[var(--noc-neutral-300)]">
-          Each store's catalog about four times a day, one request at a time with a pause between pages. Across every
-          store we read, that is about a thousand requests a day.
+          A supplement store's catalog about four times a day, a coffee or tea store's once a day: one request at a
+          time per store, with a pause between pages.
         </p>
       </section>
 
