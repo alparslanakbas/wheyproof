@@ -90,15 +90,18 @@ public static class AffiliateLinkBuilder
 
     /// <summary>
     /// The address as a Location header can carry it: ASCII only, letters outside it percent-encoded
-    /// (UTF-8). An address that isn't absolute is returned as it is.
+    /// (UTF-8). Anything but an absolute http(s) address is returned as it is.
     /// </summary>
     /// <remarks>
     /// Kestrel refuses a header with a non-ASCII character and the redirect fails with 500. On the
     /// Turkish sister site 242 products had one in their store address ("...-90-kapsül"), and the
-    /// store link broke for each of them (measured 2026-11-03).
+    /// store link broke for each of them (measured 2026-11-03). The scheme check isn't decoration: on
+    /// Linux "/products/whey" parses as an absolute file:// address (CI caught it; Windows doesn't).
     /// </remarks>
     public static string ToLocation(string url) =>
-        Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.AbsoluteUri : url;
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp)
+            ? uri.AbsoluteUri
+            : url;
 
     /// <summary>Whether stores without a rule go through the network fallback, for the startup log.</summary>
     public static bool HasFallback(AffiliateOptions options) =>
