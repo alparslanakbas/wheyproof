@@ -211,4 +211,16 @@ public class AffiliateLinkBuilderTests
         Assert.Equal("/products/whey", AffiliateLinkBuilder.Apply("/products/whey", options));
         Assert.Equal("", AffiliateLinkBuilder.Apply("", options));
     }
+
+    // The Location header takes ASCII only; a store address with "ü" made the redirect fail (2026-11-03).
+    [Theory]
+    [InlineData("https://www.provitamin.com.tr/big-joy-sports-multibig-vitamin-mineral-90-kapsül",
+        "https://www.provitamin.com.tr/big-joy-sports-multibig-vitamin-mineral-90-kaps%C3%BCl")]
+    [InlineData("https://www.bahsbar.com/products/fıstık-ezmeli-bar?variant=1",
+        "https://www.bahsbar.com/products/f%C4%B1st%C4%B1k-ezmeli-bar?variant=1")]
+    [InlineData("https://www.provitamin.com.tr/kaps%C3%BCl", "https://www.provitamin.com.tr/kaps%C3%BCl")]
+    [InlineData("https://nutricost.com/products/whey?variant=1", "https://nutricost.com/products/whey?variant=1")]
+    [InlineData("/products/whey", "/products/whey")]
+    public void A_redirect_location_is_ascii(string url, string expected) =>
+        Assert.Equal(expected, AffiliateLinkBuilder.ToLocation(url));
 }

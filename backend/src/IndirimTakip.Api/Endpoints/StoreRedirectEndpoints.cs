@@ -48,7 +48,7 @@ internal static class StoreRedirectEndpoints
                 url = AffiliateLinkBuilder.Apply(url, affiliateOptions.Value);
             }
 
-            return Results.Redirect(url, permanent: false);
+            return Results.Redirect(AffiliateLinkBuilder.ToLocation(url), permanent: false);
         }).RequireRateLimiting("General");
     }
 }
