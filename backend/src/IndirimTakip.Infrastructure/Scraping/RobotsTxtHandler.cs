@@ -18,10 +18,47 @@ public sealed class RobotsTxtCache(TimeProvider time)
     internal static readonly TimeSpan FreshFor = TimeSpan.FromHours(24);
     internal static readonly TimeSpan RetryUnreachableAfter = TimeSpan.FromHours(1);
 
+    /// <summary>
+    /// The longest Crawl-delay we wait out between requests. A host asking for more is not read at all
+    /// (it would hold a cycle for hours), which still never reads it faster than asked.
+    /// </summary>
+    internal static readonly TimeSpan LongestCrawlDelay = TimeSpan.FromMinutes(5);
+
     private sealed record Entry(RobotsRules? Rules, DateTimeOffset NextFetch);
 
     private readonly ConcurrentDictionary<string, Entry> entries = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> gates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> lastRequests = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> paceGates = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Waits until <paramref name="crawlDelay"/> has passed since the last request to
+    /// <paramref name="host"/> (from any client), then counts this one. False, without waiting, when
+    /// the delay is longer than <see cref="LongestCrawlDelay"/>.
+    /// </summary>
+    public async Task<bool> PaceAsync(string host, TimeSpan crawlDelay, CancellationToken cancellationToken)
+    {
+        if (crawlDelay > LongestCrawlDelay)
+            return false;
+
+        var gate = paceGates.GetOrAdd(host, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (lastRequests.TryGetValue(host, out var last))
+            {
+                var wait = last + crawlDelay - time.GetUtcNow();
+                if (wait > TimeSpan.Zero)
+                    await Task.Delay(wait, time, cancellationToken);
+            }
+            lastRequests[host] = time.GetUtcNow();
+            return true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
 
     /// <summary>The rules for <paramref name="host"/>, or null when they couldn't be read (skip the request).</summary>
     public async Task<RobotsRules?> GetAsync(string host, string productToken,
@@ -76,12 +113,13 @@ public sealed class RobotsTxtCache(TimeProvider time)
 
 /// <summary>
 /// Lets a request through only if the host's robots.txt allows it for our bot (see
-/// <see cref="RobotsRules"/>). A refused request is not sent: it gets a local 403 whose reason says
-/// why, so the scraper treats it as a failed source and the store goes stale rather than being read.
+/// <see cref="RobotsRules"/>), and not sooner than its Crawl-delay after the last one. A refused
+/// request is not sent: it gets a local 403 whose reason says why, so the scraper treats it as a
+/// failed source and the store goes stale rather than being read.
 /// </summary>
 /// <remarks>
-/// Outermost on the Shopify client, so robots.txt itself is fetched through the rest of the chain:
-/// signed if signing is on, and through the home tunnel when Shopify refuses the server.
+/// Outermost on the Shopify client, so robots.txt itself is fetched through the rest of the chain,
+/// with the bot's User-Agent and signed if signing is on.
 /// </remarks>
 public sealed class RobotsTxtHandler(RobotsTxtCache cache, ILogger<RobotsTxtHandler> logger, IReadOnlySet<string>? onlyHosts = null)
     : DelegatingHandler
@@ -90,6 +128,7 @@ public sealed class RobotsTxtHandler(RobotsTxtCache cache, ILogger<RobotsTxtHand
     public const string ProductToken = "wheyproofbot";
 
     internal const string RefusedReason = "Disallowed by robots.txt";
+    internal const string CrawlDelayReason = "Crawl-delay of robots.txt is longer than we wait";
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -107,7 +146,15 @@ public sealed class RobotsTxtHandler(RobotsTxtCache cache, ILogger<RobotsTxtHand
         }, logger, cancellationToken);
 
         if (rules is not null && rules.Allows(uri.PathAndQuery))
+        {
+            if (rules.CrawlDelay is { } delay && !await cache.PaceAsync(uri.Host, delay, cancellationToken))
+            {
+                logger.LogWarning("robots.txt of {Host} sets a Crawl-delay of {Delay}, longer than we wait; not requested.",
+                    uri.Host, delay);
+                return new HttpResponseMessage(HttpStatusCode.Forbidden) { ReasonPhrase = CrawlDelayReason, RequestMessage = request };
+            }
             return await base.SendAsync(request, cancellationToken);
+        }
 
         if (rules is not null)
             logger.LogWarning("robots.txt of {Host} disallows {Path}; not requested.", uri.Host, uri.AbsolutePath);

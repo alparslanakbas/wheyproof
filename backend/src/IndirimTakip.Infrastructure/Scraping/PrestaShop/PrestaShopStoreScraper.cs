@@ -22,22 +22,15 @@ public sealed record PrestaShopStore(
 public static class PrestaShopStores
 {
     /// <summary>
-    /// PrestaShop stores. The first one, measured 2026-09-26.
+    /// PrestaShop stores. None at the moment; the scraper stays for the next one.
     /// </summary>
-    public static readonly IReadOnlyList<PrestaShopStore> All =
-    [
-        // 365Rider: a Spanish triathlon retailer (Awin programme 26763). Only its
-        // nutrition category is listed (271 products, 14 brands: 226ERS, Santa
-        // Madre, Enervit, Nutrinovex, SiS, Maurten...); the rest of the store is
-        // shoes, bikes and clothing. It prices in EUR by default and offers GBP
-        // (id 2) and USD (id 8) in its switcher; the same product was €52.95,
-        // £50.57 and $64.60, so the store converts at its own rate and these are
-        // its own prices, not ours. Its shipping page says UK prices include VAT;
-        // outside the EU the buyer pays local import charges at delivery, which,
-        // like shipping costs elsewhere, the listed price doesn't include.
-        new("365Rider", "https://www.365rider.com", "/en/93-nutrition", CurrencyId: 8),
-        new("365Rider", "https://www.365rider.com", "/en/93-nutrition", CurrencyId: 2, Market: SiteMarket.Uk),
-    ];
+    /// <remarks>
+    /// 365Rider (Spanish triathlon retailer, read from 2026-09-26) was dropped on 2026-11-03: every
+    /// scraper now follows robots.txt (Shopify's bot review), and 365Rider's disallows the currency
+    /// switch the scraper needs (<c>Disallow: /*&amp;id_currency=</c> and <c>/*?id_currency=</c>); in
+    /// its default EUR it can't be listed on a USD or GBP site.
+    /// </remarks>
+    public static readonly IReadOnlyList<PrestaShopStore> All = [];
 
     /// <summary>The stores an instance of the given market scrapes.</summary>
     public static IEnumerable<PrestaShopStore> ForMarket(SiteMarket market) =>

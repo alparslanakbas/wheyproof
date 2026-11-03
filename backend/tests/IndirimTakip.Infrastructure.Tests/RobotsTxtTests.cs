@@ -204,4 +204,54 @@ public class RobotsTxtTests
         Assert.Equal(HttpStatusCode.OK, (await Get(client, "https://www.myprotein.com/p/x")).StatusCode);
         Assert.DoesNotContain("/robots.txt", store.Paths);
     }
+
+    // ---- Crawl-delay (Shopify's bot review asked how we handle it, 2026-11-02) ---------------------
+
+    [Theory]
+    [InlineData("User-agent: *\nCrawl-delay: 10\n", 10.0)]
+    [InlineData("User-agent: wheyproofbot\nCrawl-delay: 2.5\n\nUser-agent: *\nCrawl-delay: 30\n", 2.5)]
+    [InlineData("User-agent: wheyproofbot\nDisallow: /cart\n\nUser-agent: *\nCrawl-delay: 30\n", null)]
+    [InlineData("User-agent: *\nCrawl-delay: soon\n", null)]
+    [InlineData("User-agent: *\nCrawl-delay: -5\n", null)]
+    [InlineData("User-agent: *\nDisallow: /cart\n", null)]
+    public void Crawl_delay_comes_from_our_group_or_the_star_group(string text, double? seconds) =>
+        Assert.Equal(seconds is { } s ? TimeSpan.FromSeconds(s) : null, RobotsRules.Parse(text, Token).CrawlDelay);
+
+    [Fact]
+    public async Task A_crawl_delay_spaces_requests_to_the_same_host()
+    {
+        var (client, store, _) = Build(_ => Robots("User-agent: *\nCrawl-delay: 0.4\n"));
+
+        await Get(client, "https://www.kaged.com/products.json?page=1");
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        await Get(client, "https://www.kaged.com/products.json?page=2");
+
+        Assert.True(clock.Elapsed >= TimeSpan.FromMilliseconds(350), $"waited only {clock.Elapsed}");
+        Assert.Equal(["/robots.txt", "/products.json?page=1", "/products.json?page=2"], store.Paths);
+    }
+
+    [Fact]
+    public async Task No_wait_once_the_crawl_delay_has_passed()
+    {
+        var (client, _, time) = Build(_ => Robots("User-agent: *\nCrawl-delay: 30\n"));
+
+        await Get(client, "https://www.kaged.com/products.json?page=1");
+        time.Now += TimeSpan.FromSeconds(31);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        await Get(client, "https://www.kaged.com/products.json?page=2");
+
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"waited {clock.Elapsed}");
+    }
+
+    [Fact]
+    public async Task A_crawl_delay_longer_than_we_wait_leaves_the_host_unread()
+    {
+        var (client, store, _) = Build(_ => Robots("User-agent: *\nCrawl-delay: 3600\n"));
+
+        var response = await Get(client, "https://www.kaged.com/products.json?page=1");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(RobotsTxtHandler.CrawlDelayReason, response.ReasonPhrase);
+        Assert.Equal(["/robots.txt"], store.Paths);
+    }
 }

@@ -30,8 +30,9 @@ namespace IndirimTakip.Infrastructure.Scraping;
 /// couldn't be verified, so these details are the difference between signed and not.
 ///
 /// <b>Key.</b> The 32-byte seed comes from the server's .env (<c>WEB_BOT_AUTH_KEY</c>, base64); it
-/// was generated there and never left it. No key: off, requests go out as before. A malformed key
-/// also turns it off (with <see cref="Problem"/> logged at startup) rather than stopping the site.
+/// was generated there and never left it. No key: unsigned, with the bot's User-Agent still set. A
+/// malformed key also turns signing off (with <see cref="Problem"/> logged at startup) rather than
+/// stopping the site.
 /// </remarks>
 public sealed class WebBotAuth
 {
@@ -99,14 +100,13 @@ public sealed class WebBotAuth
     public bool Enabled => key is not null;
 
     /// <summary>
-    /// Requests are signed (and carry the bot User-Agent). Separate from <see cref="Enabled"/> because
-    /// signing was switched OFF on the day it went live, with the directory left up for the registration.
-    /// Measured 2026-10-08 16:47-16:52 UTC, block on: signed requests got 429 from the server as before,
-    /// and through the home tunnel too (Kaged twice, Nutricost), which had passed every cycle since
-    /// 2026-10-05. From the home connection in the same minutes, unsigned requests got 200 with a
-    /// browser or our bot User-Agent, and so did one signed with a key NOT in our directory. Only the
-    /// verifiable signature failed: Shopify recognizes the bot and holds an unregistered one to a strict
-    /// limit wherever it comes from. Turned back on once Shopify answers the registration.
+    /// Requests are signed. Separate from <see cref="Enabled"/> because signing was switched OFF on the
+    /// day it went live, with the directory left up for the registration. Measured 2026-10-08
+    /// 16:47-16:52 UTC, block on: signed requests got 429 from the server as before, and through the
+    /// home tunnel too. Only the verifiable signature failed: Shopify recognizes the bot and holds an
+    /// unregistered one to a strict limit wherever it comes from.
+    /// Back ON from 2026-11-03: Shopify's reviewers answered that they need signed traffic to approve
+    /// the registration, and that the 429s until then are expected (support ticket 71441774).
     /// </summary>
     public bool SignRequests { get; }
 
@@ -125,9 +125,22 @@ public sealed class WebBotAuth
     /// <summary>JWK SHA-256 thumbprint of the public key (RFC 8037 A.3), the "keyid".</summary>
     public string? KeyId { get; }
 
-    /// <summary>Adds Signature-Agent, Signature-Input and Signature, and sets the bot's User-Agent.</summary>
+    /// <summary>
+    /// Sets the bot's User-Agent and, with signing on, adds Signature-Agent, Signature-Input and Signature.
+    /// </summary>
+    /// <remarks>
+    /// The User-Agent is set even with signing off: Shopify's review (2026-11-02) asked that no request
+    /// reaches a store with a browser User-Agent, signed or not.
+    /// </remarks>
     public void Sign(HttpRequestMessage request)
     {
+        var headers = request.Headers;
+        if (UserAgent.Length > 0)
+        {
+            headers.UserAgent.Clear();
+            headers.TryAddWithoutValidation("User-Agent", UserAgent);
+        }
+
         if (key is null || !SignRequests || request.RequestUri is null)
             return;
 
@@ -138,15 +151,12 @@ public sealed class WebBotAuth
                          + $";expires={expires};nonce=\"{Nonce()}\";tag=\"web-bot-auth\"";
         var signature = SignBase(key, SignatureBase([("@authority", Authority(request.RequestUri)), ("signature-agent", agent)], parameters));
 
-        var headers = request.Headers;
         headers.Remove("Signature-Agent");
         headers.Remove("Signature-Input");
         headers.Remove("Signature");
         headers.TryAddWithoutValidation("Signature-Agent", agent);
         headers.TryAddWithoutValidation("Signature-Input", $"sig1={parameters}");
         headers.TryAddWithoutValidation("Signature", $"sig1=:{signature}:");
-        headers.UserAgent.Clear();
-        headers.TryAddWithoutValidation("User-Agent", UserAgent);
     }
 
     /// <summary>The key directory (JWKS) and its signature headers for a request to <paramref name="authority"/>.</summary>

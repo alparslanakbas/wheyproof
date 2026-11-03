@@ -135,10 +135,10 @@ public class WebBotAuthTests
         Assert.True(Verifies(auth.PublicKey!, signatureBase, Regex.Match(signature, "^sig1=:(.+):$").Groups[1].Value));
     }
 
-    // Signing off (until Shopify answers the registration): requests go out exactly as before, while
-    // the directory keeps serving the key.
+    // Signing off: no signature, but never the browser User-Agent (Shopify's review, 2026-11-02, asked
+    // that no request reaches a store with one); the directory keeps serving the key.
     [Fact]
-    public void With_signing_off_requests_are_untouched_and_the_directory_is_still_served()
+    public void With_signing_off_requests_carry_the_bot_user_agent_unsigned_and_the_directory_is_still_served()
     {
         var auth = new WebBotAuth(FromBase64Url(RfcSeed), Agent, Ua, Time, signRequests: false);
         var request = new HttpRequestMessage(HttpMethod.Get, "https://www.kaged.com/products.json");
@@ -148,9 +148,24 @@ public class WebBotAuthTests
 
         Assert.False(request.Headers.Contains("Signature"));
         Assert.False(request.Headers.Contains("Signature-Agent"));
-        Assert.Contains("Chrome/129.0", request.Headers.UserAgent.ToString());
+        Assert.Equal(Ua, request.Headers.UserAgent.ToString());
         Assert.True(auth.Enabled);
         Assert.Contains(RfcPublicKey, auth.Directory("api.wheyproof.com").Json);
+    }
+
+    [Fact]
+    public void Without_a_key_the_handler_still_sets_the_bot_user_agent()
+    {
+        var auth = WebBotAuth.Create(null, Agent, Ua, Time);
+        var inner = new RecordingHandler();
+        var client = new HttpMessageInvoker(new WebBotAuthHandler(auth) { InnerHandler = inner });
+        var request = new HttpRequestMessage(HttpMethod.Get, "https://www.kaged.com/products.json");
+        request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/129.0");
+
+        client.SendAsync(request, CancellationToken.None).Wait();
+
+        Assert.Equal(Ua, inner.Requests[0].Headers.UserAgent.ToString());
+        Assert.False(inner.Requests[0].Headers.Contains("Signature"));
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using IndirimTakip.Infrastructure.Scraping;
 using IndirimTakip.Infrastructure.Scraping.Shopify;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -20,6 +21,7 @@ public class ShopifyRateLimitRetryTests
     {
         private int next;
         public int CatalogRequests { get; private set; }
+        public TimeSpan? RetryAfter { get; init; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -34,15 +36,25 @@ public class ShopifyRateLimitRetryTests
             var status = next < catalogAnswers.Length ? catalogAnswers[next++] : HttpStatusCode.OK;
             // One product on the first page, then the empty page that ends the catalog.
             var body = request.RequestUri.Query.Contains("&page=1&") ? OneProductPage : """{"products":[]}""";
-            return Task.FromResult(status == HttpStatusCode.OK
-                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") }
-                : new HttpResponseMessage(status));
+            if (status == HttpStatusCode.OK)
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(body, Encoding.UTF8, "application/json"),
+                });
+
+            var refused = new HttpResponseMessage(status);
+            if (RetryAfter is { } wait)
+                refused.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(wait);
+            return Task.FromResult(refused);
         }
     }
 
-    private static (ShopifyStoreScraper Scraper, ScriptedHandler Handler) Build(params HttpStatusCode[] answers)
+    private static (ShopifyStoreScraper Scraper, ScriptedHandler Handler) Build(params HttpStatusCode[] answers) =>
+        Build(null, answers);
+
+    private static (ShopifyStoreScraper Scraper, ScriptedHandler Handler) Build(TimeSpan? retryAfter, params HttpStatusCode[] answers)
     {
-        var handler = new ScriptedHandler(answers);
+        var handler = new ScriptedHandler(answers) { RetryAfter = retryAfter };
         var scraper = new ShopifyStoreScraper(
             new HttpClient(handler), new ShopifyStore("Kaged", "https://www.kaged.com"),
             NullLogger<ShopifyStoreScraper>.Instance, rateLimitRetryDelay: TimeSpan.Zero, pageDelay: TimeSpan.Zero);
@@ -72,5 +84,47 @@ public class ShopifyRateLimitRetryTests
 
         Assert.Empty(items);
         Assert.Equal(2, handler.CatalogRequests);
+    }
+
+    // Shopify's review (2026-11-02): wait for the time in Retry-After, not a fixed delay.
+    [Fact]
+    public async Task The_retry_waits_for_the_Retry_After_header()
+    {
+        var (scraper, handler) = Build(TimeSpan.Zero, HttpStatusCode.TooManyRequests);
+
+        var items = await scraper.ScrapeAsync();
+
+        Assert.Single(items);
+        Assert.Equal(3, handler.CatalogRequests);
+    }
+
+    // A store asking for more than the longest wait is left for the next cycle, not pressed.
+    [Fact]
+    public async Task A_Retry_After_beyond_the_longest_wait_is_not_retried()
+    {
+        var (scraper, handler) = Build(RetryAfter.MaxWait + TimeSpan.FromSeconds(1), HttpStatusCode.TooManyRequests);
+
+        var items = await scraper.ScrapeAsync();
+
+        Assert.Empty(items);
+        Assert.Equal(1, handler.CatalogRequests);
+    }
+
+    [Fact]
+    public void Retry_After_reads_seconds_and_dates_and_falls_back_without_one()
+    {
+        var now = new DateTimeOffset(2026, 11, 3, 18, 0, 0, TimeSpan.Zero);
+        var fallback = TimeSpan.FromMinutes(1);
+        var seconds = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        seconds.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(7));
+        var date = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        date.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(now.AddSeconds(30));
+        var past = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        past.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(now.AddSeconds(-30));
+
+        Assert.Equal(TimeSpan.FromSeconds(7), RetryAfter.Of(seconds, fallback, now));
+        Assert.Equal(TimeSpan.FromSeconds(30), RetryAfter.Of(date, fallback, now));
+        Assert.Equal(TimeSpan.Zero, RetryAfter.Of(past, fallback, now));
+        Assert.Equal(fallback, RetryAfter.Of(new HttpResponseMessage(HttpStatusCode.TooManyRequests), fallback, now));
     }
 }

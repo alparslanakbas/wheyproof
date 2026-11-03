@@ -48,8 +48,22 @@
           </div>
         </dl>
         <p class="mt-3 max-w-2xl text-sm text-[var(--noc-neutral-300)]">
-          While our registration with Shopify is being reviewed, some requests still go out unsigned and with a
-          standard browser User-Agent.
+          Every request it sends to a store carries this User-Agent and is signed with Web Bot Auth, which a store
+          can check against the key directory above.
+        </p>
+      </section>
+
+      <section class="rounded-[14px] bg-[var(--noc-card)] p-5 shadow-[var(--noc-shadow-sm)]" aria-labelledby="bot-pace">
+        <h2 id="bot-pace" class="text-lg font-semibold">Crawl-delay and 429 responses</h2>
+        <p class="mt-2 max-w-2xl text-sm text-[var(--noc-neutral-300)]">
+          If a store's robots.txt sets a <code>Crawl-delay</code> for <code>wheyproofbot</code> (or for every bot,
+          with <code>*</code>), we leave at least that many seconds between two requests to that store. If it asks
+          for more than five minutes, we don't read the store at all rather than read it faster.
+        </p>
+        <p class="mt-2 max-w-2xl text-sm text-[var(--noc-neutral-300)]">
+          If a store answers 429 (Too Many Requests), we stop asking it for the rest of that round. Only a catalog
+          page is tried once more, after the time in the <code>Retry-After</code> header (a minute when there is
+          none), and not at all if that is longer than five minutes.
         </p>
       </section>
 

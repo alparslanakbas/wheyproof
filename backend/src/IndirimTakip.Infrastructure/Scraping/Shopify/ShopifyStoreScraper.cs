@@ -184,21 +184,40 @@ public sealed partial class ShopifyStoreScraper(
         return result;
     }
 
-    /// <summary>One catalog page; a 429 is retried once after <see cref="retryDelay"/>.</summary>
+    /// <summary>
+    /// One catalog page; a 429 is retried once, after the time its <c>Retry-After</c> asks for
+    /// (<see cref="retryDelay"/> without one). Longer than <see cref="RetryAfter.MaxWait"/>: no retry.
+    /// </summary>
     private async Task<ShopifyProductsResponse?> GetPageAsync(int page, CancellationToken cancellationToken)
     {
         var url = $"{store.BaseUrl}/products.json?limit={PageSize}&page={page}&{MarketQuery}";
-        try
+        using (var first = await httpClient.GetAsync(url, cancellationToken))
         {
-            return await httpClient.GetFromJsonAsync<ShopifyProductsResponse>(url, JsonOptions, cancellationToken);
+            if (first.StatusCode != HttpStatusCode.TooManyRequests)
+                return await ReadPageAsync(first, cancellationToken);
+
+            var wait = RetryAfter.Of(first, retryDelay, DateTimeOffset.UtcNow);
+            var source = first.Headers.RetryAfter is null ? "no Retry-After" : "Retry-After";
+            if (wait > RetryAfter.MaxWait)
+            {
+                logger.LogInformation("{Store}: rate limited on page {Page}; Retry-After asks for {Delay}, so not before the next cycle.",
+                    store.BrandName, page, wait);
+                throw new HttpRequestException("Rate limited beyond the longest wait.", null, HttpStatusCode.TooManyRequests);
+            }
+
+            logger.LogInformation("{Store}: rate limited on page {Page}; retrying once in {Delay} ({Source}).",
+                store.BrandName, page, wait, source);
+            await Task.Delay(wait, cancellationToken);
         }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
-        {
-            logger.LogInformation("{Store}: rate limited on page {Page}; retrying once in {Delay}.",
-                store.BrandName, page, retryDelay);
-            await Task.Delay(retryDelay, cancellationToken);
-            return await httpClient.GetFromJsonAsync<ShopifyProductsResponse>(url, JsonOptions, cancellationToken);
-        }
+
+        using var retry = await httpClient.GetAsync(url, cancellationToken);
+        return await ReadPageAsync(retry, cancellationToken);
+    }
+
+    private static async Task<ShopifyProductsResponse?> ReadPageAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ShopifyProductsResponse>(JsonOptions, cancellationToken);
     }
 
     private async Task EnsureMarketCurrencyAsync(CancellationToken cancellationToken)

@@ -20,9 +20,11 @@ namespace IndirimTakip.Infrastructure;
 
 public static class DependencyInjection
 {
-    // Some sites (including ones behind Cloudflare) block requests without a User-Agent.
-    private const string BrowserUserAgent =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+    // Every scraping client is the registered bot (see WebBotAuth); WebBotAuth:UserAgent overrides
+    // the name. Until 2026-11-03 they sent a browser User-Agent; Shopify's review asked for none,
+    // and every other store answered the bot exactly as it answered the browser (measured that day:
+    // Huel, Form, Bulk, Myprotein, 365Rider). Each also checks robots.txt (see RobotsTxtHandler).
+    private const string BotUserAgent = "Mozilla/5.0 (compatible; wheyproofbot/1.0; +https://www.wheyproof.com/bot)";
 
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
@@ -56,28 +58,25 @@ public static class DependencyInjection
         // and exposes the same public products.json endpoint, so one
         // configurable scraper replaces a class per brand. The store list
         // lives in ShopifyStores.All.
-        // Shopify answers the server's address with 429 at certain hours; then the request is
-        // repeated through the home tunnel (see ShopifyTunnel). Empty setting = tunnel off. Only
-        // this client carries it: other sources' 429s are real rate limits, not to be bypassed.
-        services.AddSingleton(_ => ShopifyTunnel.Create(configuration["Shopify:Tunnel"], TimeProvider.System));
-        services.AddTransient<ShopifyTunnelHandler>();
-        // Shopify requests are signed as a registered bot (see WebBotAuth); key from .env, empty = off.
+        // No home tunnel any more (2026-11-03): it repeated a 429 at once from another address, the
+        // opposite of what Shopify's review asked (wait for Retry-After); see ShopifyStoreScraper.
+        // Shopify requests carry the registered bot's User-Agent and are signed (see WebBotAuth);
+        // key from .env, without one they go out unsigned with the same User-Agent.
+        var botUserAgent = configuration["WebBotAuth:UserAgent"] is { Length: > 0 } configured ? configured.Trim() : BotUserAgent;
         services.AddSingleton(_ => WebBotAuth.Create(configuration["WebBotAuth:PrivateKey"],
-            configuration["WebBotAuth:SignatureAgent"], configuration["WebBotAuth:UserAgent"], TimeProvider.System,
+            configuration["WebBotAuth:SignatureAgent"], botUserAgent, TimeProvider.System,
             configuration.GetValue("WebBotAuth:SignRequests", true)));
         // Each Shopify host's robots.txt, read once a day and checked before every request (see RobotsRules).
         services.AddSingleton(new RobotsTxtCache(TimeProvider.System));
         services.AddHttpClient(ShopifyStoreScraper.HttpClientName, client =>
         {
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(botUserAgent);
             client.Timeout = TimeSpan.FromSeconds(30);
         })
-            // robots.txt first: a disallowed request isn't signed, tunnelled or sent at all.
+            // robots.txt first: a disallowed request isn't signed or sent at all.
             .AddHttpMessageHandler(sp => new RobotsTxtHandler(sp.GetRequiredService<RobotsTxtCache>(),
                 sp.GetRequiredService<ILogger<RobotsTxtHandler>>()))
-            // Outside the tunnel, so a request repeated through it carries the same signature.
-            .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()))
-            .AddHttpMessageHandler<ShopifyTunnelHandler>();
+            .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()));
         foreach (var store in ShopifyStores.ForMarket(market))
         {
             services.AddScoped<IBrandScraper>(sp => new ShopifyStoreScraper(
@@ -92,7 +91,7 @@ public static class DependencyInjection
         // sets goes out as written. Compression on: a page is about 1 MB unpacked.
         services.AddHttpClient(Scraping.Huel.HuelScraper.HttpClientName, client =>
         {
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(botUserAgent);
             client.Timeout = TimeSpan.FromSeconds(60);
         }).ConfigurePrimaryHttpMessageHandler(() =>
         {
@@ -103,7 +102,8 @@ public static class DependencyInjection
             return handler;
         })
             .AddHttpMessageHandler(sp => new RobotsTxtHandler(sp.GetRequiredService<RobotsTxtCache>(),
-                sp.GetRequiredService<ILogger<RobotsTxtHandler>>()));
+                sp.GetRequiredService<ILogger<RobotsTxtHandler>>()))
+            .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()));
         services.AddScoped<IBrandScraper>(sp => new Scraping.Huel.HuelScraper(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient(Scraping.Huel.HuelScraper.HttpClientName),
             Scraping.Huel.HuelScraper.ForMarket(market),
@@ -113,9 +113,12 @@ public static class DependencyInjection
         // scraper reads the public Store API, the stores live in WooStores.All.
         services.AddHttpClient(Scraping.Woo.WooStoreScraper.HttpClientName, client =>
         {
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(botUserAgent);
             client.Timeout = TimeSpan.FromSeconds(30);
-        });
+        })
+            .AddHttpMessageHandler(sp => new RobotsTxtHandler(sp.GetRequiredService<RobotsTxtCache>(),
+                sp.GetRequiredService<ILogger<RobotsTxtHandler>>()))
+            .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()));
         foreach (var store in Scraping.Woo.WooStores.ForMarket(market))
         {
             services.AddScoped<IBrandScraper>(sp => new Scraping.Woo.WooStoreScraper(
@@ -128,9 +131,12 @@ public static class DependencyInjection
         // the public storefront GraphQL, the stores live in MagentoStores.All.
         services.AddHttpClient(Scraping.Magento.MagentoStoreScraper.HttpClientName, client =>
         {
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(botUserAgent);
             client.Timeout = TimeSpan.FromSeconds(30);
-        });
+        })
+            .AddHttpMessageHandler(sp => new RobotsTxtHandler(sp.GetRequiredService<RobotsTxtCache>(),
+                sp.GetRequiredService<ILogger<RobotsTxtHandler>>()))
+            .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()));
         foreach (var store in Scraping.Magento.MagentoStores.ForMarket(market))
         {
             services.AddScoped<IBrandScraper>(sp => new Scraping.Magento.MagentoStoreScraper(
@@ -139,22 +145,25 @@ public static class DependencyInjection
                 sp.GetRequiredService<ILogger<Scraping.Magento.MagentoStoreScraper>>()));
         }
 
-        // PrestaShop stores (365Rider in both editions): one configurable scraper
-        // reads the category listing, the stores live in PrestaShopStores.All.
+        // PrestaShop stores (none since 365Rider was dropped, see PrestaShopStores): one
+        // configurable scraper reads the category listing, the stores live in PrestaShopStores.All.
         // Its own handler, still the public-network one: cookies stay on (the
         // store keeps language and currency in the session) and redirects are
         // off, because a listing page answering 302 means the session was lost
         // and must fail rather than be read (see PrestaShopStoreScraper).
         services.AddHttpClient(Scraping.PrestaShop.PrestaShopStoreScraper.HttpClientName, client =>
         {
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(botUserAgent);
             client.Timeout = TimeSpan.FromSeconds(30);
         }).ConfigurePrimaryHttpMessageHandler(() =>
         {
             var handler = PublicNetworkConnection.CreateHandler();
             handler.AllowAutoRedirect = false;
             return handler;
-        });
+        })
+            .AddHttpMessageHandler(sp => new RobotsTxtHandler(sp.GetRequiredService<RobotsTxtCache>(),
+                sp.GetRequiredService<ILogger<RobotsTxtHandler>>()))
+            .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()));
         foreach (var store in Scraping.PrestaShop.PrestaShopStores.ForMarket(market))
         {
             services.AddScoped<IBrandScraper>(sp => new Scraping.PrestaShop.PrestaShopStoreScraper(
@@ -172,14 +181,17 @@ public static class DependencyInjection
         {
             services.AddHttpClient(Scraping.Myprotein.MyproteinScraper.HttpClientName, client =>
             {
-                client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+                client.DefaultRequestHeaders.UserAgent.ParseAdd(botUserAgent);
                 client.Timeout = TimeSpan.FromSeconds(60);
             }).ConfigurePrimaryHttpMessageHandler(() =>
             {
                 var handler = PublicNetworkConnection.CreateHandler();
                 handler.AutomaticDecompression = System.Net.DecompressionMethods.All;
                 return handler;
-            });
+            })
+                .AddHttpMessageHandler(sp => new RobotsTxtHandler(sp.GetRequiredService<RobotsTxtCache>(),
+                    sp.GetRequiredService<ILogger<RobotsTxtHandler>>()))
+                .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()));
             services.AddScoped<IBrandScraper>(sp => new Scraping.Myprotein.MyproteinScraper(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient(Scraping.Myprotein.MyproteinScraper.HttpClientName),
                 sp.GetRequiredService<ILogger<Scraping.Myprotein.MyproteinScraper>>()));
@@ -197,11 +209,11 @@ public static class DependencyInjection
         services.AddHttpClient(ProductRatingRefreshService.RatingHttpClientName, client =>
         {
             client.Timeout = TimeSpan.FromSeconds(30);
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(botUserAgent);
         })
             .AddHttpMessageHandler(sp => new RobotsTxtHandler(sp.GetRequiredService<RobotsTxtCache>(),
-                sp.GetRequiredService<ILogger<RobotsTxtHandler>>(), ShopifyStores.Hosts))
-            .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>(), ShopifyStores.Hosts));
+                sp.GetRequiredService<ILogger<RobotsTxtHandler>>()))
+            .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()));
         services.AddScoped<ProductRatingRefreshService>();
 
         services.AddScoped<ScrapeIngestionService>();
@@ -241,15 +253,14 @@ public static class DependencyInjection
         services.AddSingleton<ProductImageStore>();
         services.AddHostedService<ProductImageBackgroundService>();
 
-        // Downloads from the sources' CDNs. The client identifies itself with a
-        // bot User-Agent that names the site, so a store can see who is fetching
-        // its images and how to reach us.
+        // Downloads from the sources' CDNs (most of them Shopify's). The client is the
+        // registered bot, signed like the catalog requests, so a store can see who is
+        // fetching its images and how to reach us.
         services.AddHttpClient(ProductImageStore.HttpClientName, client =>
         {
             client.Timeout = TimeSpan.FromSeconds(30);
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "Mozilla/5.0 (compatible; WheyProofBot/1.0; +https://www.wheyproof.com)");
-        });
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(botUserAgent);
+        }).AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()));
         // NUTRITION LABELS. Read from the stores' label images with Claude's
         // vision model; see NutritionLabelService. Options as a POCO like the
         // image options. The key only ever goes into a request header.
@@ -268,9 +279,8 @@ public static class DependencyInjection
         services.AddHttpClient<TesseractLabelReader>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(30);
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "Mozilla/5.0 (compatible; WheyProofBot/1.0; +https://www.wheyproof.com)");
-        });
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(botUserAgent);
+        }).AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()));
         services.AddScoped<INutritionLabelReader>(sp =>
             labelOptions.Engine.Equals("claude", StringComparison.OrdinalIgnoreCase)
                 ? sp.GetRequiredService<NutritionLabelReader>()
