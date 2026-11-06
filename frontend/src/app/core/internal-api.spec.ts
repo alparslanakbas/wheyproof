@@ -10,6 +10,7 @@ import {
   INTERNAL_API_BASE_URL,
   connectionNotEstablished,
   internalApiInterceptor,
+  responseNeverArrived,
   retryOnConnectionError,
   toInternalApiUrl,
 } from './internal-api';
@@ -79,6 +80,45 @@ describe('retryOnConnectionError', () => {
 
   it('the production ceiling is ~15 s (Docker stops within 10 s + 3.8 s startup)', () => {
     expect(CONNECTION_RETRY.count * CONNECTION_RETRY.delayMs).toBe(15_000);
+  });
+
+  // 6 Nov, the Turkish site: Angular's SSR body cap error (status 0) was retried 30 times and the home page waited
+  // 15 s. FetchBackend builds that error exactly like this: new HttpErrorResponse({ error }).
+  it("doesn't retry when Angular rejected the response (SSR body cap, status 0)", async () => {
+    let attempts = 0;
+    const capError = new HttpErrorResponse({ error: Object.assign(new Error('NG02825'), { code: -2825 }) });
+    const source = defer(() => {
+      attempts++;
+      return throwError(() => capError);
+    });
+
+    expect(capError.status).toBe(0);
+    await expect(firstValueFrom(source.pipe(retryOnConnectionError(5, 500)))).rejects.toBe(capError);
+    expect(attempts).toBe(1);
+  });
+
+  it("retries Node fetch's connection error (TypeError)", async () => {
+    let attempts = 0;
+    const fetchError = new HttpErrorResponse({ error: new TypeError('fetch failed'), status: 0 });
+    const source = defer(() => (++attempts <= 2 ? throwError(() => fetchError) : of('data')));
+
+    const result = firstValueFrom(source.pipe(retryOnConnectionError(5, 500)));
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expect(result).resolves.toBe('data');
+    expect(attempts).toBe(3);
+  });
+});
+
+describe('responseNeverArrived', () => {
+  it('a real answer from the backend and errors that are not HttpErrorResponse are not connection errors', () => {
+    expect(responseNeverArrived(new HttpErrorResponse({ status: 503 }))).toBe(false);
+    expect(responseNeverArrived(new Error('other'))).toBe(false);
+  });
+
+  it('status 0 with no error object or with a ProgressEvent is a connection error', () => {
+    expect(responseNeverArrived(new HttpErrorResponse({ status: 0 }))).toBe(true);
+    expect(responseNeverArrived(new HttpErrorResponse({ error: new ProgressEvent('error'), status: 0 }))).toBe(true);
   });
 });
 

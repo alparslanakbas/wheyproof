@@ -106,5 +106,8 @@ public class CampaignDiscountTests(CampaignDatabase database) : IClassFixture<Ca
         Assert.Equal(
             [("Campaign Real", 1000m, 15.0m), ("Campaign One-Day Error", 1000m, 5.0m)],
             summary.RealDiscounts.Select(d => (d.Product.ProductName, d.PriorLowest, d.RealPercent)));
+        // The card's fields come across from DealDto (15 % under 1000).
+        Assert.Equal(850m, summary.RealDiscounts[0].Product.CurrentPrice);
+        Assert.False(string.IsNullOrEmpty(summary.RealDiscounts[0].Product.BrandName));
     }
 }

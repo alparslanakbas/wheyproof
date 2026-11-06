@@ -4,7 +4,27 @@ using Npgsql;
 namespace IndirimTakip.Infrastructure.Deals;
 
 /// <summary>A product that is really cheaper by the season-page rule.</summary>
-public sealed record CampaignDiscount(DealDto Product, decimal PriorLowest, decimal RealPercent, DateTimeOffset DiscountStart);
+public sealed record CampaignDiscount(CampaignProduct Product, decimal PriorLowest, decimal RealPercent, DateTimeOffset DiscountStart);
+
+/// <summary>
+/// The fields the season page's card shows, not the full <see cref="DealDto"/> (6 Nov). Angular caps a response body
+/// at 1 MiB during SSR and reports the overflow as a status-0 error. On the Turkish site the same list with DealDto
+/// reached 1.07 MB (387 items) and its pages waited 15 s and rendered without the list. Here the UK list was already
+/// 577 KB (483 items) with Black Friday still ahead. Names match DealDto, so the front end builds the product link
+/// with the same helper.
+/// </summary>
+public sealed record CampaignProduct(
+    int ProductId,
+    string ProductName,
+    string BrandName,
+    string? ImageUrl,
+    decimal CurrentPrice,
+    decimal? StoreDiscountPercent,
+    string? StoreUrl)
+{
+    public static CampaignProduct From(DealDto d) =>
+        new(d.ProductId, d.ProductName, d.BrandName, d.ImageUrl, d.CurrentPrice, d.StoreDiscountPercent, d.StoreUrl);
+}
 
 /// <summary>Products the store shows with a crossed-out "was" price, classified by the season-page rule.</summary>
 public sealed record CampaignSummary(
@@ -106,7 +126,7 @@ public sealed class CampaignDiscountService(AppDbContext db, DealsQueryService d
         var list = real
             .Where(r => products.ContainsKey(r.ProductId))
             .Select(r => new CampaignDiscount(
-                products[r.ProductId],
+                CampaignProduct.From(products[r.ProductId]),
                 r.PriorLowest!.Value,
                 Math.Round(100 * (r.PriorLowest.Value - r.Price) / r.PriorLowest.Value, 1),
                 r.RunStart))

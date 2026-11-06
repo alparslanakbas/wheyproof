@@ -57,8 +57,21 @@ export function retryOnConnectionError<T>(
 ): MonoTypeOperatorFunction<T> {
   return retry({
     count,
-    delay: (error) => (error instanceof HttpErrorResponse && error.status === 0 ? timer(delayMs) : throwError(() => error)),
+    delay: (error) => (responseNeverArrived(error) ? timer(delayMs) : throwError(() => error)),
   });
+}
+
+/**
+ * Status 0 alone doesn't mean "no response" (6 Nov). During SSR Angular also rejects a response body over 1 MiB
+ * with a status-0 error; the error inside is Angular's own RuntimeError. Retrying it produces the same result 30
+ * times: on the Turkish site the home page waited 15 s on every render. A real connection error from Node's fetch
+ * is a TypeError ("fetch failed"; "terminated" when the body breaks halfway). Errors carrying no error object, or
+ * one that isn't an Error (the browser's ProgressEvent), still count as connection errors; Angular's own don't.
+ */
+export function responseNeverArrived(error: unknown): boolean {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 0) return false;
+  const inner: unknown = error.error;
+  return !(inner instanceof Error) || inner instanceof TypeError;
 }
 
 // A narrower test for apiFetch in server.ts (Node fetch): only errors where the

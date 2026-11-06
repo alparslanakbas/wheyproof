@@ -1,8 +1,17 @@
 import { Deal } from './deal.model';
 
+/**
+ * The fields the season page's card shows (backend CampaignProduct). Not the full Deal: on the Turkish site the list
+ * passed 1 MiB, the SSR response cap, and the page rendered empty after 15 s (6 Nov).
+ */
+export type CampaignProduct = Pick<
+  Deal,
+  'productId' | 'productName' | 'brandName' | 'imageUrl' | 'currentPrice' | 'storeDiscountPercent' | 'storeUrl'
+>;
+
 /** A product that is really cheaper by the season-page rule (backend CampaignDiscount). */
 export interface CampaignDiscount {
-  product: Deal;
+  product: CampaignProduct;
   priorLowest: number;
   realPercent: number;
   discountStart: string;
