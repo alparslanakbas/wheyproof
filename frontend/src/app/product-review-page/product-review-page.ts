@@ -12,7 +12,6 @@ import { buildBreadcrumbJsonLd } from '../core/breadcrumb';
 import { canonicalOrigin } from '../core/canonical-link';
 import { CATEGORY_LABELS } from '../core/category-labels';
 import { CategoryPriceStats } from '../core/category-price-stats.model';
-import { ComparisonService } from '../core/comparison.service';
 import { Deal } from '../core/deal.model';
 import { DealsService } from '../core/deals.service';
 import { displayName } from '../core/display-name';
@@ -252,14 +251,6 @@ export class ProductReviewPage implements OnInit {
     }
 
     return parts.length > 0 ? parts.join(', ') : 'about the same price';
-  }
-
-  // /compare-products/{id}-vs-{id}, with the same canonical (ascending) rule
-  // as the product comparison page.
-  protected comparisonLink(other: Deal): string[] {
-    const current = this.deal();
-    if (!current) return ['/'];
-    return ['/compare-products', ComparisonService.pairSlug(current.productId, other.productId)];
   }
 
   protected chartPath(): string {

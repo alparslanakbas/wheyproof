@@ -186,7 +186,6 @@
                 <th class="px-4 py-2 font-normal">Price</th>
                 <th class="px-4 py-2 font-normal">Per serving</th>
                 <th class="px-4 py-2 font-normal">Cost of {{ proteinReferenceGrams }} g protein</th>
-                <th class="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -211,9 +210,6 @@
                       —
                     }
                   </td>
-                  <td class="px-4 py-3">
-                    <a [routerLink]="comparisonLink(item)" class="whitespace-nowrap text-xs font-medium text-[var(--noc-accent)] hover:underline">Compare →</a>
-                  </td>
                 </tr>
               }
             </tbody>
@@ -232,7 +228,6 @@
                 <th class="px-4 py-2 font-normal">Brand</th>
                 <th class="px-4 py-2 font-normal">Price</th>
                 <th class="px-4 py-2 font-normal">Per serving</th>
-                <th class="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -249,9 +244,6 @@
                     } @else {
                       —
                     }
-                  </td>
-                  <td class="px-4 py-3">
-                    <a [routerLink]="comparisonLink(item)" class="whitespace-nowrap text-xs font-medium text-[var(--noc-accent)] hover:underline">Compare →</a>
                   </td>
                 </tr>
               }
@@ -280,7 +272,6 @@
               <div class="min-w-0 flex-1">
                 <a [routerLink]="productLink(item)" class="line-clamp-2 text-sm font-medium hover:text-[var(--noc-accent)]">{{ displayName(item.productName) }}</a>
                 <div class="mt-0.5 text-xs text-[var(--noc-neutral-500)]">{{ item.currentPrice | price }} — {{ comparisonNote(item) }}</div>
-                <a [routerLink]="comparisonLink(item)" class="mt-1 inline-block text-xs font-medium text-[var(--noc-accent)] hover:underline">Compare →</a>
               </div>
             </div>
           }

@@ -278,10 +278,18 @@ export class ProductComparisonPage implements OnInit {
     const nameA = displayName(a.productName);
     const nameB = displayName(b.productName);
     const title = `${nameA} vs ${nameB}: Price Comparison | ${SITE_NAME}`;
+    // Kept out of the index (8 Nov 2026). A page exists for every pair of
+    // products, and Googlebot had found 1,588 of them in a month, faster
+    // each day, just before the site's impressions fell from ~1,200 a day
+    // to almost none (25 Oct 2026; no manual action, pages still fetched in
+    // full). That is the "many pages for every combination" pattern of
+    // Google's scaled content policy. The page still works for a visitor
+    // who picks two products; "follow" lets its links count.
     this.pageMeta.set({
       title,
       description: `Compare ${a.brandName} ${nameA} and ${b.brandName} ${nameB} side by side: current price, cost per serving and 30-day price history.`,
       canonicalPath: `/compare-products/${ComparisonService.pairSlug(a.productId, b.productId)}`,
+      noIndex: true,
     });
   }
 }
