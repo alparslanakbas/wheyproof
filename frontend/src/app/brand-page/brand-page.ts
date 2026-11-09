@@ -402,6 +402,19 @@ export class BrandPage implements OnInit {
           }
           this.setMeta(this.brandName());
         }
+        // A brand x category page whose brand has no product at all in that
+        // category (it had some once, and the address is still known) is an
+        // empty page answering 200, which Google reports as a soft 404 (9 Nov
+        // 2026: /uk/brand/goldnutrition/hydration, "0 products tracked").
+        // Reached by its address it is a real 404. hasActiveFilters can't
+        // tell: the fixed category counts as a selected one. On the first
+        // load the filters are the ones loadBrand reset, so an empty list in
+        // the "all" view means the combination is empty; later, a visitor's
+        // own filter that empties the list stays a 200.
+        if (!this.firstListLoaded && this.fixedCategory() && !retailers && this.viewMode() === 'all' && result.totalCount === 0) {
+          showNotFound(this.router);
+          return;
+        }
         this.firstListLoaded = true;
 
         // Does the brand have its own store? Read from the list rather than a
