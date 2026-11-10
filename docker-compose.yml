@@ -232,9 +232,15 @@ services:
       # vivolife.com rule, which only the US instance reads.
       - Affiliate__Rules__1__Host=vivolife.co.uk
       - Affiliate__Rules__1__Link=${AFFILIATE_UK_VIVOLIFE:-}
-      # Joined as of 2026-09-23; stays off until its programme ID is in .env.
+      # Joined 2026-09-23. On 2026-11-10 Veloforte announced it is "moving away
+      # from CSS partners" (comparison sites) and suspended our membership after
+      # a 7-day grace period, asking for its links to be removed. The link is
+      # empty on purpose: a rule without a link is skipped, so Veloforte's
+      # products keep their price pages and their links fall back to Sovrn or
+      # go straight to the store. The Host line stays so that the rule indices
+      # after it don't move.
       - Affiliate__Rules__2__Host=veloforte.com
-      - Affiliate__Rules__2__Link=${AFFILIATE_UK_VELOFORTE:-}
+      - Affiliate__Rules__2__Link=
       # Joined as of 2026-09-29 (Awin 4822), after a first rejection on 09-23 ("Bulk
       # is not live in the US"). Only UK products are on bulk.com (/uk/products/).
       - Affiliate__Rules__3__Host=bulk.com
