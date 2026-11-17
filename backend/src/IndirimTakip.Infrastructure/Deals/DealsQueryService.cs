@@ -688,13 +688,9 @@ public partial class DealsQueryService(
     // For brand x category pages: only pairs that REALLY have products. A page for
     // an empty combination (a category the brand doesn't sell) is exactly what
     // Google treats as thin content and doesn't index; the sitemap and internal
-    // links are built from this list.
-    //
-    // Counted the way the brand page lists them (see preferBrandStore): a brand
-    // that sells from its own store shows only those products, so a category
-    // only retailers carry for it is an empty page. Counting every seller put
-    // /brand/kaged/vitamins (bodybuilding.com only) in the sitemap as a page that
-    // answers 404 since empty pairs became real 404s (2026-11-16, Search Console).
+    // links are built from this list. Counted the way the brand page lists them (preferBrandStore):
+    // a retailer-only category of a brand with its own store is an empty page; counting every
+    // seller sent /brand/kaged/vitamins to the sitemap as a 404 (2026-11-16).
     public async Task<IReadOnlyList<BrandCategoryPairDto>> GetBrandCategoryPairsAsync(
         CancellationToken cancellationToken = default)
     {

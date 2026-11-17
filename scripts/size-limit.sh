@@ -21,7 +21,9 @@ declare -A CEILING=(
   [frontend/src/app/admin-page/admin-page.ts]=883
   # deals-list: +2 lines (31 Oct), SSR 503 when the list fails (the cache kept the 200 error page).
   [frontend/src/app/deals-list/deals-list.ts]=991
-  [backend/src/IndirimTakip.Infrastructure/Deals/DealsQueryService.cs]=782
+  # DealsQueryService: +4 lines (17 Nov), brand x category pairs follow the brand page's own-store
+  # rule; counting every seller put empty pages (404) in the sitemap.
+  [backend/src/IndirimTakip.Infrastructure/Deals/DealsQueryService.cs]=786
 )
 
 # The list is taken into a variable FIRST: set -e doesn't see the exit code of
