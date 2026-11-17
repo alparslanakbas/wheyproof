@@ -689,10 +689,17 @@ public partial class DealsQueryService(
     // an empty combination (a category the brand doesn't sell) is exactly what
     // Google treats as thin content and doesn't index; the sitemap and internal
     // links are built from this list.
+    //
+    // Counted the way the brand page lists them (see preferBrandStore): a brand
+    // that sells from its own store shows only those products, so a category
+    // only retailers carry for it is an empty page. Counting every seller put
+    // /brand/kaged/vitamins (bodybuilding.com only) in the sitemap as a page that
+    // answers 404 since empty pairs became real 404s (2026-11-16, Search Console).
     public async Task<IReadOnlyList<BrandCategoryPairDto>> GetBrandCategoryPairsAsync(
         CancellationToken cancellationToken = default)
     {
         var staleSince = DateTimeOffset.UtcNow.Subtract(StaleThreshold);
+        var brandsWithOwnStore = db.Products.Where(p => p.Seller == null).Select(p => p.BrandId);
 
         var rows = await (
             from p in db.Products
@@ -700,6 +707,7 @@ public partial class DealsQueryService(
             where b.IsActive
                   && p.Category != null
                   && p.PriceHistories.OrderByDescending(ph => ph.ScrapedAt).Select(ph => ph.ScrapedAt).FirstOrDefault() >= staleSince
+                  && (p.Seller == null || !brandsWithOwnStore.Contains(p.BrandId))
             group p by new { BrandName = b.Name, Category = p.Category! } into g
             select new BrandCategoryPairDto(g.Key.BrandName, g.Key.Category, g.Count()))
             .AsNoTracking()

@@ -236,6 +236,34 @@ public class DealsListDatabaseTests(DealsListDatabase data) : IClassFixture<Deal
         Assert.Equal(Sorts.Length * Sellers.Length * Searches.Length * 2, tried);
     }
 
+    // Brand x category pairs feed the sitemap and the brand page's category links, so each pair must be
+    // a page that lists exactly that many products. The brand page prefers the brand's own store; the pairs
+    // counted every seller, and /brand/kaged/vitamins (bodybuilding.com only) went to the sitemap as an
+    // empty page that answers 404 (2026-11-16, Search Console).
+    [DatabaseFact]
+    public async Task Every_brand_category_pair_counts_what_its_brand_page_lists()
+    {
+        await using var db = data.Context();
+        var service = Service(db);
+
+        var pairs = await service.GetBrandCategoryPairsAsync();
+
+        Assert.NotEmpty(pairs);
+        foreach (var pair in pairs)
+        {
+            var page = await service.GetDealsAsync(
+                PriceSummaryRefresher.WindowDays, [pair.BrandName], [pair.Category], null, null, null, null,
+                false, false, null, 1, 1, preferBrandStore: true);
+            Assert.True(page.TotalCount == pair.ProductCount,
+                $"{pair.BrandName}/{pair.Category}: pair {pair.ProductCount}, brand page {page.TotalCount}");
+        }
+
+        // Vivo Life sells from its own store, so its retailer magnesium is not on its brand page.
+        Assert.DoesNotContain(pairs, p => p.BrandName == "Vivo Life" && p.Category == "vitamins");
+        // Optimum Nutrition has no store of its own: its retailer products are its brand page.
+        Assert.Contains(pairs, p => p.BrandName == "Optimum Nutrition" && p.Category == "protein-powder" && p.ProductCount == 8);
+    }
+
     [DatabaseFact]
     public async Task Unfiltered_list_hides_stale_inactive_and_hidden_brand()
     {
