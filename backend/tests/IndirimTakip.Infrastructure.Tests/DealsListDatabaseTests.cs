@@ -159,6 +159,13 @@ public sealed class DealsListDatabase : IAsyncLifetime
         foreach (var p in afterGap.PriceHistories.Take(30))
             p.ScrapedAt = p.ScrapedAt.AddDays(-5);
 
+        // An own store that stopped updating (Kaged, 2026-11-17): its own product is stale (below), a retailer's
+        // are fresh. Its own brand and category so other tests' counts aren't affected.
+        var staleStore = new Brand { Name = "Stale Store", BaseUrl = "https://stalestore.example" };
+        db.Brands.Add(staleStore);
+        Add(staleStore, "Stale Store Electrolyte A", "electrolytes", "bodybuilding.com", 40m);
+        Add(staleStore, "Stale Store Electrolyte B", "electrolytes", "bodybuilding.com", 45m);
+
         VisibleProducts = n;
         // wheys, D3, Gold Standards, magnesium, short gap drop; the four low-brand products
         DiscountedProducts = 8 + 1 + 8 + 1 + 1 + 4;
@@ -170,6 +177,9 @@ public sealed class DealsListDatabase : IAsyncLifetime
         var inactive = Add(naked, "Inactive Product", "protein-powder", null, 99m);
         inactive.IsActive = false;
         Add(hiddenBrand, "Hidden Brand Product", "protein-powder", null, 99m);
+        var staleOwn = Add(staleStore, "Stale Store Own Electrolyte", "electrolytes", null, 50m);
+        foreach (var p in staleOwn.PriceHistories)
+            p.ScrapedAt = now.AddDays(-30);
 
         await db.SaveChangesAsync();
     }
@@ -262,6 +272,21 @@ public class DealsListDatabaseTests(DealsListDatabase data) : IClassFixture<Deal
         Assert.DoesNotContain(pairs, p => p.BrandName == "Vivo Life" && p.Category == "vitamins");
         // Optimum Nutrition has no store of its own: its retailer products are its brand page.
         Assert.Contains(pairs, p => p.BrandName == "Optimum Nutrition" && p.Category == "protein-powder" && p.ProductCount == 8);
+    }
+
+    // Kaged (2026-11-17): its own store stopped updating on 13 Oct, but its stale products still counted as "its
+    // own store", so the brand page hid the retailer products and listed nothing. Only fresh own products count.
+    [DatabaseFact]
+    public async Task A_brand_whose_own_store_went_stale_lists_its_retailer_products()
+    {
+        await using var db = data.Context();
+
+        var page = await Service(db).GetDealsAsync(
+            PriceSummaryRefresher.WindowDays, ["Stale Store"], null, null, null, null, null,
+            false, false, null, 1, 10, preferBrandStore: true);
+
+        Assert.Equal(2, page.TotalCount);
+        Assert.All(page.Items, d => Assert.Equal("bodybuilding.com", d.Seller));
     }
 
     [DatabaseFact]

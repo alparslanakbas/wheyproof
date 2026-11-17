@@ -100,11 +100,11 @@ public partial class DealsQueryService(
         CancellationToken cancellationToken = default,
         // For brand PAGES: prefer the brand's own store.
         //
-        // The rule: if a brand HAS products from its own store, the brand page
-        // shows only those, so a retailer's copy doesn't sit next to it and list
-        // the product twice. If the brand has NO direct products the filter isn't
-        // applied, otherwise the pages of brands that come only from retailers
-        // would be empty.
+        // The rule: if a brand HAS fresh products from its own store, the brand
+        // page shows only those, so a retailer's copy doesn't sit next to it and
+        // list the product twice. Otherwise the filter isn't applied, or the pages
+        // of retailer-only brands, and of a brand whose own store went stale
+        // (Kaged, 2026-11-17), would be empty.
         //
         // Only the brand page sends it; the home page's brand filter does NOT use
         // it, since there the brand and seller filters must work independently.
@@ -181,7 +181,7 @@ public partial class DealsQueryService(
             var targetBrand = brands[0];
             var hasOwnProducts = await db.Products
                 .AsNoTracking()
-                .AnyAsync(p => p.Seller == null && p.Brand!.Name == targetBrand, cancellationToken);
+                .AnyAsync(p => p.Seller == null && p.Brand!.Name == targetBrand && p.LatestScrapedAt >= staleSince, cancellationToken);
 
             if (hasOwnProducts)
                 query = query.Where(r => r.Product.Seller == null);
@@ -689,13 +689,13 @@ public partial class DealsQueryService(
     // an empty combination (a category the brand doesn't sell) is exactly what
     // Google treats as thin content and doesn't index; the sitemap and internal
     // links are built from this list. Counted the way the brand page lists them (preferBrandStore):
-    // a retailer-only category of a brand with its own store is an empty page; counting every
+    // a retailer-only category of a brand with a fresh own store is an empty page; counting every
     // seller sent /brand/kaged/vitamins to the sitemap as a 404 (2026-11-16).
     public async Task<IReadOnlyList<BrandCategoryPairDto>> GetBrandCategoryPairsAsync(
         CancellationToken cancellationToken = default)
     {
         var staleSince = DateTimeOffset.UtcNow.Subtract(StaleThreshold);
-        var brandsWithOwnStore = db.Products.Where(p => p.Seller == null).Select(p => p.BrandId);
+        var brandsWithOwnStore = db.Products.Where(p => p.Seller == null && p.LatestScrapedAt >= staleSince).Select(p => p.BrandId);
 
         var rows = await (
             from p in db.Products
