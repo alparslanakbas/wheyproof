@@ -2,7 +2,9 @@ import { DOCUMENT } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { catchError, forkJoin, of } from 'rxjs';
 
+import { comparableBrandSlugs } from '../core/brand-comparison-index';
 import { BrandComparison } from '../core/brand-comparison.model';
 import { BrandComparisonService } from '../core/brand-comparison.service';
 import { brandSlug, resolveBrandFromSlug } from '../core/brand-slug';
@@ -56,22 +58,26 @@ export class BrandComparisonPage implements OnInit {
 
     // The URL part is a slug ("optimum-nutrition"); the API expects the real
     // brand name. It's matched against the brand list; if nothing matches the
-    // part is sent as is.
-    this.dealsService.getFilterOptions().subscribe({
-      next: (filters) => {
-        const brand1 = resolveBrandFromSlug(parts[0], filters.brands) ?? parts[0];
-        const brand2 = resolveBrandFromSlug(parts[1], filters.brands) ?? parts[1];
-        this.compareBrands(brand1, brand2);
-      },
-      error: () => this.compareBrands(parts[0], parts[1]),
+    // part is sent as is. The brand x category pairs decide whether the page
+    // is indexable (core/brand-comparison-index.ts); if they can't be loaded
+    // it stays indexable, as every pair was before that rule.
+    forkJoin({
+      filters: this.dealsService.getFilterOptions().pipe(catchError(() => of(null))),
+      pairs: this.dealsService.getBrandCategoryPairs().pipe(catchError(() => of(null))),
+    }).subscribe(({ filters, pairs }) => {
+      const brand1 = (filters && resolveBrandFromSlug(parts[0], filters.brands)) ?? parts[0];
+      const brand2 = (filters && resolveBrandFromSlug(parts[1], filters.brands)) ?? parts[1];
+      const comparable = pairs && comparableBrandSlugs(pairs);
+      const indexable = !comparable || (comparable.has(brandSlug(brand1)) && comparable.has(brandSlug(brand2)));
+      this.compareBrands(brand1, brand2, indexable);
     });
   }
 
-  private compareBrands(brand1: string, brand2: string): void {
+  private compareBrands(brand1: string, brand2: string, indexable: boolean): void {
     this.comparisonService.compare(brand1, brand2).subscribe({
       next: (result) => {
         this.comparison.set(result);
-        this.setMeta(result);
+        this.setMeta(result, indexable);
         this.loading.set(false);
       },
       // A 404 is kept apart from a TEMPORARY error: telling search engines
@@ -88,7 +94,7 @@ export class BrandComparisonPage implements OnInit {
     });
   }
 
-  private setMeta(comparison: BrandComparison): void {
+  private setMeta(comparison: BrandComparison, indexable: boolean): void {
     const title = `${comparison.brand1} vs ${comparison.brand2} Price Comparison | ${SITE_NAME}`;
     const description = `Compare current average prices of ${comparison.brand1} and ${comparison.brand2} by category, based on real price data.`;
 
@@ -96,6 +102,7 @@ export class BrandComparisonPage implements OnInit {
       title,
       description,
       canonicalPath: `/compare/${this.pairSlug()}`,
+      noIndex: !indexable,
     });
 
     // The best-CTR page type on ProteinAvcisi carried no page-specific structured data (SEO audit,

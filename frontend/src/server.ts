@@ -8,6 +8,7 @@ import express from 'express';
 import { join } from 'node:path';
 
 import { brandSlug } from './app/core/brand-slug';
+import { comparableBrandSlugs } from './app/core/brand-comparison-index';
 import { API_BASE_URL } from './app/core/api.config';
 import {
   CONNECTION_RETRY,
@@ -135,12 +136,6 @@ interface BrandCategoryPair {
 // crawling.
 const MIN_PRODUCTS_FOR_SITEMAP = 3;
 
-/** Minimum total products for a brand's comparison pages: a category
- *  average needs enough products to mean anything. A small brand's
- *  "average" often rests on a single product. The pages keep working;
- *  they just aren't offered for crawling. */
-const MIN_PRODUCTS_FOR_COMPARISON = 40;
-
 // The sitemap grows with the catalog, so it can't be a static file: the raw
 // data comes from the backend (/api/products/sitemap) and becomes XML here.
 //
@@ -257,20 +252,13 @@ async function sitemapParts(origin: string): Promise<Record<SitemapPart, Sitemap
   // Brand comparison pages: every brand pair, in alphabetical order (the
   // same canonical rule as brand-comparison-page.ts), one URL per pair.
   //
-  // Only brands with enough products: these pages compare AVERAGE prices
-  // per category, and a brand with a single product in a category would
-  // present that one price as the "brand average", a number that looks
-  // like a statistic but isn't.
-  const productCountByBrand = new Map<string, number>();
-  for (const pair of brandCategoryPairs) {
-    const key = brandSlug(pair.brandName);
-    productCountByBrand.set(key, (productCountByBrand.get(key) ?? 0) + pair.productCount);
-  }
-
+  // Only brands with enough products (core/brand-comparison-index.ts); the
+  // page itself says noindex for every other pair, by the same function.
+  const comparable = comparableBrandSlugs(brandCategoryPairs);
   const comparisonPairs: string[] = [];
   const sortedBrands = [...filters.brands]
     .map((b) => brandSlug(b))
-    .filter((b) => (productCountByBrand.get(b) ?? 0) >= MIN_PRODUCTS_FOR_COMPARISON)
+    .filter((b) => comparable.has(b))
     .sort();
   for (let i = 0; i < sortedBrands.length; i++) {
     for (let j = i + 1; j < sortedBrands.length; j++) {
