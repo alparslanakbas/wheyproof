@@ -354,12 +354,20 @@ export class ProductReviewPage implements OnInit {
       historyDays,
     });
 
+    // noindex since 24 Nov 2026. Every product has one of these, written from its
+    // price data and the store's description: not a review anyone tested, and a
+    // second generated page per product. The site's impressions fell to almost
+    // none on 25 Oct after Google read thousands of generated pair pages, and
+    // its sister site fell the same way on 12 Nov after its translated product
+    // pages; these pages get no impressions now, so keeping them out of the
+    // index costs nothing. Visitors keep the page; links stay followed.
     this.pageMeta.set({
       title,
       description,
       canonicalPath: `/review/${deal.productId}/${slug}`,
       ogType: 'article',
       ogImage: deal.imageUrl ?? undefined,
+      noIndex: true,
     });
 
     const origin = canonicalOrigin(this.document);

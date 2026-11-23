@@ -148,6 +148,15 @@ const MIN_PRODUCTS_FOR_SITEMAP = 3;
 const SITEMAP_PARTS = ['products', 'reviews', 'brands', 'brand-categories', 'categories', 'comparisons', 'guides', 'pages'] as const;
 type SitemapPart = (typeof SITEMAP_PARTS)[number];
 
+// Parts still served at their address but left out of the index. The review
+// pages say noindex since 24 Nov 2026 (see product-review-page.ts): Google
+// drops one only after crawling it again, and since the 25 Oct drop it crawls
+// the site far less. It already knows /sitemap-reviews.xml, so the part keeps
+// answering, with every page dated the day it turned noindex, to ask for that
+// crawl sooner. Remove it (and this list) once the reviews have left the index.
+const UNLISTED_PARTS: readonly SitemapPart[] = ['reviews'];
+const REVIEWS_NOINDEX_SINCE = '2026-11-24T00:00:00.000Z';
+
 interface SitemapPartContent {
   urls: string;
   // The index's <lastmod>: the newest content change in the part; absent when unknown.
@@ -189,7 +198,7 @@ async function sitemapParts(origin: string): Promise<Record<SitemapPart, Sitemap
     .filter((p) => p.hasReviewContent)
     .map(
       (p) =>
-        `<url><loc>${origin}/review/${p.id}/${slugify(p.name)}</loc><lastmod>${new Date(p.lastModifiedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>`,
+        `<url><loc>${origin}/review/${p.id}/${slugify(p.name)}</loc><lastmod>${REVIEWS_NOINDEX_SINCE}</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>`,
     )
     .join('');
 
@@ -298,7 +307,7 @@ const SITEMAP_NS = `xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"`;
 app.get(`${BASE_PATH}/sitemap.xml`, async (req, res) => {
   try {
     const parts = await sitemapParts(EDITION_ORIGIN);
-    const entries = SITEMAP_PARTS.filter((name) => parts[name].urls.length > 0)
+    const entries = SITEMAP_PARTS.filter((name) => !UNLISTED_PARTS.includes(name) && parts[name].urls.length > 0)
       .map((name) => {
         const lastmod = parts[name].lastmod;
         const date = lastmod !== null ? `<lastmod>${new Date(lastmod).toISOString()}</lastmod>` : '';
