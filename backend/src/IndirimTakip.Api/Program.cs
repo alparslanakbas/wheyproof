@@ -60,14 +60,16 @@ builder.Services.AddRateLimiter(options =>
     // Endpoints that send real email (/api/subscribe, product watch, watchlist
     // recovery). Without a limit a bot can make us mail the same address
     // dozens of times a minute and get it blocklisted by the email provider.
-    // 10 per 5 minutes per IP leaves room for normal use (a few watchlist
-    // adds plus a recovery attempt); the per-address cooldown in
-    // SubscriberService/FavoriteService is a separate layer on top.
+    // 50 per 5 minutes per IP (10 until 23 Nov 2026). The watchlist and alert
+    // buttons count here too, a favorite and an alert per product: on 18 Nov a
+    // real visitor saving products hit 429 at the 11th request and came back 17
+    // minutes later. The per-address cooldown in SubscriberService/
+    // FavoriteService still keeps any one inbox from being flooded.
     options.AddPolicy("EmailSensitive", httpContext => RateLimitPartition.GetFixedWindowLimiter(
         partitionKey: RequestLoggingExtensions.GetClientIp(httpContext),
         factory: _ => new FixedWindowRateLimiterOptions
         {
-            PermitLimit = 10,
+            PermitLimit = 50,
             Window = TimeSpan.FromMinutes(5),
             QueueLimit = 0,
         }));
