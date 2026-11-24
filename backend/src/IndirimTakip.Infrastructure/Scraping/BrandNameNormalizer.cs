@@ -153,6 +153,16 @@ public static class BrandNameNormalizer
         ["Hi-Tech Pharmaceuticals"] = "Hi-Tech Pharma",
         ["Grenade USA"] = "Grenade",
         ["David"] = "David Bar",
+
+        // US: A1 Supplements' brand labels (2026-11-24) for brands new to the catalog
+        // that the store writes in several ways. NOW's own site spells it "NOW Foods"
+        // ("NOW Sports" is its sports line); the products read "Now L-Glutamine",
+        // "Now CLA". "Rich Piana 5% Nutrition" sells "5% Nutrition Kill It", the brand
+        // site's spelling.
+        ["Now"] = "NOW Foods",
+        ["Now Sports"] = "NOW Foods",
+        ["Now Solutions"] = "NOW Foods",
+        ["Rich Piana 5% Nutrition"] = "5% Nutrition",
         };
 
     /// <summary>

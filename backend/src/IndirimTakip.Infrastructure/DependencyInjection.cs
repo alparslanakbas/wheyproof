@@ -172,6 +172,31 @@ public static class DependencyInjection
                 sp.GetRequiredService<ILogger<Scraping.PrestaShop.PrestaShopStoreScraper>>()));
         }
 
+        // BigCommerce stores (A1 Supplements in the US section): one page per product from
+        // the store's product sitemap, read once a day (see BigCommerceStoreScraper). The
+        // public-network handler with compression on: a page is about 220 kB unpacked.
+        // Redirects stay on, the sitemap may list the bare host of a www store.
+        services.AddHttpClient(Scraping.BigCommerce.BigCommerceStoreScraper.HttpClientName, client =>
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(botUserAgent);
+            client.Timeout = TimeSpan.FromSeconds(60);
+        }).ConfigurePrimaryHttpMessageHandler(() =>
+        {
+            var handler = PublicNetworkConnection.CreateHandler();
+            handler.AutomaticDecompression = System.Net.DecompressionMethods.All;
+            return handler;
+        })
+            .AddHttpMessageHandler(sp => new RobotsTxtHandler(sp.GetRequiredService<RobotsTxtCache>(),
+                sp.GetRequiredService<ILogger<RobotsTxtHandler>>()))
+            .AddHttpMessageHandler(sp => new WebBotAuthHandler(sp.GetRequiredService<WebBotAuth>()));
+        foreach (var store in Scraping.BigCommerce.BigCommerceStores.ForMarket(market))
+        {
+            services.AddScoped<IBrandScraper>(sp => new Scraping.BigCommerce.BigCommerceStoreScraper(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient(Scraping.BigCommerce.BigCommerceStoreScraper.HttpClientName),
+                store,
+                sp.GetRequiredService<ILogger<Scraping.BigCommerce.BigCommerceStoreScraper>>()));
+        }
+
         // Myprotein (UK only): THG's own platform, one page per product, read once a
         // day (see MyproteinScraper). Still the public-network handler, with
         // compression on: a page is about 1 MB unpacked and 120 kB packed. Redirects
