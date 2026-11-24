@@ -16,7 +16,7 @@ namespace IndirimTakip.Infrastructure.Tests;
 public class BigCommerceStoreScraperTests
 {
     private static readonly BigCommerceStore A1 =
-        new("A1 Supplements", "https://www.a1supplements.com", OnlyCategories: ShopifyStores.SportCategories,
+        new("A1 Supplements", "https://a1supplements.com", OnlyCategories: ShopifyStores.SportCategories,
             OwnLabelPrefixes: ["A1 "]);
 
     private const string Seller = "a1supplements.com";
@@ -190,14 +190,17 @@ public class BigCommerceStoreScraperTests
         Assert.Null(BigCommerceStoreScraper.SingleSize(["Animal Pak, Juiced Aminos, Animal Greens"]));
     }
 
+    /// <summary>
+    /// The page after the last one answers 404 (measured on the live store; the first
+    /// deployed run failed on it). The stub answers 404 for every address it doesn't know.
+    /// </summary>
     [Fact]
-    public async Task The_sitemap_is_read_then_each_product_page()
+    public async Task The_sitemap_is_read_until_its_404_then_each_product_page()
     {
         var handler = new StubHandler(new()
         {
-            ["https://www.a1supplements.com/xmlsitemap.php?type=products&page=1"] =
+            ["https://a1supplements.com/xmlsitemap.php?type=products&page=1"] =
                 "<urlset><url><loc>https://a1supplements.com/a</loc></url><url><loc>https://a1supplements.com/b</loc></url></urlset>",
-            ["https://www.a1supplements.com/xmlsitemap.php?type=products&page=2"] = "<urlset></urlset>",
             ["https://a1supplements.com/a"] = Page("Kaged Muscle BCAA 2:1:1", "Kaged Muscle", 19.99m, slug: "a"),
             ["https://a1supplements.com/b"] = Page("Now Super Enzymes", "Now", 19.19m, slug: "b"),
         });
@@ -209,12 +212,21 @@ public class BigCommerceStoreScraperTests
         Assert.Equal("https://a1supplements.com/a", Assert.Single(products).Url);
         Assert.Equal(
             [
-                "https://www.a1supplements.com/xmlsitemap.php?type=products&page=1",
-                "https://www.a1supplements.com/xmlsitemap.php?type=products&page=2",
+                "https://a1supplements.com/xmlsitemap.php?type=products&page=1",
+                "https://a1supplements.com/xmlsitemap.php?type=products&page=2",
                 "https://a1supplements.com/a",
                 "https://a1supplements.com/b",
             ],
             handler.Requested);
+    }
+
+    [Fact]
+    public async Task A_missing_first_sitemap_page_fails()
+    {
+        var scraper = new BigCommerceStoreScraper(new HttpClient(new StubHandler([])), A1,
+            NullLogger<BigCommerceStoreScraper>.Instance, TimeSpan.Zero);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => scraper.ScrapeAsync());
     }
 
     /// <summary>Pounds shown as dollars would look plausible and be wrong.</summary>
@@ -223,9 +235,8 @@ public class BigCommerceStoreScraperTests
     {
         var handler = new StubHandler(new()
         {
-            ["https://www.a1supplements.com/xmlsitemap.php?type=products&page=1"] =
+            ["https://a1supplements.com/xmlsitemap.php?type=products&page=1"] =
                 "<urlset><url><loc>https://a1supplements.com/a</loc></url></urlset>",
-            ["https://www.a1supplements.com/xmlsitemap.php?type=products&page=2"] = "<urlset></urlset>",
             ["https://a1supplements.com/a"] = Page("Kaged Muscle BCAA 2:1:1", "Kaged Muscle", 15.99m, currency: "GBP", slug: "a"),
         });
         var scraper = new BigCommerceStoreScraper(new HttpClient(handler), A1,

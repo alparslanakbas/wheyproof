@@ -45,8 +45,9 @@ public static class BigCommerceStores
         // so only the sport categories are kept, for the BulkSupplements reason:
         // nothing else in our catalog compares against them. A full dry run on
         // 2026-11-24 kept 35 records; 173 pages fell outside the sport categories, 18
-        // had a price range, 11 were accessories.
-        new("A1 Supplements", "https://www.a1supplements.com", OnlyCategories: ShopifyStores.SportCategories,
+        // had a price range, 11 were accessories. The bare host is the store's own:
+        // www answers 301 to it, and the sitemap lists bare addresses.
+        new("A1 Supplements", "https://a1supplements.com", OnlyCategories: ShopifyStores.SportCategories,
             OwnLabelPrefixes: ["A1 "]),
     ];
 
@@ -164,7 +165,17 @@ public sealed partial class BigCommerceStoreScraper(
 
         for (var page = 1; page <= MaxSitemapPages; page++)
         {
-            var xml = await httpClient.GetStringAsync($"{store.BaseUrl}/xmlsitemap.php?type=products&page={page}", cancellationToken);
+            using var response = await httpClient.GetAsync(
+                $"{store.BaseUrl}/xmlsitemap.php?type=products&page={page}", cancellationToken);
+
+            // The page after the last one is a 404, not an empty list (measured on
+            // 2026-11-24: 245 products, page 2 answered 404 and failed the first run).
+            // A 404 on the first page is a real failure.
+            if (response.StatusCode == HttpStatusCode.NotFound && page > 1)
+                break;
+
+            response.EnsureSuccessStatusCode();
+            var xml = await response.Content.ReadAsStringAsync(cancellationToken);
             var added = 0;
             foreach (Match match in SitemapLocRegex().Matches(xml))
             {
